@@ -1,3 +1,4 @@
+// pos_api/src/modules/auth/auth.validation.ts
 import { z } from 'zod';
 
 export const loginSchema = z.object({

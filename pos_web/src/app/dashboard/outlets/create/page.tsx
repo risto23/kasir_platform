@@ -1,6 +1,7 @@
+// pos_web/src/app/dashboard/outlets/create/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -12,12 +13,12 @@ import {
   faPhone,
   faShop,
   faStore,
+  faWandMagicSparkles,
 } from '@fortawesome/free-solid-svg-icons';
 
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Business } from '@/types/business';
 
 function getMessage(error: unknown, fallback: string) {
   if (axios.isAxiosError(error)) {
@@ -32,41 +33,14 @@ function getMessage(error: unknown, fallback: string) {
 }
 
 export default function CreateOutletPage() {
-  const [businesses, setBusinesses] = useState<Business[]>([]);
   const [form, setForm] = useState({
-    businessId: '',
     name: '',
-    code: '',
     address: '',
     phone: '',
   });
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
-  const [loadingBusinesses, setLoadingBusinesses] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    async function fetchBusinesses() {
-      try {
-        setLoadingBusinesses(true);
-
-        const response = await api.get('/platform/businesses');
-        const data = response.data.data || [];
-        setBusinesses(data);
-
-        if (data.length > 0) {
-          setForm((prev) => ({ ...prev, businessId: data[0].id }));
-        }
-      } catch (error: unknown) {
-        setMessage(getMessage(error, 'Gagal memuat business'));
-        setMessageType('error');
-      } finally {
-        setLoadingBusinesses(false);
-      }
-    }
-
-    void fetchBusinesses();
-  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -76,22 +50,24 @@ export default function CreateOutletPage() {
     try {
       setSaving(true);
 
-      await api.post('/platform/outlets', {
-        ...form,
-        address: form.address || null,
-        phone: form.phone || null,
-      });
+     
+    await api.post(
+      '/business/outlets',
+      {
+        name: form.name.trim(),
+        address: form.address.trim() || null,
+        phone: form.phone.trim() || null,
+      }
+    );
 
       setMessage('Outlet berhasil dibuat');
       setMessageType('success');
 
-      setForm((prev) => ({
-        ...prev,
+      setForm({
         name: '',
-        code: '',
         address: '',
         phone: '',
-      }));
+      });
     } catch (error: unknown) {
       setMessage(getMessage(error, 'Gagal membuat outlet'));
       setMessageType('error');
@@ -113,7 +89,8 @@ export default function CreateOutletPage() {
             Tambah Outlet
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Tambahkan outlet baru ke business yang sudah tersedia.
+            Tambahkan outlet baru ke business aktif. Kode outlet dibuat otomatis
+            oleh sistem.
           </p>
         </div>
 
@@ -144,37 +121,6 @@ export default function CreateOutletPage() {
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700">
-                  Business
-                </label>
-                <select
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-70"
-                  value={form.businessId}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, businessId: e.target.value }))
-                  }
-                  disabled={loadingBusinesses || businesses.length === 0}
-                >
-                  {businesses.length === 0 ? (
-                    <option value="">
-                      {loadingBusinesses
-                        ? 'Loading business...'
-                        : 'Belum ada business tersedia'}
-                    </option>
-                  ) : (
-                    businesses.map((business) => (
-                      <option key={business.id} value={business.id}>
-                        {business.name} - {business.businessType}
-                      </option>
-                    ))
-                  )}
-                </select>
-                <p className="text-xs text-slate-400">
-                  Outlet akan selalu mengikuti business induknya.
-                </p>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700">
                   Outlet Name
                 </label>
                 <Input
@@ -183,20 +129,6 @@ export default function CreateOutletPage() {
                     setForm((prev) => ({ ...prev, name: e.target.value }))
                   }
                   placeholder="Contoh: Outlet Serpong"
-                  className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">
-                  Code
-                </label>
-                <Input
-                  value={form.code}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, code: e.target.value }))
-                  }
-                  placeholder="Contoh: OTL-SERPONG-01"
                   className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
                 />
               </div>
@@ -228,7 +160,7 @@ export default function CreateOutletPage() {
                   className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
                 />
                 <p className="text-xs text-slate-400">
-                  Address dan phone masih bersifat opsional di fase 1.
+                  Address dan phone tetap opsional.
                 </p>
               </div>
             </div>
@@ -243,7 +175,7 @@ export default function CreateOutletPage() {
 
               <Button
                 type="submit"
-                disabled={saving || businesses.length === 0}
+                disabled={saving}
                 className="h-11 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 <span className="inline-flex items-center gap-2">
@@ -266,8 +198,8 @@ export default function CreateOutletPage() {
             </h2>
 
             <div className="mt-4 space-y-3 text-sm text-slate-500">
-              <p>Pilih business yang tepat sebelum membuat outlet.</p>
-              <p>Gunakan code outlet yang konsisten dan mudah dikenali.</p>
+              <p>Outlet otomatis dibuat pada business aktif user.</p>
+              <p>Kode outlet tidak perlu diisi manual.</p>
               <p>Isi alamat dan phone bila memang sudah tersedia.</p>
             </div>
           </div>
@@ -275,27 +207,22 @@ export default function CreateOutletPage() {
           <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700">
-                <FontAwesomeIcon icon={faShop} className="h-4 w-4" />
+                <FontAwesomeIcon icon={faWandMagicSparkles} className="h-4 w-4" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Aturan Outlet
+                  Kode Otomatis
                 </p>
-                <p className="text-xs text-slate-500">
-                  Tetap sesuai fase 1
-                </p>
+                <p className="text-xs text-slate-500">Digenerate sistem</p>
               </div>
             </div>
 
             <div className="mt-4 space-y-2">
               <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Satu outlet berada di bawah satu business.
+                Kode outlet akan dibuat otomatis oleh backend saat outlet dibuat.
               </div>
               <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Outlet mengikuti business type dari business induknya.
-              </div>
-              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Status outlet dikelola terpisah dengan ACTIVE / INACTIVE.
+                Ini membantu menjaga format kode tetap seragam.
               </div>
             </div>
           </div>
@@ -322,6 +249,30 @@ export default function CreateOutletPage() {
               <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 Address dapat diisi bertahap sesuai kebutuhan outlet.
               </div>
+              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Semua validasi utama tetap diproses di backend.
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <FontAwesomeIcon icon={faLocationDot} className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  Scope Halaman
+                </p>
+                <p className="text-xs text-slate-500">
+                  Tidak lagi platform-wide
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Halaman ini sudah fokus ke outlet milik business aktif, bukan list
+              seluruh outlet platform.
             </div>
           </div>
         </aside>

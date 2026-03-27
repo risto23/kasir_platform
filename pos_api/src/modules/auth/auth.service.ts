@@ -1,74 +1,18 @@
-import { BusinessRoleCode, PlatformRoleCode } from '@prisma/client';
+import { PlatformRoleCode } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { comparePassword } from '../../utils/password';
 import { signAccessToken } from '../../utils/jwt';
+import {
+  AuthLoginResponse,
+  AuthUserResponse,
+} from './auth.types';
+import {
+  buildAccessProfile,
+  mapBusinessMemberships,
+} from './auth.mapper';
 
-type UserAccessProfile = {
-  isSuperAdmin: boolean;
-  isBusinessUser: boolean;
-  accessScope: 'PLATFORM' | 'BUSINESS' | 'HYBRID' | 'NONE';
-  defaultBusinessMembership: {
-    businessId: string;
-    businessName: string;
-    businessType: 'RESTAURANT' | 'RETAIL';
-    role: BusinessRoleCode;
-    isPrimary: boolean;
-  } | null;
-};
-
-function buildAccessProfile(user: {
-  platformRoles: Array<{
-    platformRole: {
-      code: PlatformRoleCode;
-    };
-  }>;
-  businessUsers: Array<{
-    isPrimary: boolean;
-    business: {
-      id: string;
-      name: string;
-      businessType: 'RESTAURANT' | 'RETAIL';
-    };
-    businessRole: {
-      code: BusinessRoleCode;
-    };
-  }>;
-}): UserAccessProfile {
-  const platformRoleCodes = user.platformRoles.map((item) => item.platformRole.code);
-  const isSuperAdmin = platformRoleCodes.includes(PlatformRoleCode.SUPER_ADMIN);
-  const isBusinessUser = user.businessUsers.length > 0;
-
-  let accessScope: UserAccessProfile['accessScope'] = 'NONE';
-
-  if (isSuperAdmin && isBusinessUser) {
-    accessScope = 'HYBRID';
-  } else if (isSuperAdmin) {
-    accessScope = 'PLATFORM';
-  } else if (isBusinessUser) {
-    accessScope = 'BUSINESS';
-  }
-
-  const primaryMembership =
-    user.businessUsers.find((item) => item.isPrimary) ?? user.businessUsers[0];
-
-  return {
-    isSuperAdmin,
-    isBusinessUser,
-    accessScope,
-    defaultBusinessMembership: primaryMembership
-      ? {
-          businessId: primaryMembership.business.id,
-          businessName: primaryMembership.business.name,
-          businessType: primaryMembership.business.businessType,
-          role: primaryMembership.businessRole.code,
-          isPrimary: primaryMembership.isPrimary,
-        }
-      : null,
-  };
-}
-
-export async function loginService(email: string, password: string) {
-  const user = await prisma.user.findUnique({
+async function findUserWithAuthAccessByEmail(email: string) {
+  return prisma.user.findUnique({
     where: { email },
     include: {
       platformRoles: {
@@ -78,8 +22,39 @@ export async function loginService(email: string, password: string) {
       },
       businessUsers: {
         include: {
-          business: true,
-          businessRole: true,
+          business: {
+            include: {
+              outlets: {
+                select: {
+                  id: true,
+                  status: true,
+                },
+              },
+            },
+          },
+          outletAccesses: {
+            include: {
+              outlet: {
+                select: {
+                  id: true,
+                  status: true,
+                },
+              },
+            },
+          },
+          businessRole: {
+            include: {
+              rolePermissions: {
+                include: {
+                  businessPermission: {
+                    select: {
+                      code: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
         orderBy: {
           createdAt: 'asc',
@@ -87,6 +62,86 @@ export async function loginService(email: string, password: string) {
       },
     },
   });
+}
+
+async function findUserWithAuthAccessById(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      platformRoles: {
+        include: {
+          platformRole: true,
+        },
+      },
+      businessUsers: {
+        include: {
+          business: {
+            include: {
+              outlets: {
+                select: {
+                  id: true,
+                  status: true,
+                },
+              },
+            },
+          },
+          outletAccesses: {
+            include: {
+              outlet: {
+                select: {
+                  id: true,
+                  status: true,
+                },
+              },
+            },
+          },
+          businessRole: {
+            include: {
+              rolePermissions: {
+                include: {
+                  businessPermission: {
+                    select: {
+                      code: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      },
+    },
+  });
+}
+
+function mapUserResponse(user: Awaited<ReturnType<typeof findUserWithAuthAccessById>>): AuthUserResponse {
+  if (!user) {
+    throw new Error('User tidak ditemukan');
+  }
+
+  const businessMemberships = mapBusinessMemberships(user);
+  const accessProfile = buildAccessProfile(user);
+
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    status: user.status,
+    lastLoginAt: user.lastLoginAt,
+    platformRoles: user.platformRoles.map((item) => item.platformRole.code),
+    businessMemberships,
+    accessProfile,
+  };
+}
+
+export async function loginService(
+  email: string,
+  password: string,
+): Promise<AuthLoginResponse> {
+  const user = await findUserWithAuthAccessByEmail(email);
 
   if (!user) {
     throw new Error('Email atau password salah');
@@ -114,44 +169,39 @@ export async function loginService(email: string, password: string) {
     },
   });
 
-  const accessProfile = buildAccessProfile(user);
+  const refreshedUser = await findUserWithAuthAccessById(user.id);
+
+  if (!refreshedUser) {
+    throw new Error('User tidak ditemukan');
+  }
 
   return {
     accessToken: token,
-    user: {
-      id: user.id,
-      fullName: user.fullName,
-      email: user.email,
-      status: user.status,
-      platformRoles: user.platformRoles.map((item) => item.platformRole.code),
-      businessMemberships: user.businessUsers.map((item) => ({
-        businessId: item.business.id,
-        businessName: item.business.name,
-        businessType: item.business.businessType,
-        role: item.businessRole.code,
-        isPrimary: item.isPrimary,
-      })),
-      accessProfile,
-    },
+    user: mapUserResponse(refreshedUser),
   };
 }
 
-export async function meService(userId: string) {
+export async function meService(userId: string): Promise<AuthUserResponse> {
+  const user = await findUserWithAuthAccessById(userId);
+
+  if (!user) {
+    throw new Error('User tidak ditemukan');
+  }
+
+  return mapUserResponse(user);
+}
+
+export async function getUserPlatformRoleCodes(userId: string): Promise<PlatformRoleCode[]> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: {
+    select: {
       platformRoles: {
         include: {
-          platformRole: true,
-        },
-      },
-      businessUsers: {
-        include: {
-          business: true,
-          businessRole: true,
-        },
-        orderBy: {
-          createdAt: 'asc',
+          platformRole: {
+            select: {
+              code: true,
+            },
+          },
         },
       },
     },
@@ -161,22 +211,5 @@ export async function meService(userId: string) {
     throw new Error('User tidak ditemukan');
   }
 
-  const accessProfile = buildAccessProfile(user);
-
-  return {
-    id: user.id,
-    fullName: user.fullName,
-    email: user.email,
-    status: user.status,
-    lastLoginAt: user.lastLoginAt,
-    platformRoles: user.platformRoles.map((item) => item.platformRole.code),
-    businessMemberships: user.businessUsers.map((item) => ({
-      businessId: item.business.id,
-      businessName: item.business.name,
-      businessType: item.business.businessType,
-      role: item.businessRole.code,
-      isPrimary: item.isPrimary,
-    })),
-    accessProfile,
-  };
+  return user.platformRoles.map((item) => item.platformRole.code);
 }

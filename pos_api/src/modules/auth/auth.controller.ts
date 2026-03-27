@@ -1,3 +1,4 @@
+// pos_api/src/modules/auth/auth.controller.ts
 import { Request, Response } from 'express';
 import { successResponse, errorResponse } from '../../utils/api-response';
 import { loginService, meService } from './auth.service';

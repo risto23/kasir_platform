@@ -1,3 +1,4 @@
+// pos_api/src/modules/auth/auth.routes.ts
 import { Router } from 'express';
 import { loginController, meController } from './auth.controller';
 import { validate } from '../../middlewares/validate.middleware';

@@ -1,3 +1,4 @@
+// pos_api/src/app.ts
 import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';

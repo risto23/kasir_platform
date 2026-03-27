@@ -1,4 +1,3 @@
-// pos_web/src/lib/api.ts
 import axios from 'axios';
 import { getAccessToken } from './storage';
 
@@ -7,10 +6,19 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? getAccessToken() : null;
+  if (typeof window !== 'undefined') {
+    const token = getAccessToken();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
+    const url = config.url ?? '';
+    const isBusinessEndpoint = url.startsWith('/business/');
 
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    if (isBusinessEndpoint && activeBusinessId) {
+      config.headers['x-business-id'] = activeBusinessId;
+    }
   }
 
   return config;

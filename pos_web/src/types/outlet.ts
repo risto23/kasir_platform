@@ -3,14 +3,22 @@ export type OutletStatus = 'ACTIVE' | 'INACTIVE';
 export type Outlet = {
   id: string;
   businessId: string;
-  name: string;
   code: string;
-  address?: string | null;
-  phone?: string | null;
+  name: string;
+  address: string | null;
+  phone: string | null;
   status: OutletStatus;
-  business?: {
-    id: string;
-    name: string;
-    businessType: 'RESTAURANT' | 'RETAIL';
+  totalAssignedUsers?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type OutletListResponse = {
+  items: Outlet[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
   };
 };

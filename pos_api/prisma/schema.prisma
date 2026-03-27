@@ -39,6 +39,29 @@ enum BusinessRoleCode {
   INVENTORY
 }
 
+enum BusinessUserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BusinessPermissionCode {
+  BUSINESS_ROLE_VIEW
+  BUSINESS_PERMISSION_VIEW
+
+  BUSINESS_USER_VIEW
+  BUSINESS_USER_CREATE
+  BUSINESS_USER_UPDATE
+  BUSINESS_USER_STATUS_UPDATE
+  BUSINESS_USER_ASSIGN_OUTLET
+
+  OUTLET_SCOPE_VIEW
+
+  OUTLET_VIEW
+  OUTLET_CREATE
+  OUTLET_UPDATE
+  OUTLET_STATUS_UPDATE
+}
+
 model User {
   id           String     @id @default(cuid())
   fullName     String
@@ -113,7 +136,8 @@ model Outlet {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business             Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessUserAccesses BusinessUserOutletAccess[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -128,28 +152,74 @@ model BusinessRole {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  businessUsers BusinessUser[]
+  businessUsers   BusinessUser[]
+  rolePermissions BusinessRolePermission[]
 
   @@map("business_roles")
 }
 
-model BusinessUser {
-  id             String   @id @default(cuid())
-  businessId     String
-  userId         String
-  businessRoleId String
-  isPrimary      Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+model BusinessPermission {
+  id          String                 @id @default(cuid())
+  code        BusinessPermissionCode @unique
+  name        String
+  description String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
-  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  businessRole BusinessRole @relation(fields: [businessRoleId], references: [id], onDelete: Restrict)
+  rolePermissions BusinessRolePermission[]
+
+  @@map("business_permissions")
+}
+
+model BusinessRolePermission {
+  id                   String   @id @default(cuid())
+  businessRoleId       String
+  businessPermissionId String
+  createdAt            DateTime @default(now())
+
+  businessRole       BusinessRole       @relation(fields: [businessRoleId], references: [id], onDelete: Cascade)
+  businessPermission BusinessPermission @relation(fields: [businessPermissionId], references: [id], onDelete: Cascade)
+
+  @@unique([businessRoleId, businessPermissionId])
+  @@index([businessPermissionId])
+  @@map("business_role_permissions")
+}
+
+model BusinessUser {
+  id                 String             @id @default(cuid())
+  businessId         String
+  userId             String
+  businessRoleId     String
+  status             BusinessUserStatus @default(ACTIVE)
+  isPrimary          Boolean            @default(false)
+  hasAllOutletAccess Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  business       Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessRole   BusinessRole               @relation(fields: [businessRoleId], references: [id], onDelete: Restrict)
+  outletAccesses BusinessUserOutletAccess[]
 
   @@unique([businessId, userId])
   @@index([userId])
   @@index([businessRoleId])
+  @@index([businessId, status])
   @@map("business_users")
+}
+
+model BusinessUserOutletAccess {
+  id             String   @id @default(cuid())
+  businessUserId String
+  outletId       String
+  createdAt      DateTime @default(now())
+
+  businessUser BusinessUser @relation(fields: [businessUserId], references: [id], onDelete: Cascade)
+  outlet       Outlet       @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([businessUserId, outletId])
+  @@index([outletId])
+  @@map("business_user_outlet_accesses")
 }
 
 model FeatureFlag {

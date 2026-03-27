@@ -1,3 +1,4 @@
+// pos_web/src/app/dashboard/outlets/[id]/edit/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -12,15 +13,17 @@ import {
   faCircleCheck,
   faFloppyDisk,
   faLocationDot,
+  faLock,
   faPenToSquare,
   faPhone,
-  faShop,
   faStore,
+  faUsers,
 } from '@fortawesome/free-solid-svg-icons';
 
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import type { Outlet, OutletStatus } from '@/types/outlet';
 
 type EditOutletForm = {
   name: string;
@@ -41,7 +44,7 @@ function getMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function getStatusBadgeClass(status: 'ACTIVE' | 'INACTIVE') {
+function getStatusBadgeClass(status: OutletStatus) {
   if (status === 'ACTIVE') {
     return 'border border-emerald-200 bg-emerald-50 text-emerald-700';
   }
@@ -59,9 +62,8 @@ export default function EditOutletPage() {
     address: '',
     phone: '',
   });
-  const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
-  const [businessName, setBusinessName] = useState('');
-  const [businessType, setBusinessType] = useState('');
+  const [detail, setDetail] = useState<Outlet | null>(null);
+  const [status, setStatus] = useState<OutletStatus>('ACTIVE');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -71,9 +73,14 @@ export default function EditOutletPage() {
   useEffect(() => {
     async function fetchDetail() {
       try {
-        const response = await api.get(`/platform/outlets/${params.id}`);
-        const item = response.data.data;
+        setLoading(true);
 
+       
+
+        const response = await api.get(`/business/outlets/${params.id}`);
+        const item: Outlet = response.data.data;
+
+        setDetail(item);
         setForm({
           name: item.name ?? '',
           code: item.code ?? '',
@@ -81,8 +88,6 @@ export default function EditOutletPage() {
           phone: item.phone ?? '',
         });
         setStatus(item.status);
-        setBusinessName(item.business?.name ?? '');
-        setBusinessType(item.business?.businessType ?? '');
       } catch (error: unknown) {
         setMessage(getMessage(error, 'Gagal memuat outlet'));
         setMessageType('error');
@@ -102,10 +107,27 @@ export default function EditOutletPage() {
     try {
       setSaving(true);
 
-      await api.put(`/platform/outlets/${params.id}`, {
-        ...form,
-        address: form.address || null,
-        phone: form.phone || null,
+     
+
+      const response = await api.put(
+        `/business/outlets/${params.id}`,
+        {
+          name: form.name.trim(),
+          address: form.address.trim() || null,
+          phone: form.phone.trim() || null,
+          status,
+        }
+      );
+
+      const updated: Outlet = response.data.data;
+
+      setDetail(updated);
+      setStatus(updated.status);
+      setForm({
+        name: updated.name ?? '',
+        code: updated.code ?? '',
+        address: updated.address ?? '',
+        phone: updated.phone ?? '',
       });
 
       setMessage('Outlet berhasil diperbarui');
@@ -119,18 +141,27 @@ export default function EditOutletPage() {
   }
 
   async function handleToggleStatus() {
-    const newStatus = status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const newStatus: OutletStatus =
+      status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
 
     try {
       setStatusLoading(true);
       setMessage('');
       setMessageType('');
 
-      await api.patch(`/platform/outlets/${params.id}/status`, {
-        status: newStatus,
-      });
+     
 
-      setStatus(newStatus);
+      const response = await api.patch(
+        `/business/outlets/${params.id}/status`,
+        {
+          status: newStatus,
+        }
+      );
+
+      const updated: Outlet = response.data.data;
+
+      setDetail(updated);
+      setStatus(updated.status);
       setMessage('Status outlet berhasil diperbarui');
       setMessageType('success');
     } catch (error: unknown) {
@@ -168,8 +199,8 @@ export default function EditOutletPage() {
             Edit Outlet
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Perbarui informasi outlet tanpa mengubah keterkaitan dengan business
-            induknya.
+            Perbarui informasi outlet dalam business aktif. Kode outlet tidak
+            bisa diubah manual.
           </p>
         </div>
 
@@ -201,18 +232,6 @@ export default function EditOutletPage() {
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700">
-                  Business
-                </label>
-                <div className="flex h-12 items-center rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-medium text-slate-700">
-                  {businessName || '-'}
-                </div>
-                <p className="text-xs text-slate-400">
-                  Outlet tetap mengikuti business induknya.
-                </p>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700">
                   Outlet Name
                 </label>
                 <Input
@@ -228,22 +247,33 @@ export default function EditOutletPage() {
                 <label className="block text-sm font-medium text-slate-700">
                   Code
                 </label>
-                <Input
-                  value={form.code}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, code: e.target.value }))
-                  }
-                  className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
-                />
+                <div className="relative">
+                  <Input
+                    value={form.code}
+                    readOnly
+                    disabled
+                    className="h-12 rounded-2xl border-slate-200 bg-slate-100 px-4 pr-12 text-sm text-slate-500 shadow-none"
+                  />
+                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400">
+                    <FontAwesomeIcon icon={faLock} className="h-4 w-4" />
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Kode outlet dibuat otomatis dan tidak bisa diedit.
+                </p>
               </div>
 
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700">
-                  Business Type
+                  Phone
                 </label>
-                <div className="flex h-12 items-center rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-medium text-slate-700">
-                  {businessType || '-'}
-                </div>
+                <Input
+                  value={form.phone}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, phone: e.target.value }))
+                  }
+                  className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
+                />
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -254,19 +284,6 @@ export default function EditOutletPage() {
                   value={form.address}
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, address: e.target.value }))
-                  }
-                  className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700">
-                  Phone
-                </label>
-                <Input
-                  value={form.phone}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, phone: e.target.value }))
                   }
                   className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
                 />
@@ -344,19 +361,29 @@ export default function EditOutletPage() {
             <div className="mt-4 space-y-3 text-sm">
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Business
+                  Outlet ID
                 </p>
-                <p className="mt-2 font-medium text-slate-800">
-                  {businessName || '-'}
+                <p className="mt-2 break-all font-medium text-slate-800">
+                  {detail?.id || '-'}
                 </p>
               </div>
 
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Business Type
+                  Business ID
                 </p>
-                <p className="mt-2 font-medium text-slate-800">
-                  {businessType || '-'}
+                <p className="mt-2 break-all font-medium text-slate-800">
+                  {detail?.businessId || '-'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Assigned Users
+                </p>
+                <p className="mt-2 flex items-center gap-2 font-medium text-slate-800">
+                  <FontAwesomeIcon icon={faUsers} className="h-4 w-4" />
+                  {detail?.totalAssignedUsers ?? 0} user
                 </p>
               </div>
 
@@ -376,10 +403,10 @@ export default function EditOutletPage() {
 
             <div className="mt-4 space-y-2">
               {[
-                'Outlet name, code, address, dan phone boleh diperbarui.',
+                'Outlet name, address, dan phone boleh diperbarui.',
+                'Kode outlet bersifat readonly dan tidak bisa diedit.',
                 'Status outlet boleh diubah ACTIVE / INACTIVE.',
-                'Keterkaitan outlet ke business tetap dipertahankan.',
-                'Tidak ada hard delete pada fase 1.',
+                'Business scope outlet tetap dipertahankan oleh backend.',
               ].map((note) => (
                 <div
                   key={note}
@@ -414,7 +441,8 @@ export default function EditOutletPage() {
                 Phone dapat dikosongkan bila belum tersedia.
               </div>
               <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Outlet tetap mengikuti struktur business induknya.
+                Total assigned users membantu mencegah nonaktif outlet secara
+                sembarangan.
               </div>
             </div>
           </div>
@@ -426,7 +454,7 @@ export default function EditOutletPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Scope Fase 1
+                  Scope Fase 2
                 </p>
                 <p className="text-xs text-slate-500">
                   Tetap sederhana dan aman
@@ -435,8 +463,8 @@ export default function EditOutletPage() {
             </div>
 
             <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              Fokus outlet masih pada data inti, status, dan keterkaitan dengan
-              business.
+              Fokus outlet masih pada data inti, status, dan jumlah user yang
+              terhubung ke outlet tersebut.
             </div>
           </div>
         </aside>

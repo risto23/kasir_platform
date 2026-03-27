@@ -1,4 +1,3 @@
-// pos_web/src/components/layout/app-sidebar.tsx
 'use client';
 
 import Link from 'next/link';
@@ -8,10 +7,10 @@ import {
   faChartLine,
   faChevronRight,
   faLocationDot,
-  faPlus,
+  faLayerGroup,
   faShop,
   faStore,
-  faLayerGroup,
+  faUsers,
 } from '@fortawesome/free-solid-svg-icons';
 
 const menus = [
@@ -42,6 +41,11 @@ const menus = [
         href: '/dashboard/outlets',
         label: 'Outlets',
         icon: faLocationDot,
+      },
+      {
+        href: '/dashboard/business-users',
+        label: 'Business Users',
+        icon: faUsers,
       },
     ],
   },
@@ -77,7 +81,7 @@ export function AppSidebar() {
         </div>
 
         <p className="mt-4 text-xs leading-6 text-slate-500">
-          Fase 1 management untuk business dan outlet.
+          Fase 2 management untuk business, outlet, dan business users.
         </p>
       </div>
 
@@ -142,7 +146,7 @@ export function AppSidebar() {
         <div className="rounded-2xl bg-slate-50 px-4 py-3">
           <p className="text-xs font-semibold text-slate-700">Current Scope</p>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Business type, outlet, dan dashboard dasar fase 1.
+            Business type, outlet, business user, dan dashboard fase 2.
           </p>
         </div>
       </div>

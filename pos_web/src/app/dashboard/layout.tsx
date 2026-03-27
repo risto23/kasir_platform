@@ -3,10 +3,107 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AppSidebar } from '@/components/layout/app-sidebar';
+
 import { AppHeader } from '@/components/layout/app-header';
+import { AppSidebar } from '@/components/layout/app-sidebar';
 import { getMe, logout } from '@/lib/auth';
 import type { CurrentUser } from '@/types/auth';
+
+const DASHBOARD_ALLOWED_PERMISSIONS = [
+  'BUSINESS_USER_VIEW',
+  'BUSINESS_USER_CREATE',
+  'BUSINESS_USER_UPDATE',
+  'BUSINESS_USER_STATUS_UPDATE',
+  'BUSINESS_USER_ASSIGN_OUTLET',
+  'OUTLET_VIEW',
+  'OUTLET_CREATE',
+  'OUTLET_UPDATE',
+  'OUTLET_STATUS_UPDATE',
+  'OUTLET_SCOPE_VIEW',
+] as const;
+
+type PermissionLike = {
+  code?: string;
+};
+
+type MembershipLike = {
+  permissions?: Array<string | PermissionLike>;
+};
+
+type AccessProfileLike = {
+  isSuperAdmin?: boolean;
+  permissions?: Array<string | PermissionLike>;
+  businessPermissions?: Array<string | PermissionLike>;
+  platformPermissions?: Array<string | PermissionLike>;
+  defaultBusinessMembership?: MembershipLike | null;
+  memberships?: MembershipLike[];
+};
+
+function normalizePermissionList(
+  values: Array<string | PermissionLike> | undefined
+): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((item) => {
+      if (typeof item === 'string') {
+        return item;
+      }
+
+      if (item && typeof item.code === 'string') {
+        return item.code;
+      }
+
+      return null;
+    })
+    .filter((item): item is string => Boolean(item));
+}
+
+function getPermissionCodes(user: CurrentUser): string[] {
+  const accessProfile = user.accessProfile as AccessProfileLike;
+
+  const fromAccessProfile = normalizePermissionList(accessProfile.permissions);
+  const fromBusinessPermissions = normalizePermissionList(
+    accessProfile.businessPermissions
+  );
+  const fromPlatformPermissions = normalizePermissionList(
+    accessProfile.platformPermissions
+  );
+  const fromDefaultMembership = normalizePermissionList(
+    accessProfile.defaultBusinessMembership?.permissions
+  );
+  const fromMemberships = Array.isArray(accessProfile.memberships)
+    ? accessProfile.memberships.flatMap((membership) =>
+        normalizePermissionList(membership.permissions)
+      )
+    : [];
+
+  return Array.from(
+    new Set([
+      ...fromAccessProfile,
+      ...fromBusinessPermissions,
+      ...fromPlatformPermissions,
+      ...fromDefaultMembership,
+      ...fromMemberships,
+    ])
+  );
+}
+
+function hasDashboardAccess(user: CurrentUser) {
+  const accessProfile = user.accessProfile as AccessProfileLike;
+
+  if (accessProfile.isSuperAdmin) {
+    return true;
+  }
+
+  const permissions = getPermissionCodes(user);
+
+  return DASHBOARD_ALLOWED_PERMISSIONS.some((permission) =>
+    permissions.includes(permission)
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -24,12 +121,12 @@ export default function DashboardLayout({
         setChecking(true);
         setError('');
 
-        const currentUser: CurrentUser = await getMe();
+        const currentUser = (await getMe()) as CurrentUser;
 
-        if (!currentUser.accessProfile.isSuperAdmin) {
+        if (!hasDashboardAccess(currentUser)) {
           logout();
           setIsAllowed(false);
-          setError('Akun ini tidak memiliki akses ke dashboard platform.');
+          setError('Akun ini tidak memiliki akses ke dashboard.');
           router.replace('/login');
           return;
         }
@@ -95,7 +192,7 @@ export default function DashboardLayout({
             Akses tidak tersedia
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            {error || 'Anda tidak memiliki akses ke dashboard platform.'}
+            {error || 'Anda tidak memiliki akses ke dashboard.'}
           </p>
         </div>
       </div>

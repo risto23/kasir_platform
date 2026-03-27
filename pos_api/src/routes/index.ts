@@ -5,8 +5,8 @@ import outletRoutes from '../modules/platform-outlet/platform-outlet.routes';
 import healthRoutes from '../modules/health/health.routes';
 import platformFeatureFlagRoutes from '../modules/platform-feature-flag/platform-feature-flag.routes';
 import platformBusinessTypeRoutes from '../modules/platform-business-type/platform-business-type.routes';
-
-
+import businessReferenceRoutes from '../modules/business-reference/business-reference.routes';
+import businessUserRoutes from '../modules/business-users/business-user.routes';
 
 const router = Router();
 
@@ -16,5 +16,7 @@ router.use('/platform/businesses', businessRoutes);
 router.use('/platform/outlets', outletRoutes);
 router.use('/platform/feature-flags', platformFeatureFlagRoutes);
 router.use('/platform', platformBusinessTypeRoutes);
+router.use('/business', businessReferenceRoutes);
+router.use('/business-users', businessUserRoutes);
 
 export default router;
