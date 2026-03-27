@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BusinessType {
+  RESTAURANT
+  RETAIL
+}
+
+enum BusinessStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OutletStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PlatformRoleCode {
+  SUPER_ADMIN
+}
+
+enum BusinessRoleCode {
+  OWNER
+  ADMIN
+  CASHIER
+  KITCHEN
+  INVENTORY
+}
+
+model User {
+  id           String     @id @default(cuid())
+  fullName     String
+  email        String     @unique
+  passwordHash String
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  platformRoles   UserPlatformRole[]
+  businessUsers   BusinessUser[]
+  ownedBusinesses Business[]         @relation("BusinessOwner")
+
+  @@map("users")
+}
+
+model PlatformRole {
+  id          String           @id @default(cuid())
+  code        PlatformRoleCode @unique
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  userRoles UserPlatformRole[]
+
+  @@map("platform_roles")
+}
+
+model UserPlatformRole {
+  id             String   @id @default(cuid())
+  userId         String
+  platformRoleId String
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platformRole PlatformRole @relation(fields: [platformRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platformRoleId])
+  @@map("user_platform_roles")
+}
+
+model Business {
+  id           String         @id @default(cuid())
+  name         String
+  slug         String         @unique
+  businessType BusinessType
+  status       BusinessStatus @default(ACTIVE)
+  ownerUserId  String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  ownerUser        User?                 @relation("BusinessOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  outlets          Outlet[]
+  businessUsers    BusinessUser[]
+  businessFeatures BusinessFeatureFlag[]
+
+  @@index([businessType])
+  @@index([status])
+  @@map("businesses")
+}
+
+model Outlet {
+  id         String       @id @default(cuid())
+  businessId String
+  name       String
+  code       String
+  address    String?
+  phone      String?
+  status     OutletStatus @default(ACTIVE)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, code])
+  @@index([businessId])
+  @@map("outlets")
+}
+
+model BusinessRole {
+  id          String           @id @default(cuid())
+  code        BusinessRoleCode @unique
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  businessUsers BusinessUser[]
+
+  @@map("business_roles")
+}
+
+model BusinessUser {
+  id             String   @id @default(cuid())
+  businessId     String
+  userId         String
+  businessRoleId String
+  isPrimary      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessRole BusinessRole @relation(fields: [businessRoleId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, userId])
+  @@index([userId])
+  @@index([businessRoleId])
+  @@map("business_users")
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  businesses BusinessFeatureFlag[]
+
+  @@map("feature_flags")
+}
+
+model BusinessFeatureFlag {
+  id            String   @id @default(cuid())
+  businessId    String
+  featureFlagId String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  featureFlag FeatureFlag @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, featureFlagId])
+  @@map("business_feature_flags")
+}
