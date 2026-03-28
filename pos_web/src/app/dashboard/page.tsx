@@ -1,11 +1,12 @@
-// pos_web/src/app/dashboard/page.tsx
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowTrendUp,
   faLocationDot,
+  faPercent,
   faPlus,
   faShop,
   faStore,
+  faTags,
 } from '@fortawesome/free-solid-svg-icons';
 import Link from 'next/link';
 
@@ -29,10 +30,10 @@ const summaryCards = [
     icon: faArrowTrendUp,
   },
   {
-    title: 'Platform Scope',
-    value: '2',
-    description: 'Business type aktif: Restaurant dan Retail.',
-    icon: faStore,
+    title: 'Promo Module',
+    value: 'Fase 3',
+    description: 'Promo kategori, produk/menu, nama, brand, dan satuan.',
+    icon: faPercent,
   },
 ];
 
@@ -56,10 +57,10 @@ const quickActions = [
     icon: faLocationDot,
   },
   {
-    title: 'Tambah Outlet',
-    description: 'Tambahkan outlet baru ke business yang tersedia.',
-    href: '/dashboard/outlets/create',
-    icon: faStore,
+    title: 'Lihat Promo',
+    description: 'Kelola promo aktif, terjadwal, nonaktif, dan berakhir.',
+    href: '/dashboard/promos',
+    icon: faTags,
   },
 ];
 
@@ -70,7 +71,7 @@ export default function DashboardPage() {
         <div className="grid gap-6 px-6 py-7 sm:px-8 sm:py-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
           <div>
             <div className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-slate-100">
-              Fase 1 Dashboard
+              Fase 3 Dashboard
             </div>
 
             <h2 className="mt-4 max-w-2xl text-2xl font-semibold leading-tight sm:text-3xl">
@@ -78,8 +79,9 @@ export default function DashboardPage() {
             </h2>
 
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-200">
-              Dashboard ini difokuskan untuk pengelolaan business dan outlet
-              secara sederhana, rapi, dan konsisten sesuai pondasi fase 1.
+              Dashboard ini difokuskan untuk pengelolaan master data fase 3 secara
+              sederhana, rapi, dan konsisten, termasuk kategori, produk/menu,
+              pricing outlet, promo, dan meja outlet restaurant.
             </p>
           </div>
 
@@ -95,10 +97,10 @@ export default function DashboardPage() {
 
             <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
-                Current Role
+                Current Scope
               </p>
               <p className="mt-2 text-base font-semibold text-white">
-                Super Admin
+                Master Data Fase 3
               </p>
             </div>
           </div>
@@ -142,7 +144,7 @@ export default function DashboardPage() {
                 Quick Actions
               </p>
               <p className="text-sm text-slate-500">
-                Akses cepat untuk aktivitas utama fase 1.
+                Akses cepat untuk aktivitas utama fase 3.
               </p>
             </div>
 
@@ -175,7 +177,7 @@ export default function DashboardPage() {
 
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-slate-900">
-            Ringkasan Arsitektur Fase 1
+            Ringkasan Arsitektur Fase 3
           </p>
           <p className="mt-1 text-sm text-slate-500">
             Batasan utama tetap dijaga agar implementasi tetap konsisten.
@@ -186,8 +188,10 @@ export default function DashboardPage() {
               '1 business hanya punya 1 business type',
               '1 business bisa punya banyak outlet',
               'outlet mengikuti business induknya',
-              'businessType tidak editable bebas setelah business dibuat',
-              'status memakai ACTIVE / INACTIVE',
+              'retail dan restaurant tetap dibedakan',
+              'promo support category, product/menu, nama, brand, dan unit',
+              'outlet table hanya untuk restaurant',
+              'status efektif promo: ACTIVE / INACTIVE / SCHEDULED / EXPIRED',
               'tanpa hard delete',
             ].map((item) => (
               <div

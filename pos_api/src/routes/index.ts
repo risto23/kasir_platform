@@ -1,3 +1,4 @@
+//  pos_api/src/routes/index.ts
 import { Router } from 'express';
 import authRoutes from '../modules/auth/auth.routes';
 import businessRoutes from '../modules/platform-business/platform-business.routes';
@@ -7,6 +8,12 @@ import platformFeatureFlagRoutes from '../modules/platform-feature-flag/platform
 import platformBusinessTypeRoutes from '../modules/platform-business-type/platform-business-type.routes';
 import businessReferenceRoutes from '../modules/business-reference/business-reference.routes';
 import businessUserRoutes from '../modules/business-users/business-user.routes';
+import productRoutes from '../modules/products/products.routes';
+import productRouter from '../modules/business-product/product.routes';
+import promoRoutes from '../modules/promos/promo.routes';
+
+
+
 
 const router = Router();
 
@@ -18,5 +25,8 @@ router.use('/platform/feature-flags', platformFeatureFlagRoutes);
 router.use('/platform', platformBusinessTypeRoutes);
 router.use('/business', businessReferenceRoutes);
 router.use('/business-users', businessUserRoutes);
+router.use('/products', productRoutes);
+router.use('/business/products', productRouter);
+router.use('/promos', promoRoutes);
 
 export default router;

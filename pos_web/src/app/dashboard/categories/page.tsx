@@ -1,0 +1,564 @@
+// pos_web/src/app/dashboard/categories/page.tsx
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import axios from 'axios';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faArrowRight,
+  faBan,
+  faCircleCheck,
+  faDiagramProject,
+  faFolderTree,
+  faMagnifyingGlass,
+  faPenToSquare,
+  faPlus,
+  faRotateRight,
+  faShapes,
+  faSitemap,
+} from '@fortawesome/free-solid-svg-icons';
+
+import { api } from '@/lib/api';
+import type {
+  Category,
+  CategoryListResponse,
+  CategoryStatus,
+} from '@/types/category';
+
+type StatusFilter = 'ALL' | CategoryStatus;
+
+function getMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    return error.response?.data?.message || 'Gagal memuat category';
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'Terjadi kesalahan';
+}
+
+function getStatusBadgeClass(status: CategoryStatus) {
+  if (status === 'ACTIVE') {
+    return 'border border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+
+  return 'border border-slate-200 bg-slate-100 text-slate-600';
+}
+
+export default function CategoryListPage() {
+  const [items, setItems] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  async function fetchData() {
+    try {
+      setLoading(true);
+      setMessage('');
+
+      const params: Record<string, string> = {};
+
+      if (search.trim()) {
+        params.search = search.trim();
+      }
+
+      if (statusFilter !== 'ALL') {
+        params.status = statusFilter;
+      }
+
+      const response = await api.get('/business/categories', { params });
+      // const payload: CategoryListResponse = response.data.data;
+
+      // setItems(payload?.items || []);
+      setItems(response.data.data || []);
+    } catch (error: unknown) {
+      setMessage(getMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleToggleStatus(item: Category) {
+    const newStatus: CategoryStatus =
+      item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+
+    try {
+      setActionLoadingId(item.id);
+      setMessage('');
+
+      await api.patch(`/business/categories/${item.id}/status`, {
+        status: newStatus,
+      });
+
+      await fetchData();
+    } catch (error: unknown) {
+      setMessage(getMessage(error));
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  function handleSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSearch(searchInput.trim());
+  }
+
+  function handleResetFilter() {
+    setSearchInput('');
+    setSearch('');
+    setStatusFilter('ALL');
+  }
+
+  useEffect(() => {
+    void fetchData();
+  }, [search, statusFilter]);
+
+  const totalCategory = items.length;
+  const activeCategory = useMemo(
+    () => items.filter((item) => item.status === 'ACTIVE').length,
+    [items]
+  );
+  const inactiveCategory = useMemo(
+    () => items.filter((item) => item.status === 'INACTIVE').length,
+    [items]
+  );
+  const rootCategory = useMemo(
+    () => items.filter((item) => !item.parentId).length,
+    [items]
+  );
+
+  return (
+    <div className="space-y-5">
+      <section className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-700">
+            <FontAwesomeIcon icon={faShapes} className="h-3 w-3" />
+            Category Management
+          </div>
+
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
+            Categories
+          </h1>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            Kelola kategori produk untuk business aktif, termasuk parent category
+            dan status aktifnya.
+          </p>
+        </div>
+
+        <Link
+          href="/dashboard/categories/create"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
+          Tambah Category
+        </Link>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-500">Total Category</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+            {loading ? '-' : totalCategory}
+          </p>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-500">Active</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-600">
+            {loading ? '-' : activeCategory}
+          </p>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-500">Inactive</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-600">
+            {loading ? '-' : inactiveCategory}
+          </p>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-500">Root Category</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+            {loading ? '-' : rootCategory}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Category tanpa parent category.
+          </p>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">
+                Daftar Category
+              </h2>
+              <p className="text-sm text-slate-500">
+                Data category pada business aktif.
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleSearchSubmit}
+              className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_auto] lg:w-[680px]"
+            >
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                  <FontAwesomeIcon
+                    icon={faMagnifyingGlass}
+                    className="h-4 w-4"
+                  />
+                </span>
+                <input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Cari nama, code, atau deskripsi"
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <select
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as StatusFilter)
+                }
+                className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="ALL">Semua Status</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <FontAwesomeIcon
+                    icon={faMagnifyingGlass}
+                    className="h-4 w-4"
+                  />
+                  Cari
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetFilter}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <FontAwesomeIcon icon={faRotateRight} className="h-4 w-4" />
+                  Reset
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {message ? (
+          <div className="px-5 pt-4 sm:px-6">
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {message}
+            </div>
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="grid gap-3 px-5 py-5 sm:px-6">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-16 animate-pulse rounded-2xl bg-slate-100"
+              />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="px-5 py-12 text-center sm:px-6">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+              <FontAwesomeIcon icon={faFolderTree} className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-base font-semibold text-slate-900">
+              Belum ada category
+            </h3>
+            <p className="mt-2 text-sm text-slate-500">
+              Tambahkan category pertama untuk business aktif.
+            </p>
+            <Link
+              href="/dashboard/categories/create"
+              className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
+              Tambah Category
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr className="border-b border-slate-200">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em]">
+                      Category
+                    </th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em]">
+                      Code
+                    </th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em]">
+                      Parent
+                    </th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em]">
+                      Children
+                    </th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em]">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.16em]">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => {
+                    const isLoading = actionLoadingId === item.id;
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className="border-b border-slate-200 last:border-b-0"
+                      >
+                        <td className="px-6 py-4">
+                          <div>
+                            <p className="font-semibold text-slate-900">
+                              {item.name}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {item.description || 'Tanpa deskripsi'}
+                            </p>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                            {item.code}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <p className="font-medium text-slate-800">
+                            {item.parent?.name || '-'}
+                          </p>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                            <FontAwesomeIcon
+                              icon={faDiagramProject}
+                              className="h-3 w-3"
+                            />
+                            {item.childrenCount ?? 0} child
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
+                              item.status
+                            )}`}
+                          >
+                            {item.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex justify-end gap-2">
+                            <Link
+                              href={`/dashboard/categories/${item.id}/edit`}
+                              className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-100"
+                            >
+                              <FontAwesomeIcon
+                                icon={faPenToSquare}
+                                className="h-3.5 w-3.5"
+                              />
+                              Edit
+                            </Link>
+
+                            <button
+                              type="button"
+                              disabled={isLoading}
+                              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                                item.status === 'ACTIVE'
+                                  ? 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                                  : 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                              }`}
+                              onClick={() => void handleToggleStatus(item)}
+                            >
+                              <FontAwesomeIcon
+                                icon={
+                                  item.status === 'ACTIVE'
+                                    ? faBan
+                                    : faCircleCheck
+                                }
+                                className="h-3.5 w-3.5"
+                              />
+                              {isLoading
+                                ? 'Memproses...'
+                                : item.status === 'ACTIVE'
+                                  ? 'Nonaktifkan'
+                                  : 'Aktifkan'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="grid gap-4 p-4 lg:hidden">
+              {items.map((item) => {
+                const isLoading = actionLoadingId === item.id;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-[24px] border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-900">
+                          {item.name}
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {item.code}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadgeClass(
+                          item.status
+                        )}`}
+                      >
+                        {item.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-white px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                          Parent
+                        </p>
+                        <p className="mt-2 text-sm font-medium text-slate-800">
+                          {item.parent?.name || '-'}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-white px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                          Children
+                        </p>
+                        <p className="mt-2 text-sm font-medium text-slate-800">
+                          {item.childrenCount ?? 0} child
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl bg-white px-3 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                        Description
+                      </p>
+                      <p className="mt-2 text-sm text-slate-600">
+                        {item.description || 'Tanpa deskripsi'}
+                      </p>
+                    </div>
+
+                    <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                      <Link
+                        href={`/dashboard/categories/${item.id}/edit`}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+                      >
+                        <FontAwesomeIcon
+                          icon={faPenToSquare}
+                          className="h-4 w-4"
+                        />
+                        Edit
+                      </Link>
+
+                      <button
+                        type="button"
+                        disabled={isLoading}
+                        className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                          item.status === 'ACTIVE'
+                            ? 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                            : 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                        }`}
+                        onClick={() => void handleToggleStatus(item)}
+                      >
+                        <FontAwesomeIcon
+                          icon={
+                            item.status === 'ACTIVE' ? faBan : faCircleCheck
+                          }
+                          className="h-4 w-4"
+                        />
+                        {isLoading
+                          ? 'Memproses...'
+                          : item.status === 'ACTIVE'
+                            ? 'Nonaktifkan'
+                            : 'Aktifkan'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              Catatan Category
+            </h2>
+            <p className="text-sm text-slate-500">
+              Category dikelola dalam business scope aktif.
+            </p>
+          </div>
+
+          <Link
+            href="/dashboard/categories/create"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 transition hover:text-indigo-700"
+          >
+            Tambah category baru
+            <FontAwesomeIcon icon={faArrowRight} className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {[
+            'Category dibuat dalam business aktif.',
+            'Category bisa memiliki parent category.',
+            'Search dan filter status langsung ke endpoint business category.',
+            'Category tetap memakai ACTIVE / INACTIVE.',
+            'Status diubah tanpa hard delete.',
+            'Validasi utama tetap dilakukan di backend.',
+          ].map((note) => (
+            <div
+              key={note}
+              className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600"
+            >
+              {note}
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}

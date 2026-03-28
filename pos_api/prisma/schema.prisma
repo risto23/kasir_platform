@@ -44,6 +44,44 @@ enum BusinessUserStatus {
   INACTIVE
 }
 
+enum CategoryStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ProductOutletStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OutletTableStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PromoStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PromoTargetType {
+  CATEGORY
+  PRODUCT
+  PRODUCT_NAME
+  BRAND
+  UNIT
+}
+
+enum PromoDiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
 enum BusinessPermissionCode {
   BUSINESS_ROLE_VIEW
   BUSINESS_PERMISSION_VIEW
@@ -60,6 +98,29 @@ enum BusinessPermissionCode {
   OUTLET_CREATE
   OUTLET_UPDATE
   OUTLET_STATUS_UPDATE
+
+  CATEGORY_VIEW
+  CATEGORY_CREATE
+  CATEGORY_UPDATE
+  CATEGORY_STATUS_UPDATE
+
+  PRODUCT_VIEW
+  PRODUCT_CREATE
+  PRODUCT_UPDATE
+  PRODUCT_STATUS_UPDATE
+
+  PRODUCT_OUTLET_VIEW
+  PRODUCT_OUTLET_UPDATE
+
+  PROMO_VIEW
+  PROMO_CREATE
+  PROMO_UPDATE
+  PROMO_STATUS_UPDATE
+
+  OUTLET_TABLE_VIEW
+  OUTLET_TABLE_CREATE
+  OUTLET_TABLE_UPDATE
+  OUTLET_TABLE_STATUS_UPDATE
 }
 
 model User {
@@ -119,6 +180,9 @@ model Business {
   outlets          Outlet[]
   businessUsers    BusinessUser[]
   businessFeatures BusinessFeatureFlag[]
+  categories       Category[]
+  products         Product[]
+  promos           Promo[]
 
   @@index([businessType])
   @@index([status])
@@ -136,8 +200,10 @@ model Outlet {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
-  business             Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  businessUserAccesses BusinessUserOutletAccess[]
+  business              Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessUserAccesses  BusinessUserOutletAccess[]
+  productOutletSettings ProductOutletSetting[]
+  tables                OutletTable[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -248,4 +314,125 @@ model BusinessFeatureFlag {
 
   @@unique([businessId, featureFlagId])
   @@map("business_feature_flags")
+}
+
+model Category {
+  id          String         @id @default(cuid())
+  businessId  String
+  name        String
+  code        String?
+  description String?
+  sortOrder   Int            @default(0)
+  status      CategoryStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  products Product[]
+  promos   Promo[]
+
+  @@unique([businessId, name])
+  @@unique([businessId, code])
+  @@index([businessId, status])
+  @@index([businessId, sortOrder])
+  @@map("categories")
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  businessId  String
+  categoryId  String?
+  name        String
+  code        String?
+  sku         String?
+  brand       String?
+  unit        String?
+  description String?
+  imageUrl    String?
+  basePrice   Decimal       @db.Decimal(14, 2)
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  business       Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category       Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  outletSettings ProductOutletSetting[]
+  promos         Promo[]
+
+  @@unique([businessId, code])
+  @@unique([businessId, sku])
+  @@index([businessId, status])
+  @@index([businessId, categoryId])
+  @@index([businessId, name])
+  @@index([businessId, brand])
+  @@index([businessId, unit])
+  @@map("products")
+}
+
+model ProductOutletSetting {
+  id            String              @id @default(cuid())
+  productId     String
+  outletId      String
+  status        ProductOutletStatus @default(ACTIVE)
+  isAvailable   Boolean             @default(true)
+  priceOverride Decimal?            @db.Decimal(14, 2)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  outlet  Outlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, outletId])
+  @@index([outletId, status])
+  @@index([productId, status])
+  @@map("product_outlet_settings")
+}
+
+model OutletTable {
+  id        String            @id @default(cuid())
+  outletId  String
+  name      String
+  code      String
+  capacity  Int?
+  status    OutletTableStatus @default(ACTIVE)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, code])
+  @@unique([outletId, name])
+  @@index([outletId, status])
+  @@map("outlet_tables")
+}
+
+model Promo {
+  id              String            @id @default(cuid())
+  businessId      String
+  name            String
+  description     String?
+  targetType      PromoTargetType
+  categoryId      String?
+  productId       String?
+  targetTextValue String?
+  discountType    PromoDiscountType
+  discountValue   Decimal           @db.Decimal(14, 2)
+  startDate       DateTime
+  endDate         DateTime
+  startTime       String
+  endTime         String
+  status          PromoStatus       @default(ACTIVE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  product  Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, status])
+  @@index([businessId, targetType])
+  @@index([businessId, startDate, endDate])
+  @@index([categoryId])
+  @@index([productId])
+  @@map("promos")
 }

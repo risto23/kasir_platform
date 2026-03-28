@@ -5,6 +5,10 @@ import {
   BusinessType,
   BusinessPermissionCode,
   BusinessUserStatus,
+  CategoryStatus,
+  ProductStatus,
+  ProductOutletStatus,
+  OutletTableStatus,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -48,6 +52,46 @@ async function assignRolePermissions(
       },
     });
   }
+}
+
+async function enableFeatureFlag(
+  businessId: string,
+  key: string,
+  name: string,
+  description: string,
+  enabled = true,
+) {
+  const featureFlag = await prisma.featureFlag.upsert({
+    where: { key },
+    update: {
+      name,
+      description,
+    },
+    create: {
+      key,
+      name,
+      description,
+    },
+  });
+
+  await prisma.businessFeatureFlag.upsert({
+    where: {
+      businessId_featureFlagId: {
+        businessId,
+        featureFlagId: featureFlag.id,
+      },
+    },
+    update: {
+      enabled,
+    },
+    create: {
+      businessId,
+      featureFlagId: featureFlag.id,
+      enabled,
+    },
+  });
+
+  return featureFlag;
 }
 
 async function main() {
@@ -115,7 +159,7 @@ async function main() {
     },
   });
 
-  // Business permissions
+  // Business permissions - phase 1 & 2
   const permissionBusinessRoleView = await upsertBusinessPermission(
     BusinessPermissionCode.BUSINESS_ROLE_VIEW,
     'Business Role View',
@@ -165,30 +209,138 @@ async function main() {
   );
 
   const permissionOutletView = await upsertBusinessPermission(
-  BusinessPermissionCode.OUTLET_VIEW,
-  'Outlet View',
-  'Melihat daftar outlet',
-);
+    BusinessPermissionCode.OUTLET_VIEW,
+    'Outlet View',
+    'Melihat daftar outlet',
+  );
 
-const permissionOutletCreate = await upsertBusinessPermission(
-  BusinessPermissionCode.OUTLET_CREATE,
-  'Outlet Create',
-  'Membuat outlet',
-);
+  const permissionOutletCreate = await upsertBusinessPermission(
+    BusinessPermissionCode.OUTLET_CREATE,
+    'Outlet Create',
+    'Membuat outlet',
+  );
 
-const permissionOutletUpdate = await upsertBusinessPermission(
-  BusinessPermissionCode.OUTLET_UPDATE,
-  'Outlet Update',
-  'Mengubah data outlet',
-);
+  const permissionOutletUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.OUTLET_UPDATE,
+    'Outlet Update',
+    'Mengubah data outlet',
+  );
 
-const permissionOutletStatusUpdate = await upsertBusinessPermission(
-  BusinessPermissionCode.OUTLET_STATUS_UPDATE,
-  'Outlet Status Update',
-  'Mengubah status outlet',
-);
+  const permissionOutletStatusUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.OUTLET_STATUS_UPDATE,
+    'Outlet Status Update',
+    'Mengubah status outlet',
+  );
 
-  // Role permission mapping
+  // Business permissions - phase 3
+  const permissionCategoryView = await upsertBusinessPermission(
+    BusinessPermissionCode.CATEGORY_VIEW,
+    'Category View',
+    'Melihat daftar kategori',
+  );
+
+  const permissionCategoryCreate = await upsertBusinessPermission(
+    BusinessPermissionCode.CATEGORY_CREATE,
+    'Category Create',
+    'Membuat kategori',
+  );
+
+  const permissionCategoryUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.CATEGORY_UPDATE,
+    'Category Update',
+    'Mengubah kategori',
+  );
+
+  const permissionCategoryStatusUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.CATEGORY_STATUS_UPDATE,
+    'Category Status Update',
+    'Mengubah status kategori',
+  );
+
+  const permissionProductView = await upsertBusinessPermission(
+    BusinessPermissionCode.PRODUCT_VIEW,
+    'Product View',
+    'Melihat daftar product/menu',
+  );
+
+  const permissionProductCreate = await upsertBusinessPermission(
+    BusinessPermissionCode.PRODUCT_CREATE,
+    'Product Create',
+    'Membuat product/menu',
+  );
+
+  const permissionProductUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.PRODUCT_UPDATE,
+    'Product Update',
+    'Mengubah product/menu',
+  );
+
+  const permissionProductStatusUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.PRODUCT_STATUS_UPDATE,
+    'Product Status Update',
+    'Mengubah status product/menu',
+  );
+
+  const permissionProductOutletView = await upsertBusinessPermission(
+    BusinessPermissionCode.PRODUCT_OUTLET_VIEW,
+    'Product Outlet View',
+    'Melihat availability dan harga product per outlet',
+  );
+
+  const permissionProductOutletUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.PRODUCT_OUTLET_UPDATE,
+    'Product Outlet Update',
+    'Mengubah availability dan harga product per outlet',
+  );
+
+  const permissionPromoView = await upsertBusinessPermission(
+    BusinessPermissionCode.PROMO_VIEW,
+    'Promo View',
+    'Melihat daftar promo',
+  );
+
+  const permissionPromoCreate = await upsertBusinessPermission(
+    BusinessPermissionCode.PROMO_CREATE,
+    'Promo Create',
+    'Membuat promo',
+  );
+
+  const permissionPromoUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.PROMO_UPDATE,
+    'Promo Update',
+    'Mengubah promo',
+  );
+
+  const permissionPromoStatusUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.PROMO_STATUS_UPDATE,
+    'Promo Status Update',
+    'Mengubah status promo',
+  );
+
+  const permissionOutletTableView = await upsertBusinessPermission(
+    BusinessPermissionCode.OUTLET_TABLE_VIEW,
+    'Outlet Table View',
+    'Melihat daftar meja outlet',
+  );
+
+  const permissionOutletTableCreate = await upsertBusinessPermission(
+    BusinessPermissionCode.OUTLET_TABLE_CREATE,
+    'Outlet Table Create',
+    'Membuat meja outlet',
+  );
+
+  const permissionOutletTableUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.OUTLET_TABLE_UPDATE,
+    'Outlet Table Update',
+    'Mengubah meja outlet',
+  );
+
+  const permissionOutletTableStatusUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.OUTLET_TABLE_STATUS_UPDATE,
+    'Outlet Table Status Update',
+    'Mengubah status meja outlet',
+  );
+
   const ownerPermissionIds = [
     permissionBusinessRoleView.id,
     permissionBusinessPermissionView.id,
@@ -202,6 +354,24 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
     permissionOutletCreate.id,
     permissionOutletUpdate.id,
     permissionOutletStatusUpdate.id,
+    permissionCategoryView.id,
+    permissionCategoryCreate.id,
+    permissionCategoryUpdate.id,
+    permissionCategoryStatusUpdate.id,
+    permissionProductView.id,
+    permissionProductCreate.id,
+    permissionProductUpdate.id,
+    permissionProductStatusUpdate.id,
+    permissionProductOutletView.id,
+    permissionProductOutletUpdate.id,
+    permissionPromoView.id,
+    permissionPromoCreate.id,
+    permissionPromoUpdate.id,
+    permissionPromoStatusUpdate.id,
+    permissionOutletTableView.id,
+    permissionOutletTableCreate.id,
+    permissionOutletTableUpdate.id,
+    permissionOutletTableStatusUpdate.id,
   ];
 
   const adminPermissionIds = [
@@ -217,18 +387,49 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
     permissionOutletCreate.id,
     permissionOutletUpdate.id,
     permissionOutletStatusUpdate.id,
+    permissionCategoryView.id,
+    permissionCategoryCreate.id,
+    permissionCategoryUpdate.id,
+    permissionCategoryStatusUpdate.id,
+    permissionProductView.id,
+    permissionProductCreate.id,
+    permissionProductUpdate.id,
+    permissionProductStatusUpdate.id,
+    permissionProductOutletView.id,
+    permissionProductOutletUpdate.id,
+    permissionPromoView.id,
+    permissionPromoCreate.id,
+    permissionPromoUpdate.id,
+    permissionPromoStatusUpdate.id,
+    permissionOutletTableView.id,
+    permissionOutletTableCreate.id,
+    permissionOutletTableUpdate.id,
+    permissionOutletTableStatusUpdate.id,
   ];
 
   const cashierPermissionIds = [
     permissionOutletScopeView.id,
+    permissionCategoryView.id,
+    permissionProductView.id,
+    permissionProductOutletView.id,
+    permissionPromoView.id,
+    permissionOutletTableView.id,
   ];
 
   const kitchenPermissionIds = [
     permissionOutletScopeView.id,
+    permissionProductView.id,
+    permissionProductOutletView.id,
+    permissionPromoView.id,
+    permissionOutletTableView.id,
   ];
 
   const inventoryPermissionIds = [
     permissionOutletScopeView.id,
+    permissionCategoryView.id,
+    permissionProductView.id,
+    permissionProductOutletView.id,
+    permissionPromoView.id,
   ];
 
   await assignRolePermissions(ownerRole.id, ownerPermissionIds);
@@ -237,44 +438,29 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
   await assignRolePermissions(kitchenRole.id, kitchenPermissionIds);
   await assignRolePermissions(inventoryRole.id, inventoryPermissionIds);
 
-  // Feature flags
-  const featureBusinessManagement = await prisma.featureFlag.upsert({
-    where: { key: 'BUSINESS_MANAGEMENT' },
-    update: {},
+  // Users
+  const superAdminRetail = await prisma.user.upsert({
+    where: { email: 'superadmin-retail@pos.local' },
+    update: {
+      fullName: 'Super Admin Retail',
+      passwordHash,
+    },
     create: {
-      key: 'BUSINESS_MANAGEMENT',
-      name: 'Business Management',
-      description: 'Kelola business',
+      fullName: 'Super Admin Retail',
+      email: 'superadmin-retail@pos.local',
+      passwordHash,
     },
   });
 
-  const featureOutletManagement = await prisma.featureFlag.upsert({
-    where: { key: 'OUTLET_MANAGEMENT' },
-    update: {},
-    create: {
-      key: 'OUTLET_MANAGEMENT',
-      name: 'Outlet Management',
-      description: 'Kelola outlet',
+  const superAdminRestaurant = await prisma.user.upsert({
+    where: { email: 'superadmin-resto@pos.local' },
+    update: {
+      fullName: 'Super Admin Restaurant',
+      passwordHash,
     },
-  });
-
-  const featureBasicDashboard = await prisma.featureFlag.upsert({
-    where: { key: 'BASIC_DASHBOARD' },
-    update: {},
     create: {
-      key: 'BASIC_DASHBOARD',
-      name: 'Basic Dashboard',
-      description: 'Dashboard dasar',
-    },
-  });
-
-  // Super admin user
-  const superAdmin = await prisma.user.upsert({
-    where: { email: 'superadmin@pos.local' },
-    update: {},
-    create: {
-      fullName: 'Platform Super Admin',
-      email: 'superadmin@pos.local',
+      fullName: 'Super Admin Restaurant',
+      email: 'superadmin-resto@pos.local',
       passwordHash,
     },
   });
@@ -282,32 +468,63 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
   await prisma.userPlatformRole.upsert({
     where: {
       userId_platformRoleId: {
-        userId: superAdmin.id,
+        userId: superAdminRetail.id,
         platformRoleId: superAdminRole.id,
       },
     },
     update: {},
     create: {
-      userId: superAdmin.id,
+      userId: superAdminRetail.id,
       platformRoleId: superAdminRole.id,
     },
   });
 
-  // Owner user
-  const ownerUser = await prisma.user.upsert({
-    where: { email: 'owner@demo.local' },
+  await prisma.userPlatformRole.upsert({
+    where: {
+      userId_platformRoleId: {
+        userId: superAdminRestaurant.id,
+        platformRoleId: superAdminRole.id,
+      },
+    },
     update: {},
     create: {
-      fullName: 'Demo Business Owner',
+      userId: superAdminRestaurant.id,
+      platformRoleId: superAdminRole.id,
+    },
+  });
+
+  const retailOwnerUser = await prisma.user.upsert({
+    where: { email: 'owner@demo.local' },
+    update: {
+      fullName: 'Demo Retail Owner',
+      passwordHash,
+    },
+    create: {
+      fullName: 'Demo Retail Owner',
       email: 'owner@demo.local',
       passwordHash,
     },
   });
 
-  // Additional business users
+  const restaurantOwnerUser = await prisma.user.upsert({
+    where: { email: 'owner-resto@demo.local' },
+    update: {
+      fullName: 'Demo Restaurant Owner',
+      passwordHash,
+    },
+    create: {
+      fullName: 'Demo Restaurant Owner',
+      email: 'owner-resto@demo.local',
+      passwordHash,
+    },
+  });
+
   const adminAllOutletUser = await prisma.user.upsert({
     where: { email: 'admin-all@demo.local' },
-    update: {},
+    update: {
+      fullName: 'Demo Admin All Outlet',
+      passwordHash,
+    },
     create: {
       fullName: 'Demo Admin All Outlet',
       email: 'admin-all@demo.local',
@@ -317,7 +534,10 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
 
   const adminLimitedUser = await prisma.user.upsert({
     where: { email: 'admin-limited@demo.local' },
-    update: {},
+    update: {
+      fullName: 'Demo Admin Limited Outlet',
+      passwordHash,
+    },
     create: {
       fullName: 'Demo Admin Limited Outlet',
       email: 'admin-limited@demo.local',
@@ -327,9 +547,12 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
 
   const cashierUser = await prisma.user.upsert({
     where: { email: 'cashier@demo.local' },
-    update: {},
+    update: {
+      fullName: 'Demo Cashier Retail Outlet 1',
+      passwordHash,
+    },
     create: {
-      fullName: 'Demo Cashier Outlet 1',
+      fullName: 'Demo Cashier Retail Outlet 1',
       email: 'cashier@demo.local',
       passwordHash,
     },
@@ -337,9 +560,12 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
 
   const kitchenUser = await prisma.user.upsert({
     where: { email: 'kitchen@demo.local' },
-    update: {},
+    update: {
+      fullName: 'Demo Kitchen Restaurant Outlet 1',
+      passwordHash,
+    },
     create: {
-      fullName: 'Demo Kitchen Outlet 1',
+      fullName: 'Demo Kitchen Restaurant Outlet 1',
       email: 'kitchen@demo.local',
       passwordHash,
     },
@@ -347,7 +573,10 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
 
   const inventoryUser = await prisma.user.upsert({
     where: { email: 'inventory@demo.local' },
-    update: {},
+    update: {
+      fullName: 'Demo Inventory Outlet 2',
+      passwordHash,
+    },
     create: {
       fullName: 'Demo Inventory Outlet 2',
       email: 'inventory@demo.local',
@@ -355,59 +584,105 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
     },
   });
 
-  // Demo business
-  const business = await prisma.business.upsert({
+  // Businesses
+  const retailBusiness = await prisma.business.upsert({
     where: { slug: 'demo-retail' },
     update: {},
     create: {
       name: 'Demo Retail Store',
       slug: 'demo-retail',
       businessType: BusinessType.RETAIL,
-      ownerUserId: ownerUser.id,
+      ownerUserId: retailOwnerUser.id,
     },
   });
 
-  // Demo outlets
-  const outletOne = await prisma.outlet.upsert({
+  const restaurantBusiness = await prisma.business.upsert({
+    where: { slug: 'demo-restaurant' },
+    update: {},
+    create: {
+      name: 'Demo Restaurant',
+      slug: 'demo-restaurant',
+      businessType: BusinessType.RESTAURANT,
+      ownerUserId: restaurantOwnerUser.id,
+    },
+  });
+
+  // Outlets - Retail
+  const retailOutletOne = await prisma.outlet.upsert({
     where: {
       businessId_code: {
-        businessId: business.id,
+        businessId: retailBusiness.id,
         code: 'OUTLET-01',
       },
     },
     update: {},
     create: {
-      businessId: business.id,
-      name: 'Demo Outlet Utama',
+      businessId: retailBusiness.id,
+      name: 'Demo Retail Outlet Utama',
       code: 'OUTLET-01',
-      address: 'Jl. Contoh No. 1',
+      address: 'Jl. Contoh Retail No. 1',
       phone: '081234567890',
     },
   });
 
-  const outletTwo = await prisma.outlet.upsert({
+  const retailOutletTwo = await prisma.outlet.upsert({
     where: {
       businessId_code: {
-        businessId: business.id,
+        businessId: retailBusiness.id,
         code: 'OUTLET-02',
       },
     },
     update: {},
     create: {
-      businessId: business.id,
-      name: 'Demo Outlet Kedua',
+      businessId: retailBusiness.id,
+      name: 'Demo Retail Outlet Kedua',
       code: 'OUTLET-02',
-      address: 'Jl. Contoh No. 2',
+      address: 'Jl. Contoh Retail No. 2',
       phone: '081234567891',
     },
   });
 
-  // Business memberships
-  const ownerBusinessUser = await prisma.businessUser.upsert({
+  // Outlets - Restaurant
+  const restaurantOutletOne = await prisma.outlet.upsert({
+    where: {
+      businessId_code: {
+        businessId: restaurantBusiness.id,
+        code: 'RESTO-01',
+      },
+    },
+    update: {},
+    create: {
+      businessId: restaurantBusiness.id,
+      name: 'Demo Resto Outlet Utama',
+      code: 'RESTO-01',
+      address: 'Jl. Contoh Resto No. 1',
+      phone: '081234567892',
+    },
+  });
+
+  const restaurantOutletTwo = await prisma.outlet.upsert({
+    where: {
+      businessId_code: {
+        businessId: restaurantBusiness.id,
+        code: 'RESTO-02',
+      },
+    },
+    update: {},
+    create: {
+      businessId: restaurantBusiness.id,
+      name: 'Demo Resto Outlet Kedua',
+      code: 'RESTO-02',
+      address: 'Jl. Contoh Resto No. 2',
+      phone: '081234567893',
+    },
+  });
+
+  // Business memberships - retail
+  const retailOwnerBusinessUser = await prisma.businessUser.upsert({
     where: {
       businessId_userId: {
-        businessId: business.id,
-        userId: ownerUser.id,
+        businessId: retailBusiness.id,
+        userId: retailOwnerUser.id,
       },
     },
     update: {
@@ -417,8 +692,8 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
       hasAllOutletAccess: true,
     },
     create: {
-      businessId: business.id,
-      userId: ownerUser.id,
+      businessId: retailBusiness.id,
+      userId: retailOwnerUser.id,
       businessRoleId: ownerRole.id,
       status: BusinessUserStatus.ACTIVE,
       isPrimary: true,
@@ -426,33 +701,33 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
     },
   });
 
-  const superAdminBusinessUser = await prisma.businessUser.upsert({
+  const retailSuperAdminBusinessUser = await prisma.businessUser.upsert({
     where: {
       businessId_userId: {
-        businessId: business.id,
-        userId: superAdmin.id,
+        businessId: retailBusiness.id,
+        userId: superAdminRetail.id,
       },
     },
     update: {
       businessRoleId: ownerRole.id,
       status: BusinessUserStatus.ACTIVE,
-      isPrimary: true,
+      isPrimary: false,
       hasAllOutletAccess: true,
     },
     create: {
-      businessId: business.id,
-      userId: superAdmin.id,
+      businessId: retailBusiness.id,
+      userId: superAdminRetail.id,
       businessRoleId: ownerRole.id,
       status: BusinessUserStatus.ACTIVE,
-      isPrimary: true,
+      isPrimary: false,
       hasAllOutletAccess: true,
     },
   });
 
-  const adminAllOutletBusinessUser = await prisma.businessUser.upsert({
+  const retailAdminAllOutletBusinessUser = await prisma.businessUser.upsert({
     where: {
       businessId_userId: {
-        businessId: business.id,
+        businessId: retailBusiness.id,
         userId: adminAllOutletUser.id,
       },
     },
@@ -463,7 +738,7 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
       hasAllOutletAccess: true,
     },
     create: {
-      businessId: business.id,
+      businessId: retailBusiness.id,
       userId: adminAllOutletUser.id,
       businessRoleId: adminRole.id,
       status: BusinessUserStatus.ACTIVE,
@@ -472,10 +747,10 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
     },
   });
 
-  const adminLimitedBusinessUser = await prisma.businessUser.upsert({
+  const retailAdminLimitedBusinessUser = await prisma.businessUser.upsert({
     where: {
       businessId_userId: {
-        businessId: business.id,
+        businessId: retailBusiness.id,
         userId: adminLimitedUser.id,
       },
     },
@@ -486,7 +761,7 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
       hasAllOutletAccess: false,
     },
     create: {
-      businessId: business.id,
+      businessId: retailBusiness.id,
       userId: adminLimitedUser.id,
       businessRoleId: adminRole.id,
       status: BusinessUserStatus.ACTIVE,
@@ -495,10 +770,10 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
     },
   });
 
-  const cashierBusinessUser = await prisma.businessUser.upsert({
+  const retailCashierBusinessUser = await prisma.businessUser.upsert({
     where: {
       businessId_userId: {
-        businessId: business.id,
+        businessId: retailBusiness.id,
         userId: cashierUser.id,
       },
     },
@@ -509,7 +784,7 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
       hasAllOutletAccess: false,
     },
     create: {
-      businessId: business.id,
+      businessId: retailBusiness.id,
       userId: cashierUser.id,
       businessRoleId: cashierRole.id,
       status: BusinessUserStatus.ACTIVE,
@@ -518,33 +793,10 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
     },
   });
 
-  const kitchenBusinessUser = await prisma.businessUser.upsert({
+  const retailInventoryBusinessUser = await prisma.businessUser.upsert({
     where: {
       businessId_userId: {
-        businessId: business.id,
-        userId: kitchenUser.id,
-      },
-    },
-    update: {
-      businessRoleId: kitchenRole.id,
-      status: BusinessUserStatus.ACTIVE,
-      isPrimary: false,
-      hasAllOutletAccess: false,
-    },
-    create: {
-      businessId: business.id,
-      userId: kitchenUser.id,
-      businessRoleId: kitchenRole.id,
-      status: BusinessUserStatus.ACTIVE,
-      isPrimary: false,
-      hasAllOutletAccess: false,
-    },
-  });
-
-  const inventoryBusinessUser = await prisma.businessUser.upsert({
-    where: {
-      businessId_userId: {
-        businessId: business.id,
+        businessId: retailBusiness.id,
         userId: inventoryUser.id,
       },
     },
@@ -555,7 +807,7 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
       hasAllOutletAccess: false,
     },
     create: {
-      businessId: business.id,
+      businessId: retailBusiness.id,
       userId: inventoryUser.id,
       businessRoleId: inventoryRole.id,
       status: BusinessUserStatus.ACTIVE,
@@ -564,113 +816,651 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
     },
   });
 
+  // Business memberships - restaurant
+  const restaurantOwnerBusinessUser = await prisma.businessUser.upsert({
+    where: {
+      businessId_userId: {
+        businessId: restaurantBusiness.id,
+        userId: restaurantOwnerUser.id,
+      },
+    },
+    update: {
+      businessRoleId: ownerRole.id,
+      status: BusinessUserStatus.ACTIVE,
+      isPrimary: true,
+      hasAllOutletAccess: true,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      userId: restaurantOwnerUser.id,
+      businessRoleId: ownerRole.id,
+      status: BusinessUserStatus.ACTIVE,
+      isPrimary: true,
+      hasAllOutletAccess: true,
+    },
+  });
+
+  const restaurantSuperAdminBusinessUser = await prisma.businessUser.upsert({
+    where: {
+      businessId_userId: {
+        businessId: restaurantBusiness.id,
+        userId: superAdminRestaurant.id,
+      },
+    },
+    update: {
+      businessRoleId: ownerRole.id,
+      status: BusinessUserStatus.ACTIVE,
+      isPrimary: false,
+      hasAllOutletAccess: true,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      userId: superAdminRestaurant.id,
+      businessRoleId: ownerRole.id,
+      status: BusinessUserStatus.ACTIVE,
+      isPrimary: false,
+      hasAllOutletAccess: true,
+    },
+  });
+
+  const restaurantKitchenBusinessUser = await prisma.businessUser.upsert({
+    where: {
+      businessId_userId: {
+        businessId: restaurantBusiness.id,
+        userId: kitchenUser.id,
+      },
+    },
+    update: {
+      businessRoleId: kitchenRole.id,
+      status: BusinessUserStatus.ACTIVE,
+      isPrimary: false,
+      hasAllOutletAccess: false,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      userId: kitchenUser.id,
+      businessRoleId: kitchenRole.id,
+      status: BusinessUserStatus.ACTIVE,
+      isPrimary: false,
+      hasAllOutletAccess: false,
+    },
+  });
+
   // Outlet access assignments
-  await prisma.businessUserOutletAccess.upsert({
-    where: {
-      businessUserId_outletId: {
-        businessUserId: adminLimitedBusinessUser.id,
-        outletId: outletOne.id,
-      },
+  const accessRows = [
+    {
+      businessUserId: retailAdminLimitedBusinessUser.id,
+      outletId: retailOutletOne.id,
     },
-    update: {},
-    create: {
-      businessUserId: adminLimitedBusinessUser.id,
-      outletId: outletOne.id,
+    {
+      businessUserId: retailCashierBusinessUser.id,
+      outletId: retailOutletOne.id,
     },
-  });
+    {
+      businessUserId: retailInventoryBusinessUser.id,
+      outletId: retailOutletTwo.id,
+    },
+    {
+      businessUserId: restaurantKitchenBusinessUser.id,
+      outletId: restaurantOutletOne.id,
+    },
+  ];
 
-  await prisma.businessUserOutletAccess.upsert({
-    where: {
-      businessUserId_outletId: {
-        businessUserId: cashierBusinessUser.id,
-        outletId: outletOne.id,
+  for (const accessRow of accessRows) {
+    await prisma.businessUserOutletAccess.upsert({
+      where: {
+        businessUserId_outletId: {
+          businessUserId: accessRow.businessUserId,
+          outletId: accessRow.outletId,
+        },
       },
-    },
-    update: {},
-    create: {
-      businessUserId: cashierBusinessUser.id,
-      outletId: outletOne.id,
-    },
-  });
-
-  await prisma.businessUserOutletAccess.upsert({
-    where: {
-      businessUserId_outletId: {
-        businessUserId: kitchenBusinessUser.id,
-        outletId: outletOne.id,
-      },
-    },
-    update: {},
-    create: {
-      businessUserId: kitchenBusinessUser.id,
-      outletId: outletOne.id,
-    },
-  });
-
-  await prisma.businessUserOutletAccess.upsert({
-    where: {
-      businessUserId_outletId: {
-        businessUserId: inventoryBusinessUser.id,
-        outletId: outletTwo.id,
-      },
-    },
-    update: {},
-    create: {
-      businessUserId: inventoryBusinessUser.id,
-      outletId: outletTwo.id,
-    },
-  });
+      update: {},
+      create: accessRow,
+    });
+  }
 
   await prisma.businessUserOutletAccess.deleteMany({
     where: {
-      businessUserId: superAdminBusinessUser.id,
+      businessUserId: {
+        in: [
+          retailSuperAdminBusinessUser.id,
+          restaurantSuperAdminBusinessUser.id,
+          retailOwnerBusinessUser.id,
+          restaurantOwnerBusinessUser.id,
+          retailAdminAllOutletBusinessUser.id,
+        ],
+      },
     },
   });
 
   await prisma.businessUserOutletAccess.createMany({
     data: [
       {
-        businessUserId: superAdminBusinessUser.id,
-        outletId: outletOne.id,
+        businessUserId: retailSuperAdminBusinessUser.id,
+        outletId: retailOutletOne.id,
       },
       {
-        businessUserId: superAdminBusinessUser.id,
-        outletId: outletTwo.id,
+        businessUserId: retailSuperAdminBusinessUser.id,
+        outletId: retailOutletTwo.id,
+      },
+      {
+        businessUserId: restaurantSuperAdminBusinessUser.id,
+        outletId: restaurantOutletOne.id,
+      },
+      {
+        businessUserId: restaurantSuperAdminBusinessUser.id,
+        outletId: restaurantOutletTwo.id,
+      },
+      {
+        businessUserId: retailOwnerBusinessUser.id,
+        outletId: retailOutletOne.id,
+      },
+      {
+        businessUserId: retailOwnerBusinessUser.id,
+        outletId: retailOutletTwo.id,
+      },
+      {
+        businessUserId: restaurantOwnerBusinessUser.id,
+        outletId: restaurantOutletOne.id,
+      },
+      {
+        businessUserId: restaurantOwnerBusinessUser.id,
+        outletId: restaurantOutletTwo.id,
+      },
+      {
+        businessUserId: retailAdminAllOutletBusinessUser.id,
+        outletId: retailOutletOne.id,
+      },
+      {
+        businessUserId: retailAdminAllOutletBusinessUser.id,
+        outletId: retailOutletTwo.id,
       },
     ],
     skipDuplicates: true,
   });
 
-  // Enable feature flags for business
-  for (const feature of [
-    featureBusinessManagement,
-    featureOutletManagement,
-    featureBasicDashboard,
-  ]) {
-    await prisma.businessFeatureFlag.upsert({
+  // Feature flags
+  await enableFeatureFlag(
+    retailBusiness.id,
+    'BUSINESS_MANAGEMENT',
+    'Business Management',
+    'Kelola business',
+  );
+  await enableFeatureFlag(
+    retailBusiness.id,
+    'OUTLET_MANAGEMENT',
+    'Outlet Management',
+    'Kelola outlet',
+  );
+  await enableFeatureFlag(
+    retailBusiness.id,
+    'BASIC_DASHBOARD',
+    'Basic Dashboard',
+    'Dashboard dasar',
+  );
+  await enableFeatureFlag(
+    retailBusiness.id,
+    'CATEGORY_MANAGEMENT',
+    'Category Management',
+    'Kelola kategori',
+  );
+  await enableFeatureFlag(
+    retailBusiness.id,
+    'PRODUCT_MANAGEMENT',
+    'Product Management',
+    'Kelola product/menu',
+  );
+  await enableFeatureFlag(
+    retailBusiness.id,
+    'PROMO_MANAGEMENT',
+    'Promo Management',
+    'Kelola promo',
+  );
+  await enableFeatureFlag(
+    retailBusiness.id,
+    'TABLE_MANAGEMENT',
+    'Table Management',
+    'Kelola meja outlet',
+    false,
+  );
+
+  await enableFeatureFlag(
+    restaurantBusiness.id,
+    'BUSINESS_MANAGEMENT',
+    'Business Management',
+    'Kelola business',
+  );
+  await enableFeatureFlag(
+    restaurantBusiness.id,
+    'OUTLET_MANAGEMENT',
+    'Outlet Management',
+    'Kelola outlet',
+  );
+  await enableFeatureFlag(
+    restaurantBusiness.id,
+    'BASIC_DASHBOARD',
+    'Basic Dashboard',
+    'Dashboard dasar',
+  );
+  await enableFeatureFlag(
+    restaurantBusiness.id,
+    'CATEGORY_MANAGEMENT',
+    'Category Management',
+    'Kelola kategori',
+  );
+  await enableFeatureFlag(
+    restaurantBusiness.id,
+    'PRODUCT_MANAGEMENT',
+    'Product Management',
+    'Kelola product/menu',
+  );
+  await enableFeatureFlag(
+    restaurantBusiness.id,
+    'PROMO_MANAGEMENT',
+    'Promo Management',
+    'Kelola promo',
+  );
+  await enableFeatureFlag(
+    restaurantBusiness.id,
+    'TABLE_MANAGEMENT',
+    'Table Management',
+    'Kelola meja outlet',
+    true,
+  );
+
+  // Categories - Retail
+  const retailCategoryBeverages = await prisma.category.upsert({
+    where: {
+      businessId_name: {
+        businessId: retailBusiness.id,
+        name: 'Minuman',
+      },
+    },
+    update: {
+      code: 'CAT-MINUMAN',
+      description: 'Kategori minuman retail',
+      sortOrder: 1,
+      status: CategoryStatus.ACTIVE,
+    },
+    create: {
+      businessId: retailBusiness.id,
+      name: 'Minuman',
+      code: 'CAT-MINUMAN',
+      description: 'Kategori minuman retail',
+      sortOrder: 1,
+      status: CategoryStatus.ACTIVE,
+    },
+  });
+
+  const retailCategorySnacks = await prisma.category.upsert({
+    where: {
+      businessId_name: {
+        businessId: retailBusiness.id,
+        name: 'Snack',
+      },
+    },
+    update: {
+      code: 'CAT-SNACK',
+      description: 'Kategori snack retail',
+      sortOrder: 2,
+      status: CategoryStatus.ACTIVE,
+    },
+    create: {
+      businessId: retailBusiness.id,
+      name: 'Snack',
+      code: 'CAT-SNACK',
+      description: 'Kategori snack retail',
+      sortOrder: 2,
+      status: CategoryStatus.ACTIVE,
+    },
+  });
+
+  // Categories - Restaurant
+  const restaurantCategoryFood = await prisma.category.upsert({
+    where: {
+      businessId_name: {
+        businessId: restaurantBusiness.id,
+        name: 'Makanan',
+      },
+    },
+    update: {
+      code: 'CAT-MAKANAN',
+      description: 'Kategori makanan restaurant',
+      sortOrder: 1,
+      status: CategoryStatus.ACTIVE,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      name: 'Makanan',
+      code: 'CAT-MAKANAN',
+      description: 'Kategori makanan restaurant',
+      sortOrder: 1,
+      status: CategoryStatus.ACTIVE,
+    },
+  });
+
+  const restaurantCategoryDrink = await prisma.category.upsert({
+    where: {
+      businessId_name: {
+        businessId: restaurantBusiness.id,
+        name: 'Minuman',
+      },
+    },
+    update: {
+      code: 'CAT-MINUMAN',
+      description: 'Kategori minuman restaurant',
+      sortOrder: 2,
+      status: CategoryStatus.ACTIVE,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      name: 'Minuman',
+      code: 'CAT-MINUMAN',
+      description: 'Kategori minuman restaurant',
+      sortOrder: 2,
+      status: CategoryStatus.ACTIVE,
+    },
+  });
+
+  // Products - Retail
+  const retailProductTea = await prisma.product.upsert({
+    where: {
+      businessId_code: {
+        businessId: retailBusiness.id,
+        code: 'PRD-TEH-BOTOL',
+      },
+    },
+    update: {
+      categoryId: retailCategoryBeverages.id,
+      name: 'Teh Botol',
+      sku: 'SKU-TEH-BOTOL',
+      brand: 'Sosro',
+      unit: 'Botol',
+      description: 'Teh botol retail',
+      imageUrl: 'https://example.com/products/teh-botol.jpg',
+      basePrice: 5000,
+      status: ProductStatus.ACTIVE,
+    },
+    create: {
+      businessId: retailBusiness.id,
+      categoryId: retailCategoryBeverages.id,
+      name: 'Teh Botol',
+      code: 'PRD-TEH-BOTOL',
+      sku: 'SKU-TEH-BOTOL',
+      brand: 'Sosro',
+      unit: 'Botol',
+      description: 'Teh botol retail',
+      imageUrl: 'https://example.com/products/teh-botol.jpg',
+      basePrice: 5000,
+      status: ProductStatus.ACTIVE,
+    },
+  });
+
+  const retailProductChips = await prisma.product.upsert({
+    where: {
+      businessId_code: {
+        businessId: retailBusiness.id,
+        code: 'PRD-KERIPIK',
+      },
+    },
+    update: {
+      categoryId: retailCategorySnacks.id,
+      name: 'Keripik Kentang',
+      sku: 'SKU-KERIPIK',
+      brand: 'Qtela',
+      unit: 'Pcs',
+      description: 'Keripik kentang retail',
+      imageUrl: 'https://example.com/products/keripik-kentang.jpg',
+      basePrice: 12000,
+      status: ProductStatus.ACTIVE,
+    },
+    create: {
+      businessId: retailBusiness.id,
+      categoryId: retailCategorySnacks.id,
+      name: 'Keripik Kentang',
+      code: 'PRD-KERIPIK',
+      sku: 'SKU-KERIPIK',
+      brand: 'Qtela',
+      unit: 'Pcs',
+      description: 'Keripik kentang retail',
+      imageUrl: 'https://example.com/products/keripik-kentang.jpg',
+      basePrice: 12000,
+      status: ProductStatus.ACTIVE,
+    },
+  });
+
+  // Products - Restaurant
+  const restaurantProductNasiGoreng = await prisma.product.upsert({
+    where: {
+      businessId_code: {
+        businessId: restaurantBusiness.id,
+        code: 'MENU-NASGOR',
+      },
+    },
+    update: {
+      categoryId: restaurantCategoryFood.id,
+      name: 'Nasi Goreng Special',
+      sku: 'SKU-NASGOR',
+      brand: 'Kitchen Internal',
+      unit: 'Porsi',
+      description: 'Menu nasi goreng special',
+      imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
+      basePrice: 28000,
+      status: ProductStatus.ACTIVE,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      categoryId: restaurantCategoryFood.id,
+      name: 'Nasi Goreng Special',
+      code: 'MENU-NASGOR',
+      sku: 'SKU-NASGOR',
+      brand: 'Kitchen Internal',
+      unit: 'Porsi',
+      description: 'Menu nasi goreng special',
+      imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
+      basePrice: 28000,
+      status: ProductStatus.ACTIVE,
+    },
+  });
+
+  const restaurantProductEsTeh = await prisma.product.upsert({
+    where: {
+      businessId_code: {
+        businessId: restaurantBusiness.id,
+        code: 'MENU-ESTEH',
+      },
+    },
+    update: {
+      categoryId: restaurantCategoryDrink.id,
+      name: 'Es Teh Manis',
+      sku: 'SKU-ESTEH',
+      brand: 'Kitchen Internal',
+      unit: 'Gelas',
+      description: 'Menu es teh manis',
+      imageUrl: 'https://example.com/products/es-teh-manis.jpg',
+      basePrice: 8000,
+      status: ProductStatus.ACTIVE,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      categoryId: restaurantCategoryDrink.id,
+      name: 'Es Teh Manis',
+      code: 'MENU-ESTEH',
+      sku: 'SKU-ESTEH',
+      brand: 'Kitchen Internal',
+      unit: 'Gelas',
+      description: 'Menu es teh manis',
+      imageUrl: 'https://example.com/products/es-teh-manis.jpg',
+      basePrice: 8000,
+      status: ProductStatus.ACTIVE,
+    },
+  });
+
+  // Product outlet settings - Retail
+  const retailProductOutletSettings = [
+    {
+      productId: retailProductTea.id,
+      outletId: retailOutletOne.id,
+      isAvailable: true,
+      priceOverride: 5000,
+      status: ProductOutletStatus.ACTIVE,
+    },
+    {
+      productId: retailProductTea.id,
+      outletId: retailOutletTwo.id,
+      isAvailable: true,
+      priceOverride: 5500,
+      status: ProductOutletStatus.ACTIVE,
+    },
+    {
+      productId: retailProductChips.id,
+      outletId: retailOutletOne.id,
+      isAvailable: true,
+      priceOverride: 12000,
+      status: ProductOutletStatus.ACTIVE,
+    },
+    {
+      productId: retailProductChips.id,
+      outletId: retailOutletTwo.id,
+      isAvailable: false,
+      priceOverride: null,
+      status: ProductOutletStatus.INACTIVE,
+    },
+  ];
+
+  for (const item of retailProductOutletSettings) {
+    await prisma.productOutletSetting.upsert({
       where: {
-        businessId_featureFlagId: {
-          businessId: business.id,
-          featureFlagId: feature.id,
+        productId_outletId: {
+          productId: item.productId,
+          outletId: item.outletId,
         },
       },
-      update: { enabled: true },
-      create: {
-        businessId: business.id,
-        featureFlagId: feature.id,
-        enabled: true,
+      update: {
+        isAvailable: item.isAvailable,
+        priceOverride: item.priceOverride,
+        status: item.status,
       },
+      create: item,
+    });
+  }
+
+  // Product outlet settings - Restaurant
+  const restaurantProductOutletSettings = [
+    {
+      productId: restaurantProductNasiGoreng.id,
+      outletId: restaurantOutletOne.id,
+      isAvailable: true,
+      priceOverride: 28000,
+      status: ProductOutletStatus.ACTIVE,
+    },
+    {
+      productId: restaurantProductNasiGoreng.id,
+      outletId: restaurantOutletTwo.id,
+      isAvailable: true,
+      priceOverride: 30000,
+      status: ProductOutletStatus.ACTIVE,
+    },
+    {
+      productId: restaurantProductEsTeh.id,
+      outletId: restaurantOutletOne.id,
+      isAvailable: true,
+      priceOverride: 8000,
+      status: ProductOutletStatus.ACTIVE,
+    },
+    {
+      productId: restaurantProductEsTeh.id,
+      outletId: restaurantOutletTwo.id,
+      isAvailable: true,
+      priceOverride: 9000,
+      status: ProductOutletStatus.ACTIVE,
+    },
+  ];
+
+  for (const item of restaurantProductOutletSettings) {
+    await prisma.productOutletSetting.upsert({
+      where: {
+        productId_outletId: {
+          productId: item.productId,
+          outletId: item.outletId,
+        },
+      },
+      update: {
+        isAvailable: item.isAvailable,
+        priceOverride: item.priceOverride,
+        status: item.status,
+      },
+      create: item,
+    });
+  }
+
+  // Tables - Restaurant only
+  const restaurantTables = [
+    {
+      outletId: restaurantOutletOne.id,
+      code: 'T01',
+      name: 'Meja 01',
+      capacity: 4,
+      status: OutletTableStatus.ACTIVE,
+    },
+    {
+      outletId: restaurantOutletOne.id,
+      code: 'T02',
+      name: 'Meja 02',
+      capacity: 4,
+      status: OutletTableStatus.ACTIVE,
+    },
+    {
+      outletId: restaurantOutletTwo.id,
+      code: 'T01',
+      name: 'Meja 01',
+      capacity: 2,
+      status: OutletTableStatus.ACTIVE,
+    },
+    {
+      outletId: restaurantOutletTwo.id,
+      code: 'T02',
+      name: 'Meja 02',
+      capacity: 6,
+      status: OutletTableStatus.ACTIVE,
+    },
+  ];
+
+  for (const table of restaurantTables) {
+    await prisma.outletTable.upsert({
+      where: {
+        outletId_code: {
+          outletId: table.outletId,
+          code: table.code,
+        },
+      },
+      update: {
+        name: table.name,
+        capacity: table.capacity,
+        status: table.status,
+      },
+      create: table,
     });
   }
 
   console.log('Seed completed.');
   console.log({
-    superAdmin: {
-      email: 'superadmin@pos.local',
+    superAdmins: {
+      retail: {
+        email: 'superadmin-retail@pos.local',
+        password: 'password123',
+      },
+      restaurant: {
+        email: 'superadmin-resto@pos.local',
+        password: 'password123',
+      },
+    },
+    retailOwner: {
+      email: 'owner@demo.local',
       password: 'password123',
     },
-    ownerUser: {
-      email: 'owner@demo.local',
+    restaurantOwner: {
+      email: 'owner-resto@demo.local',
       password: 'password123',
     },
     businessUsers: {
@@ -695,38 +1485,31 @@ const permissionOutletStatusUpdate = await upsertBusinessPermission(
         password: 'password123',
       },
     },
-    roles: {
-      ownerRoleId: ownerRole.id,
-      adminRoleId: adminRole.id,
-      cashierRoleId: cashierRole.id,
-      kitchenRoleId: kitchenRole.id,
-      inventoryRoleId: inventoryRole.id,
+    businesses: {
+      retail: {
+        slug: retailBusiness.slug,
+        type: retailBusiness.businessType,
+      },
+      restaurant: {
+        slug: restaurantBusiness.slug,
+        type: restaurantBusiness.businessType,
+      },
     },
-    permissions: {
-      businessRoleView: permissionBusinessRoleView.code,
-      businessPermissionView: permissionBusinessPermissionView.code,
-      businessUserView: permissionBusinessUserView.code,
-      businessUserCreate: permissionBusinessUserCreate.code,
-      businessUserUpdate: permissionBusinessUserUpdate.code,
-      businessUserStatusUpdate: permissionBusinessUserStatusUpdate.code,
-      businessUserAssignOutlet: permissionBusinessUserAssignOutlet.code,
-      outletScopeView: permissionOutletScopeView.code,
+    outlets: {
+      retail: [retailOutletOne.code, retailOutletTwo.code],
+      restaurant: [restaurantOutletOne.code, restaurantOutletTwo.code],
     },
-    outletScopeExamples: {
-      owner: 'all outlets',
-      adminAllOutlet: 'all outlets',
-      adminLimited: ['OUTLET-01'],
-      cashier: ['OUTLET-01'],
-      kitchen: ['OUTLET-01'],
-      inventory: ['OUTLET-02'],
-    },
-    createdMemberships: {
-      ownerBusinessUserId: ownerBusinessUser.id,
-      adminAllOutletBusinessUserId: adminAllOutletBusinessUser.id,
-      adminLimitedBusinessUserId: adminLimitedBusinessUser.id,
-      cashierBusinessUserId: cashierBusinessUser.id,
-      kitchenBusinessUserId: kitchenBusinessUser.id,
-      inventoryBusinessUserId: inventoryBusinessUser.id,
+    phase3: {
+      retailCategories: ['Minuman', 'Snack'],
+      restaurantCategories: ['Makanan', 'Minuman'],
+      retailProducts: ['Teh Botol', 'Keripik Kentang'],
+      restaurantProducts: ['Nasi Goreng Special', 'Es Teh Manis'],
+      restaurantTables: [
+        'RESTO-01:T01',
+        'RESTO-01:T02',
+        'RESTO-02:T01',
+        'RESTO-02:T02',
+      ],
     },
   });
 }

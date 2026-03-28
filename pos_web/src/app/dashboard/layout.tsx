@@ -15,11 +15,29 @@ const DASHBOARD_ALLOWED_PERMISSIONS = [
   'BUSINESS_USER_UPDATE',
   'BUSINESS_USER_STATUS_UPDATE',
   'BUSINESS_USER_ASSIGN_OUTLET',
+  'OUTLET_SCOPE_VIEW',
   'OUTLET_VIEW',
   'OUTLET_CREATE',
   'OUTLET_UPDATE',
   'OUTLET_STATUS_UPDATE',
-  'OUTLET_SCOPE_VIEW',
+  'CATEGORY_VIEW',
+  'CATEGORY_CREATE',
+  'CATEGORY_UPDATE',
+  'CATEGORY_STATUS_UPDATE',
+  'PRODUCT_VIEW',
+  'PRODUCT_CREATE',
+  'PRODUCT_UPDATE',
+  'PRODUCT_STATUS_UPDATE',
+  'PRODUCT_OUTLET_VIEW',
+  'PRODUCT_OUTLET_UPDATE',
+  'OUTLET_TABLE_VIEW',
+  'OUTLET_TABLE_CREATE',
+  'OUTLET_TABLE_UPDATE',
+  'OUTLET_TABLE_STATUS_UPDATE',
+  'PROMO_VIEW',
+  'PROMO_CREATE',
+  'PROMO_UPDATE',
+  'PROMO_STATUS_UPDATE',
 ] as const;
 
 type PermissionLike = {
@@ -167,14 +185,11 @@ export default function DashboardLayout({
                     {Array.from({ length: 4 }).map((_, index) => (
                       <div
                         key={index}
-                        className="h-36 animate-pulse rounded-[24px] bg-white"
+                        className="h-32 animate-pulse rounded-[28px] bg-white"
                       />
                     ))}
                   </div>
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    <div className="h-72 animate-pulse rounded-[28px] bg-white" />
-                    <div className="h-72 animate-pulse rounded-[28px] bg-white" />
-                  </div>
+                  <div className="h-[420px] animate-pulse rounded-[28px] bg-white" />
                 </div>
               </div>
             </main>
@@ -188,8 +203,8 @@ export default function DashboardLayout({
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <div className="w-full max-w-md rounded-[28px] border border-red-200 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-lg font-semibold text-slate-900">
-            Akses tidak tersedia
+          <h1 className="text-xl font-semibold text-slate-900">
+            Akses dashboard ditolak
           </h1>
           <p className="mt-2 text-sm text-slate-500">
             {error || 'Anda tidak memiliki akses ke dashboard.'}
@@ -206,7 +221,6 @@ export default function DashboardLayout({
 
         <div className="flex min-w-0 flex-1 flex-col">
           <AppHeader />
-
           <main className="flex-1">
             <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
               {children}
