@@ -369,7 +369,7 @@ export function AppHeader({
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur">
-      <div className="flex min-h-[72px] items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="flex min-h-18 items-center justify-between gap-4 px-4 sm:px-6">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-600">
             POS Platform

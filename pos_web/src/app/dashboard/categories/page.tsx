@@ -161,28 +161,28 @@ export default function CategoryListPage() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Total Category</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
             {loading ? '-' : totalCategory}
           </p>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Active</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-600">
             {loading ? '-' : activeCategory}
           </p>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Inactive</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-600">
             {loading ? '-' : inactiveCategory}
           </p>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Root Category</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
             {loading ? '-' : rootCategory}
@@ -428,7 +428,7 @@ export default function CategoryListPage() {
                 return (
                   <div
                     key={item.id}
-                    className="rounded-[24px] border border-slate-200 bg-slate-50 p-4"
+                    className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>

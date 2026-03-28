@@ -164,7 +164,7 @@ export default function BusinessFeaturesPage() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Business</p>
           <p className="mt-2 text-lg font-semibold text-slate-900">
             {data.business.name}
@@ -172,21 +172,21 @@ export default function BusinessFeaturesPage() {
           <p className="mt-1 text-sm text-slate-500">{data.business.slug}</p>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Business Type</p>
           <p className="mt-2 text-lg font-semibold text-slate-900">
             {data.business.businessType}
           </p>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Status</p>
           <p className="mt-2 text-lg font-semibold text-slate-900">
             {data.business.status}
           </p>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Enabled Features</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
             {enabledCount}
@@ -220,7 +220,7 @@ export default function BusinessFeaturesPage() {
                 return (
                   <label
                     key={item.id}
-                    className={`flex cursor-pointer items-start gap-4 rounded-[24px] border px-4 py-4 transition ${
+                    className={`flex cursor-pointer items-start gap-4 rounded-3xl border px-4 py-4 transition ${
                       checked
                         ? 'border-violet-200 bg-violet-50'
                         : 'border-slate-200 bg-slate-50 hover:bg-white'

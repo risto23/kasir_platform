@@ -111,7 +111,7 @@ export default function DashboardPage() {
         {summaryCards.map((card) => (
           <div
             key={card.title}
-            className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">

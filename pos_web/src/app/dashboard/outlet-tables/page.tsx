@@ -223,7 +223,7 @@ export default function OutletTablesPage() {
             {items.map((item) => (
               <div
                 key={item.id}
-                className="rounded-[24px] border border-slate-200 bg-slate-50 p-4"
+                className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
               >
                 <div className="flex items-start gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-500">

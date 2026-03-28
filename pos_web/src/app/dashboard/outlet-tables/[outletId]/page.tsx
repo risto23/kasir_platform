@@ -507,7 +507,7 @@ export default function OutletTablesDetailPage() {
               return (
                 <div
                   key={item.id}
-                  className="rounded-[24px] border border-slate-200 bg-slate-50 p-4"
+                  className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
                 >
                   <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex items-start gap-3">

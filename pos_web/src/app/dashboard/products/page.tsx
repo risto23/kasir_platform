@@ -213,28 +213,28 @@ export default function ProductListPage() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Total {productLabel}</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
             {loading ? '-' : totalItem}
           </p>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Active</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-600">
             {loading ? '-' : activeItem}
           </p>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Inactive</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-600">
             {loading ? '-' : inactiveItem}
           </p>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Tanpa Category</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
             {loading ? '-' : uncategorizedItem}
@@ -501,7 +501,7 @@ export default function ProductListPage() {
                 return (
                   <div
                     key={item.id}
-                    className="rounded-[24px] border border-slate-200 bg-slate-50 p-4"
+                    className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
                   >
                     <div className="flex items-start gap-3">
                       <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white text-slate-400">
