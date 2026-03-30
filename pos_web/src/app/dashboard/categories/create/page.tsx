@@ -7,8 +7,6 @@ import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft,
-  faCodeBranch,
-  faFolderTree,
   faLayerGroup,
   faRotateLeft,
   faSave,
@@ -16,12 +14,10 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import { api } from '@/lib/api';
-import type { Category, CategoryListResponse } from '@/types/category';
 
 type CategoryFormState = {
   name: string;
   description: string;
-  parentId: string;
   sortOrder: string;
 };
 
@@ -40,40 +36,18 @@ function getMessage(error: unknown) {
 export default function CategoryCreatePage() {
   const router = useRouter();
 
-  const [parentOptions, setParentOptions] = useState<Category[]>([]);
-  const [loadingParents, setLoadingParents] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
   const [form, setForm] = useState<CategoryFormState>({
     name: '',
     description: '',
-    parentId: '',
     sortOrder: '0',
   });
 
-  async function fetchParents() {
-    try {
-      setLoadingParents(true);
-
-      const response = await api.get('/business/categories', {
-        params: {
-          status: 'ACTIVE',
-          limit: 100,
-        },
-      });
-
-      const payload: CategoryListResponse = response.data.data;
-      setParentOptions(payload?.items || []);
-    } catch {
-      setParentOptions([]);
-    } finally {
-      setLoadingParents(false);
-    }
-  }
-
   useEffect(() => {
-    void fetchParents();
+    // Tidak perlu fetch parent category karena backend category final
+    // tidak memakai parentId di contract create/update.
   }, []);
 
   function updateField<K extends keyof CategoryFormState>(
@@ -91,7 +65,6 @@ export default function CategoryCreatePage() {
     setForm({
       name: '',
       description: '',
-      parentId: '',
       sortOrder: '0',
     });
   }
@@ -118,7 +91,6 @@ export default function CategoryCreatePage() {
       await api.post('/business/categories', {
         name: form.name.trim(),
         description: form.description.trim() || null,
-        parentId: form.parentId || null,
         sortOrder: parsedSortOrder,
       });
 
@@ -144,8 +116,7 @@ export default function CategoryCreatePage() {
             Tambah Category
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Buat category baru pada business aktif. Category bisa berdiri sendiri
-            atau menjadi child dari parent category.
+            Buat category baru pada business aktif.
           </p>
         </div>
 
@@ -202,28 +173,6 @@ export default function CategoryCreatePage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-800">
-                  Parent Category
-                </label>
-                <select
-                  value={form.parentId}
-                  onChange={(e) => updateField('parentId', e.target.value)}
-                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  disabled={loadingParents}
-                >
-                  <option value="">
-                    {loadingParents ? 'Memuat category...' : 'Tanpa parent'}
-                  </option>
-                  {parentOptions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                      {item.code ? ` (${item.code})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-semibold text-slate-800">
                   Deskripsi
@@ -246,22 +195,11 @@ export default function CategoryCreatePage() {
 
             <div className="mt-4 space-y-3">
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  <FontAwesomeIcon icon={faFolderTree} className="h-3 w-3" />
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
                   Nama
-                </div>
+                </p>
                 <p className="mt-2 text-sm font-medium text-slate-800">
                   {form.name.trim() || '-'}
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  <FontAwesomeIcon icon={faCodeBranch} className="h-3 w-3" />
-                  Parent
-                </div>
-                <p className="mt-2 text-sm font-medium text-slate-800">
-                  {parentOptions.find((item) => item.id === form.parentId)?.name || '-'}
                 </p>
               </div>
 
@@ -312,8 +250,8 @@ export default function CategoryCreatePage() {
             <div className="mt-4 grid gap-3">
               {[
                 'Category dibuat di business aktif.',
-                'Parent category boleh dikosongkan.',
                 'Sort order default 0.',
+                'Code category dibuat otomatis dari backend.',
                 'Tidak menambahkan field di luar contract backend aktif.',
               ].map((note) => (
                 <div

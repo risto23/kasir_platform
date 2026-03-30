@@ -1,7 +1,6 @@
-// pos_web/src/app/dashboard/categories/[id]/edit/page.tsx
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -11,29 +10,23 @@ import {
   faArrowLeft,
   faBan,
   faCircleCheck,
-  faDiagramProject,
   faFloppyDisk,
   faFolderTree,
   faLock,
   faPenToSquare,
   faShapes,
-  faSitemap,
 } from '@fortawesome/free-solid-svg-icons';
 
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type {
-  Category,
-  CategoryListResponse,
-  CategoryStatus,
-} from '@/types/category';
+import type { Category, CategoryStatus } from '@/types/category';
 
 type EditCategoryForm = {
   name: string;
   code: string;
   description: string;
-  parentId: string;
+  sortOrder: string;
 };
 
 function getMessage(error: unknown, fallback: string) {
@@ -64,10 +57,9 @@ export default function EditCategoryPage() {
     name: '',
     code: '',
     description: '',
-    parentId: '',
+    sortOrder: '0',
   });
   const [detail, setDetail] = useState<Category | null>(null);
-  const [parents, setParents] = useState<Category[]>([]);
   const [status, setStatus] = useState<CategoryStatus>('ACTIVE');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -80,28 +72,17 @@ export default function EditCategoryPage() {
       try {
         setLoading(true);
 
-        const [detailResponse, parentResponse] = await Promise.all([
-          api.get(`/business/categories/${params.id}`),
-          api.get('/business/categories', {
-            params: {
-              status: 'ACTIVE',
-              limit: 100,
-            },
-          }),
-        ]);
-
+        const detailResponse = await api.get(`/business/categories/${params.id}`);
         const item: Category = detailResponse.data.data;
-        const parentPayload: CategoryListResponse = parentResponse.data.data;
 
         setDetail(item);
         setForm({
           name: item.name ?? '',
           code: item.code ?? '',
           description: item.description ?? '',
-          parentId: item.parentId ?? '',
+          sortOrder: String(item.sortOrder ?? 0),
         });
         setStatus(item.status);
-        setParents((parentPayload?.items || []).filter((x) => x.id !== item.id));
       } catch (error: unknown) {
         setMessage(getMessage(error, 'Gagal memuat category'));
         setMessageType('error');
@@ -118,13 +99,27 @@ export default function EditCategoryPage() {
     setMessage('');
     setMessageType('');
 
+    const parsedSortOrder = Number(form.sortOrder || 0);
+
+    if (!form.name.trim()) {
+      setMessage('Nama category wajib diisi.');
+      setMessageType('error');
+      return;
+    }
+
+    if (!Number.isFinite(parsedSortOrder) || parsedSortOrder < 0) {
+      setMessage('Sort order harus berupa angka 0 atau lebih besar.');
+      setMessageType('error');
+      return;
+    }
+
     try {
       setSaving(true);
 
       const response = await api.put(`/business/categories/${params.id}`, {
         name: form.name.trim(),
         description: form.description.trim() || null,
-        parentId: form.parentId || null,
+        sortOrder: parsedSortOrder,
       });
 
       const updated: Category = response.data.data;
@@ -135,7 +130,7 @@ export default function EditCategoryPage() {
         name: updated.name ?? '',
         code: updated.code ?? '',
         description: updated.description ?? '',
-        parentId: updated.parentId ?? '',
+        sortOrder: String(updated.sortOrder ?? 0),
       });
 
       setMessage('Category berhasil diperbarui');
@@ -174,11 +169,6 @@ export default function EditCategoryPage() {
       setStatusLoading(false);
     }
   }
-
-  const filteredParents = useMemo(
-    () => parents.filter((item) => item.id !== params.id),
-    [parents, params.id]
-  );
 
   if (loading) {
     return (
@@ -274,26 +264,17 @@ export default function EditCategoryPage() {
 
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700">
-                  Parent Category
+                  Sort Order
                 </label>
-                <select
-                  value={form.parentId}
+                <Input
+                  type="number"
+                  min="0"
+                  value={form.sortOrder}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, parentId: e.target.value }))
+                    setForm((prev) => ({ ...prev, sortOrder: e.target.value }))
                   }
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:bg-white"
-                >
-                  <option value="">Tanpa parent</option>
-                  {filteredParents.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                      {item.code ? ` (${item.code})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-400">
-                  Parent category opsional untuk kebutuhan hierarki kategori.
-                </p>
+                  className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
+                />
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -413,20 +394,10 @@ export default function EditCategoryPage() {
 
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Parent
+                  Sort Order
                 </p>
                 <p className="mt-2 font-medium text-slate-800">
-                  {detail?.parent?.name || '-'}
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Children
-                </p>
-                <p className="mt-2 flex items-center gap-2 font-medium text-slate-800">
-                  <FontAwesomeIcon icon={faDiagramProject} className="h-4 w-4" />
-                  {detail?.childrenCount ?? 0} child
+                  {form.sortOrder || '0'}
                 </p>
               </div>
 
@@ -446,7 +417,7 @@ export default function EditCategoryPage() {
 
             <div className="mt-4 space-y-2">
               {[
-                'Category name, description, dan parent category boleh diperbarui.',
+                'Category name, description, dan sort order boleh diperbarui.',
                 'Code category bersifat readonly dan tidak bisa diedit.',
                 'Status category boleh diubah ACTIVE / INACTIVE.',
                 'Business scope category tetap dijaga backend.',
@@ -463,56 +434,15 @@ export default function EditCategoryPage() {
 
           <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-50 text-sky-700">
-                <FontAwesomeIcon icon={faSitemap} className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">
-                  Struktur Category
-                </p>
-                <p className="text-xs text-slate-500">
-                  Parent category dipakai untuk grouping yang lebih rapi.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              Hindari memilih parent yang membuat struktur kategori membingungkan.
-              Category ini juga tidak boleh memilih dirinya sendiri sebagai parent.
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
                 <FontAwesomeIcon icon={faFolderTree} className="h-4 w-4" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Hierarki Aktif
+                  Ringkasan Category
                 </p>
                 <p className="text-xs text-slate-500">
-                  Ringkasan parent dan child dari category aktif.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Current Parent
-                </p>
-                <p className="mt-2 font-medium text-slate-800">
-                  {detail?.parent?.name || 'Tidak ada parent'}
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Jumlah Child
-                </p>
-                <p className="mt-2 font-medium text-slate-800">
-                  {detail?.childrenCount ?? 0}
+                  Code otomatis dari backend dan status dikelola tanpa hard delete.
                 </p>
               </div>
             </div>

@@ -9,11 +9,10 @@ const nullableTrimmedString = (max: number) =>
     .optional()
     .transform((value) => (value && value.length > 0 ? value : null));
 
-const nullableUrlString = z
+const nullableImagePathString = z
   .string()
   .trim()
-  .url('URL foto produk tidak valid')
-  .max(1000)
+  .max(1000, 'Path foto produk terlalu panjang')
   .optional()
   .transform((value) => (value && value.length > 0 ? value : null));
 
@@ -36,10 +35,12 @@ const createProductBodySchema = z.object({
     .optional()
     .transform((value) => (value && value.length > 0 ? value : null)),
   name: z.string().trim().min(1, 'Nama produk wajib diisi').max(150),
-  code: nullableTrimmedString(50),
   sku: nullableTrimmedString(100),
+  barcode: nullableTrimmedString(100),
+  brand: nullableTrimmedString(100),
+  unit: nullableTrimmedString(50),
   description: nullableTrimmedString(1000),
-  imageUrl: nullableUrlString,
+  imageUrl: nullableImagePathString,
   basePrice: z.coerce.number().finite().min(0, 'Harga dasar tidak boleh negatif'),
 });
 
@@ -50,10 +51,12 @@ const updateProductBodySchema = z.object({
     .optional()
     .transform((value) => (value && value.length > 0 ? value : null)),
   name: z.string().trim().min(1, 'Nama produk wajib diisi').max(150),
-  code: nullableTrimmedString(50),
   sku: nullableTrimmedString(100),
+  barcode: nullableTrimmedString(100),
+  brand: nullableTrimmedString(100),
+  unit: nullableTrimmedString(50),
   description: nullableTrimmedString(1000),
-  imageUrl: nullableUrlString,
+  imageUrl: nullableImagePathString,
   basePrice: z.coerce.number().finite().min(0, 'Harga dasar tidak boleh negatif'),
 });
 

@@ -1,3 +1,4 @@
+// pos_web/src/types/category.ts
 export type CategoryStatus = 'ACTIVE' | 'INACTIVE';
 
 export type Category = {

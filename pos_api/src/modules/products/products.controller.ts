@@ -37,6 +37,30 @@ function getBusinessIdFromRequest(req: Request) {
   return businessId;
 }
 
+function getUploadedImageUrl(req: Request) {
+  if (!req.file) {
+    return undefined;
+  }
+
+  return `/uploads/products/${req.file.filename}`;
+}
+
+function mergeValidatedBodyWithUploadedFile<T extends { imageUrl?: string | null }>(
+  req: Request,
+  validatedBody: T,
+): T {
+  const uploadedImageUrl = getUploadedImageUrl(req);
+
+  if (!uploadedImageUrl) {
+    return validatedBody;
+  }
+
+  return {
+    ...validatedBody,
+    imageUrl: uploadedImageUrl,
+  };
+}
+
 export async function listProductsHandler(
   req: Request,
   res: Response,
@@ -87,7 +111,8 @@ export async function createProductHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const body = res.locals.validatedBody as CreateProductBody;
+    const validatedBody = res.locals.validatedBody as CreateProductBody;
+    const body = mergeValidatedBodyWithUploadedFile(req, validatedBody);
 
     const result = await createProduct(businessId, body);
 
@@ -109,7 +134,8 @@ export async function updateProductHandler(
   try {
     const businessId = getBusinessIdFromRequest(req);
     const params = res.locals.validatedParams as ProductParams;
-    const body = res.locals.validatedBody as UpdateProductBody;
+    const validatedBody = res.locals.validatedBody as UpdateProductBody;
+    const body = mergeValidatedBodyWithUploadedFile(req, validatedBody);
 
     const result = await updateProduct(businessId, params, body);
 

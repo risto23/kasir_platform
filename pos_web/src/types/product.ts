@@ -13,6 +13,7 @@ export type Product = {
   name: string;
   code: string | null;
   sku: string | null;
+  barcode: string | null;
   brand: string | null;
   unit: string | null;
   description: string | null;
@@ -28,7 +29,7 @@ export type ProductListResponse = {
   items: Product[];
   meta: {
     page: number;
-    limit: number;
+    perPage: number;
     total: number;
     totalPages: number;
   };

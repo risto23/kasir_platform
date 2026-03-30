@@ -1162,139 +1162,143 @@ async function main() {
     },
   });
 
-  // Products - Retail
-  const retailProductTea = await prisma.product.upsert({
-    where: {
-      businessId_code: {
+    // Products - Retail
+    const retailProductTea = await prisma.product.upsert({
+      where: {
+        businessId_code: {
+          businessId: retailBusiness.id,
+          code: 'PRD-TEH-BOTOL',
+        },
+      },
+      update: {
+        categoryId: retailCategoryBeverages.id,
+        name: 'Teh Botol',
+        sku: 'SKU-TEH-BOTOL',
+        barcode: '8992761130012',
+        brand: 'Sosro',
+        unit: 'Botol',
+        description: 'Teh botol retail',
+        imageUrl: 'https://example.com/products/teh-botol.jpg',
+        basePrice: 5000,
+        status: ProductStatus.ACTIVE,
+      },
+      create: {
         businessId: retailBusiness.id,
+        categoryId: retailCategoryBeverages.id,
+        name: 'Teh Botol',
         code: 'PRD-TEH-BOTOL',
+        sku: 'SKU-TEH-BOTOL',
+        barcode: '8992761130012',
+        brand: 'Sosro',
+        unit: 'Botol',
+        description: 'Teh botol retail',
+        imageUrl: 'https://example.com/products/teh-botol.jpg',
+        basePrice: 5000,
+        status: ProductStatus.ACTIVE,
       },
-    },
-    update: {
-      categoryId: retailCategoryBeverages.id,
-      name: 'Teh Botol',
-      sku: 'SKU-TEH-BOTOL',
-      brand: 'Sosro',
-      unit: 'Botol',
-      description: 'Teh botol retail',
-      imageUrl: 'https://example.com/products/teh-botol.jpg',
-      basePrice: 5000,
-      status: ProductStatus.ACTIVE,
-    },
-    create: {
-      businessId: retailBusiness.id,
-      categoryId: retailCategoryBeverages.id,
-      name: 'Teh Botol',
-      code: 'PRD-TEH-BOTOL',
-      sku: 'SKU-TEH-BOTOL',
-      brand: 'Sosro',
-      unit: 'Botol',
-      description: 'Teh botol retail',
-      imageUrl: 'https://example.com/products/teh-botol.jpg',
-      basePrice: 5000,
-      status: ProductStatus.ACTIVE,
-    },
-  });
+    });
 
-  const retailProductChips = await prisma.product.upsert({
-    where: {
-      businessId_code: {
+    const retailProductChips = await prisma.product.upsert({
+      where: {
+        businessId_code: {
+          businessId: retailBusiness.id,
+          code: 'PRD-KERIPIK',
+        },
+      },
+      update: {
+        categoryId: retailCategorySnacks.id,
+        name: 'Keripik Kentang',
+        sku: 'SKU-KERIPIK',
+        barcode: '8996001600027',
+        brand: 'Qtela',
+        unit: 'Pcs',
+        description: 'Keripik kentang retail',
+        imageUrl: 'https://example.com/products/keripik-kentang.jpg',
+        basePrice: 12000,
+        status: ProductStatus.ACTIVE,
+      },
+      create: {
         businessId: retailBusiness.id,
+        categoryId: retailCategorySnacks.id,
+        name: 'Keripik Kentang',
         code: 'PRD-KERIPIK',
+        sku: 'SKU-KERIPIK',
+        barcode: '8996001600027',
+        brand: 'Qtela',
+        unit: 'Pcs',
+        description: 'Keripik kentang retail',
+        imageUrl: 'https://example.com/products/keripik-kentang.jpg',
+        basePrice: 12000,
+        status: ProductStatus.ACTIVE,
       },
-    },
-    update: {
-      categoryId: retailCategorySnacks.id,
-      name: 'Keripik Kentang',
-      sku: 'SKU-KERIPIK',
-      brand: 'Qtela',
-      unit: 'Pcs',
-      description: 'Keripik kentang retail',
-      imageUrl: 'https://example.com/products/keripik-kentang.jpg',
-      basePrice: 12000,
-      status: ProductStatus.ACTIVE,
-    },
-    create: {
-      businessId: retailBusiness.id,
-      categoryId: retailCategorySnacks.id,
-      name: 'Keripik Kentang',
-      code: 'PRD-KERIPIK',
-      sku: 'SKU-KERIPIK',
-      brand: 'Qtela',
-      unit: 'Pcs',
-      description: 'Keripik kentang retail',
-      imageUrl: 'https://example.com/products/keripik-kentang.jpg',
-      basePrice: 12000,
-      status: ProductStatus.ACTIVE,
-    },
-  });
+    });
 
-  // Products - Restaurant
-  const restaurantProductNasiGoreng = await prisma.product.upsert({
-    where: {
-      businessId_code: {
+    // Products - Restaurant
+    const restaurantProductNasiGoreng = await prisma.product.upsert({
+      where: {
+        businessId_code: {
+          businessId: restaurantBusiness.id,
+          code: 'MENU-NASGOR',
+        },
+      },
+      update: {
+        categoryId: restaurantCategoryFood.id,
+        name: 'Nasi Goreng Special',
+        sku: 'SKU-NASGOR',
+        brand: 'Kitchen Internal',
+        unit: 'Porsi',
+        description: 'Menu nasi goreng special',
+        imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
+        basePrice: 28000,
+        status: ProductStatus.ACTIVE,
+      },
+      create: {
         businessId: restaurantBusiness.id,
+        categoryId: restaurantCategoryFood.id,
+        name: 'Nasi Goreng Special',
         code: 'MENU-NASGOR',
+        sku: 'SKU-NASGOR',
+        brand: 'Kitchen Internal',
+        unit: 'Porsi',
+        description: 'Menu nasi goreng special',
+        imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
+        basePrice: 28000,
+        status: ProductStatus.ACTIVE,
       },
-    },
-    update: {
-      categoryId: restaurantCategoryFood.id,
-      name: 'Nasi Goreng Special',
-      sku: 'SKU-NASGOR',
-      brand: 'Kitchen Internal',
-      unit: 'Porsi',
-      description: 'Menu nasi goreng special',
-      imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
-      basePrice: 28000,
-      status: ProductStatus.ACTIVE,
-    },
-    create: {
-      businessId: restaurantBusiness.id,
-      categoryId: restaurantCategoryFood.id,
-      name: 'Nasi Goreng Special',
-      code: 'MENU-NASGOR',
-      sku: 'SKU-NASGOR',
-      brand: 'Kitchen Internal',
-      unit: 'Porsi',
-      description: 'Menu nasi goreng special',
-      imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
-      basePrice: 28000,
-      status: ProductStatus.ACTIVE,
-    },
-  });
+    });
 
-  const restaurantProductEsTeh = await prisma.product.upsert({
-    where: {
-      businessId_code: {
-        businessId: restaurantBusiness.id,
-        code: 'MENU-ESTEH',
+    const restaurantProductEsTeh = await prisma.product.upsert({
+      where: {
+        businessId_code: {
+          businessId: restaurantBusiness.id,
+          code: 'MENU-ESTEH',
+        },
       },
-    },
-    update: {
-      categoryId: restaurantCategoryDrink.id,
-      name: 'Es Teh Manis',
-      sku: 'SKU-ESTEH',
-      brand: 'Kitchen Internal',
-      unit: 'Gelas',
-      description: 'Menu es teh manis',
-      imageUrl: 'https://example.com/products/es-teh-manis.jpg',
-      basePrice: 8000,
-      status: ProductStatus.ACTIVE,
-    },
-    create: {
-      businessId: restaurantBusiness.id,
-      categoryId: restaurantCategoryDrink.id,
-      name: 'Es Teh Manis',
-      code: 'MENU-ESTEH',
-      sku: 'SKU-ESTEH',
-      brand: 'Kitchen Internal',
-      unit: 'Gelas',
-      description: 'Menu es teh manis',
-      imageUrl: 'https://example.com/products/es-teh-manis.jpg',
-      basePrice: 8000,
-      status: ProductStatus.ACTIVE,
-    },
-  });
+      update: {
+        categoryId: restaurantCategoryDrink.id,
+        name: 'Es Teh Manis',
+        sku: 'SKU-ESTEH',
+        brand: 'Kitchen Internal',
+        unit: 'Gelas',
+        description: 'Menu es teh manis',
+        imageUrl: 'https://example.com/products/es-teh-manis.jpg',
+        basePrice: 8000,
+        status: ProductStatus.ACTIVE,
+      },
+      create: {
+        businessId: restaurantBusiness.id,
+        categoryId: restaurantCategoryDrink.id,
+        name: 'Es Teh Manis',
+        code: 'MENU-ESTEH',
+        sku: 'SKU-ESTEH',
+        brand: 'Kitchen Internal',
+        unit: 'Gelas',
+        description: 'Menu es teh manis',
+        imageUrl: 'https://example.com/products/es-teh-manis.jpg',
+        basePrice: 8000,
+        status: ProductStatus.ACTIVE,
+      },
+    });
 
   // Product outlet settings - Retail
   const retailProductOutletSettings = [

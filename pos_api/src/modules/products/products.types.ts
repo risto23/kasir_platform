@@ -13,8 +13,10 @@ export type ProductParams = {
 export type CreateProductBody = {
   categoryId?: string | null;
   name: string;
-  code?: string | null;
   sku?: string | null;
+  barcode?: string | null;
+  brand?: string | null;
+  unit?: string | null;
   description?: string | null;
   imageUrl?: string | null;
   basePrice: number;
@@ -23,8 +25,10 @@ export type CreateProductBody = {
 export type UpdateProductBody = {
   categoryId?: string | null;
   name: string;
-  code?: string | null;
   sku?: string | null;
+  barcode?: string | null;
+  brand?: string | null;
+  unit?: string | null;
   description?: string | null;
   imageUrl?: string | null;
   basePrice: number;

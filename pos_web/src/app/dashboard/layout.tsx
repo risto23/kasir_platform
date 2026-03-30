@@ -175,7 +175,7 @@ export default function DashboardLayout({
           <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white/95 lg:block" />
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="h-[73px] border-b border-slate-200 bg-white/80" />
+            <div className="h-18.25 border-b border-slate-200 bg-white/80" />
 
             <main className="flex-1">
               <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
@@ -189,7 +189,7 @@ export default function DashboardLayout({
                       />
                     ))}
                   </div>
-                  <div className="h-[420px] animate-pulse rounded-[28px] bg-white" />
+                  <div className="h-105 animate-pulse rounded-[28px] bg-white" />
                 </div>
               </div>
             </main>

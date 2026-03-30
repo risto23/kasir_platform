@@ -1,13 +1,14 @@
-// pos_web/src/app/dashboard/products/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowRight,
   faBan,
+  faBarcode,
   faBoxOpen,
   faBoxesStacked,
   faCircleCheck,
@@ -22,8 +23,11 @@ import {
 
 import { api } from '@/lib/api';
 import { getActiveBusinessId, getCachedCurrentUser } from '@/lib/auth';
-import type { Category, CategoryListResponse } from '@/types/category';
-import type { Product, ProductListResponse, ProductStatus } from '@/types/product';
+import type { Category } from '@/types/category';
+import type { Product, ProductStatus } from '@/types/product';
+import { resolveImageUrl } from '@/lib/resolve-image-url';
+
+
 
 type StatusFilter = 'ALL' | ProductStatus;
 
@@ -58,6 +62,9 @@ function formatCurrency(value: number) {
   }).format(value || 0);
 }
 
+
+
+
 function getStatusBadgeClass(status: ProductStatus) {
   if (status === 'ACTIVE') {
     return 'border border-emerald-200 bg-emerald-50 text-emerald-700';
@@ -86,7 +93,7 @@ export default function ProductListPage() {
       const response = await api.get('/business/categories', {
         params: {
           status: 'ACTIVE',
-          limit: 100,
+          perPage: 100,
         },
       });
 
@@ -119,7 +126,6 @@ export default function ProductListPage() {
         params,
       });
 
-      console.log('Fetched products:', response.data.data);
       setItems(response.data.data || []);
     } catch (error: unknown) {
       setMessage(getMessage(error));
@@ -199,7 +205,7 @@ export default function ProductListPage() {
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
             Kelola {productLabelLower} dalam business aktif, termasuk kategori,
-            harga dasar, foto, dan status aktifnya.
+            harga dasar, foto, barcode retail, dan status aktifnya.
           </p>
         </div>
 
@@ -271,7 +277,7 @@ export default function ProductListPage() {
                 <input
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder={`Cari nama, code, atau SKU ${productLabelLower}`}
+                  placeholder={`Cari nama, code, SKU, atau barcode ${productLabelLower}`}
                   className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
@@ -376,6 +382,9 @@ export default function ProductListPage() {
                       SKU
                     </th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em]">
+                      Barcode
+                    </th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em]">
                       Base Price
                     </th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em]">
@@ -399,10 +408,11 @@ export default function ProductListPage() {
                           <div className="flex items-start gap-3">
                             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 text-slate-400">
                               {item.imageUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={item.imageUrl}
+                                <Image
+                                  src={resolveImageUrl(item.imageUrl)}
                                   alt={item.name}
+                                  width={48}
+                                  height={48}
                                   className="h-full w-full object-cover"
                                 />
                               ) : (
@@ -432,6 +442,13 @@ export default function ProductListPage() {
 
                         <td className="px-6 py-4 text-slate-700">
                           {item.sku || '-'}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-700">
+                          <span className="inline-flex items-center gap-2">
+                            <FontAwesomeIcon icon={faBarcode} className="h-3.5 w-3.5 text-slate-400" />
+                            {item.barcode || '-'}
+                          </span>
                         </td>
 
                         <td className="px-6 py-4 font-semibold text-slate-900">
@@ -506,10 +523,11 @@ export default function ProductListPage() {
                     <div className="flex items-start gap-3">
                       <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white text-slate-400">
                         {item.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={item.imageUrl}
+                          <Image
+                            src={resolveImageUrl(item.imageUrl)}
                             alt={item.name}
+                            width={56}
+                            height={56}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -555,6 +573,15 @@ export default function ProductListPage() {
                               {item.sku || '-'}
                             </p>
                           </div>
+                        </div>
+
+                        <div className="mt-3 rounded-2xl bg-white px-3 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                            Barcode
+                          </p>
+                          <p className="mt-2 text-sm font-medium text-slate-800">
+                            {item.barcode || '-'}
+                          </p>
                         </div>
 
                         <div className="mt-3 rounded-2xl bg-white px-3 py-3">
@@ -644,6 +671,7 @@ export default function ProductListPage() {
           {[
             `${productLabel} dibuat dalam business aktif.`,
             'Category product bisa dipilih atau dikosongkan.',
+            'Barcode retail boleh dikosongkan dulu.',
             'Search dan filter status langsung ke endpoint business product.',
             'Foto sementara aman memakai imageUrl.',
             'Status diubah tanpa hard delete.',

@@ -3,15 +3,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft,
+  faBarcode,
   faBoxOpen,
   faBoxesStacked,
   faFloppyDisk,
   faImage,
   faTag,
+  faTrash,
+  faUpload,
   faUtensils,
   faWandMagicSparkles,
 } from '@fortawesome/free-solid-svg-icons';
@@ -20,7 +24,7 @@ import { api } from '@/lib/api';
 import { getActiveBusinessId, getCachedCurrentUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { Category, CategoryListResponse } from '@/types/category';
+import type { Category } from '@/types/category';
 
 function getMessage(error: unknown, fallback: string) {
   if (axios.isAxiosError(error)) {
@@ -63,13 +67,15 @@ export default function CreateProductPage() {
     categoryId: '',
     name: '',
     sku: '',
+    barcode: '',
     brand: '',
     unit: '',
     description: '',
-    imageUrl: '',
     basePrice: '',
   });
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [message, setMessage] = useState('');
@@ -89,12 +95,11 @@ export default function CreateProductPage() {
         const response = await api.get('/business/categories', {
           params: {
             status: 'ACTIVE',
-            limit: 100,
+            perPage: 100,
           },
         });
 
-        const payload: CategoryListResponse = response.data.data;
-        setCategories(payload?.items || []);
+        setCategories(response.data.data || []);
       } catch {
         setCategories([]);
       } finally {
@@ -104,6 +109,54 @@ export default function CreateProductPage() {
 
     void fetchCategories();
   }, []);
+
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreview('');
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(imageFile);
+    setImagePreview(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [imageFile]);
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+
+    if (!file) {
+      setImageFile(null);
+      return;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+
+    if (!allowedTypes.includes(file.type)) {
+      setMessage('File foto produk harus berupa JPG, PNG, atau WEBP');
+      setMessageType('error');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('Ukuran foto produk maksimal 5 MB');
+      setMessageType('error');
+      e.target.value = '';
+      return;
+    }
+
+    setMessage('');
+    setMessageType('');
+    setImageFile(file);
+  }
+
+  function removeSelectedImage() {
+    setImageFile(null);
+    setImagePreview('');
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -131,15 +184,26 @@ export default function CreateProductPage() {
     try {
       setSaving(true);
 
-      await api.post('/business/products', {
-        categoryId: form.categoryId || null,
-        name: form.name.trim(),
-        sku: form.sku.trim() || null,
-        brand: form.brand.trim() || null,
-        unit: form.unit.trim() || null,
-        description: form.description.trim() || null,
-        imageUrl: form.imageUrl.trim() || null,
-        basePrice: parsedBasePrice,
+      const formData = new FormData();
+      formData.append('categoryId', form.categoryId || '');
+      formData.append('name', form.name.trim());
+      formData.append('sku', form.sku.trim());
+      formData.append('barcode', form.barcode.trim());
+      formData.append('brand', form.brand.trim());
+      formData.append('unit', form.unit.trim());
+      formData.append('description', form.description.trim());
+      formData.append('basePrice', String(parsedBasePrice));
+
+      if (imageFile) {
+        formData.append('image', imageFile);
+      } else {
+        formData.append('imageUrl', '');
+      }
+
+      await api.post('/business/products', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
       router.push('/dashboard/products?success=create');
@@ -168,8 +232,8 @@ export default function CreateProductPage() {
             Tambah {productLabel}
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Tambahkan {productLabelLower} baru ke business aktif. Foto tetap pakai
-            image URL dan belum memakai upload file.
+            Tambahkan {productLabelLower} baru ke business aktif. Foto {productLabelLower}{' '}
+            sekarang memakai upload file.
           </p>
         </div>
 
@@ -263,6 +327,32 @@ export default function CreateProductPage() {
 
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700">
+                  Barcode
+                </label>
+                <div className="relative">
+                  <Input
+                    value={form.barcode}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        barcode: e.target.value.toUpperCase(),
+                      }))
+                    }
+                    placeholder="Contoh: 8992761130012"
+                    className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 pl-11 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
+                  />
+                  <FontAwesomeIcon
+                    icon={faBarcode}
+                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  />
+                </div>
+                <p className="text-xs text-slate-400">
+                  Barcode opsional, boleh dikosongkan dulu.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">
                   Brand
                 </label>
                 <Input
@@ -301,18 +391,61 @@ export default function CreateProductPage() {
 
               <div className="space-y-2 md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700">
-                  Image URL
+                  Foto {productLabel}
                 </label>
-                <Input
-                  value={form.imageUrl}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, imageUrl: e.target.value }))
-                  }
-                  placeholder="https://example.com/product.jpg"
-                  className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-4 text-sm shadow-none focus:border-indigo-500 focus:bg-white"
-                />
+
+                <label className="flex min-h-30 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-indigo-400 hover:bg-white">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm">
+                    <FontAwesomeIcon icon={faUpload} className="h-4 w-4" />
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-slate-800">
+                    Klik untuk pilih foto
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    JPG, PNG, WEBP • maksimal 5 MB
+                  </p>
+                </label>
+
+                {imagePreview ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-start gap-4">
+                      <Image
+                        src={imagePreview}
+                        alt="Preview foto produk"
+                        width={96}
+                        height={96}
+                        className="rounded-2xl object-cover"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {imageFile?.name || 'Foto dipilih'}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {imageFile
+                            ? `${Math.round(imageFile.size / 1024)} KB`
+                            : '-'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={removeSelectedImage}
+                          className="mt-3 inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                        >
+                          <FontAwesomeIcon icon={faTrash} className="h-3.5 w-3.5" />
+                          Hapus foto
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
                 <p className="text-xs text-slate-400">
-                  Foto tetap pakai image URL dulu.
+                  Foto bersifat opsional. Jika tidak diisi, {productLabelLower} tetap bisa disimpan.
                 </p>
               </div>
 
@@ -390,8 +523,8 @@ export default function CreateProductPage() {
 
             <div className="mt-4 space-y-3 text-sm text-slate-500">
               <p>{productLabel} otomatis dibuat pada business aktif user.</p>
-              <p>Brand dan unit sekarang sudah disiapkan untuk target promo.</p>
-              <p>Foto product masih pakai image URL.</p>
+              <p>Brand, unit, dan barcode retail sudah bisa disiapkan.</p>
+              <p>Foto product sekarang memakai upload file.</p>
             </div>
           </div>
 
@@ -434,10 +567,19 @@ export default function CreateProductPage() {
 
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  SKU / Brand / Unit
+                  SKU / Barcode
                 </p>
                 <p className="mt-2 text-sm font-medium text-slate-800">
-                  {[form.sku || '-', form.brand || '-', form.unit || '-'].join(' • ')}
+                  {[form.sku || '-', form.barcode || '-'].join(' • ')}
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Brand / Unit
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-800">
+                  {[form.brand || '-', form.unit || '-'].join(' • ')}
                 </p>
               </div>
 
@@ -452,10 +594,10 @@ export default function CreateProductPage() {
 
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Image URL
+                  Foto
                 </p>
                 <p className="mt-2 break-all text-sm text-slate-600">
-                  {form.imageUrl || '-'}
+                  {imageFile?.name || '-'}
                 </p>
               </div>
 

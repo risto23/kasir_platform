@@ -1,32 +1,37 @@
-// pos_web/src/app/dashboard/products/[id]/edit/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft,
   faBan,
+  faBarcode,
   faBoxOpen,
   faCircleCheck,
   faFloppyDisk,
-  faImage,
   faLock,
   faPenToSquare,
   faTag,
+  faTrash,
+  faUpload,
   faUtensils,
-  faBarcode,
   faBoxesStacked,
 } from '@fortawesome/free-solid-svg-icons';
+
+import { resolveImageUrl } from '@/lib/resolve-image-url';
+
+
 
 import { api } from '@/lib/api';
 import { getActiveBusinessId, getCachedCurrentUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { Category, CategoryListResponse } from '@/types/category';
+import type { Category } from '@/types/category';
 import type { Product, ProductStatus } from '@/types/product';
 
 type EditProductForm = {
@@ -34,10 +39,10 @@ type EditProductForm = {
   name: string;
   code: string;
   sku: string;
+  barcode: string;
   brand: string;
   unit: string;
   description: string;
-  imageUrl: string;
   basePrice: string;
 };
 
@@ -100,10 +105,10 @@ export default function EditProductPage() {
     name: '',
     code: '',
     sku: '',
+    barcode: '',
     brand: '',
     unit: '',
     description: '',
-    imageUrl: '',
     basePrice: '',
   });
   const [detail, setDetail] = useState<Product | null>(null);
@@ -115,6 +120,10 @@ export default function EditProductPage() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [existingImageUrl, setExistingImageUrl] = useState('');
+
   useEffect(() => {
     async function fetchDetail() {
       try {
@@ -125,28 +134,28 @@ export default function EditProductPage() {
           api.get('/business/categories', {
             params: {
               status: 'ACTIVE',
-              limit: 100,
+              perPage: 100,
             },
           }),
         ]);
 
         const item: Product = detailResponse.data.data;
-        const categoryPayload: CategoryListResponse = categoriesResponse.data.data;
 
         setDetail(item);
+        setExistingImageUrl(item.imageUrl ?? '');
         setForm({
           categoryId: item.categoryId ?? '',
           name: item.name ?? '',
           code: item.code ?? '',
           sku: item.sku ?? '',
+          barcode: item.barcode ?? '',
           brand: item.brand ?? '',
           unit: item.unit ?? '',
           description: item.description ?? '',
-          imageUrl: item.imageUrl ?? '',
           basePrice: String(item.basePrice ?? ''),
         });
         setStatus(item.status);
-        setCategories(categoryPayload?.items || []);
+        setCategories(categoriesResponse.data.data || []);
       } catch (error: unknown) {
         setMessage(getMessage(error, `Gagal memuat ${productLabelLower}`));
         setMessageType('error');
@@ -158,6 +167,55 @@ export default function EditProductPage() {
     void fetchDetail();
   }, [params.id, productLabelLower]);
 
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreview('');
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(imageFile);
+    setImagePreview(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [imageFile]);
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+
+    if (!file) {
+      setImageFile(null);
+      return;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+
+    if (!allowedTypes.includes(file.type)) {
+      setMessage('File foto produk harus berupa JPG, PNG, atau WEBP');
+      setMessageType('error');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('Ukuran foto produk maksimal 5 MB');
+      setMessageType('error');
+      e.target.value = '';
+      return;
+    }
+
+    setMessage('');
+    setMessageType('');
+    setImageFile(file);
+  }
+
+  function removeSelectedImage() {
+    setImageFile(null);
+    setImagePreview('');
+    setExistingImageUrl('');
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMessage('');
@@ -166,30 +224,44 @@ export default function EditProductPage() {
     try {
       setSaving(true);
 
-      const response = await api.put(`/business/products/${params.id}`, {
-        categoryId: form.categoryId || null,
-        name: form.name.trim(),
-        sku: form.sku.trim() || null,
-        brand: form.brand.trim() || null,
-        unit: form.unit.trim() || null,
-        description: form.description.trim() || null,
-        imageUrl: form.imageUrl.trim() || null,
-        basePrice: Number(form.basePrice),
+      const formData = new FormData();
+      formData.append('categoryId', form.categoryId || '');
+      formData.append('name', form.name.trim());
+      formData.append('sku', form.sku.trim());
+      formData.append('barcode', form.barcode.trim());
+      formData.append('brand', form.brand.trim());
+      formData.append('unit', form.unit.trim());
+      formData.append('description', form.description.trim());
+      formData.append('basePrice', String(Number(form.basePrice)));
+
+      if (imageFile) {
+        formData.append('image', imageFile);
+      } else {
+        formData.append('imageUrl', existingImageUrl || '');
+      }
+
+      const response = await api.put(`/business/products/${params.id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
       const updated: Product = response.data.data;
 
       setDetail(updated);
       setStatus(updated.status);
+      setExistingImageUrl(updated.imageUrl ?? '');
+      setImageFile(null);
+
       setForm({
         categoryId: updated.categoryId ?? '',
         name: updated.name ?? '',
         code: updated.code ?? '',
         sku: updated.sku ?? '',
+        barcode: updated.barcode ?? '',
         brand: updated.brand ?? '',
         unit: updated.unit ?? '',
         description: updated.description ?? '',
-        imageUrl: updated.imageUrl ?? '',
         basePrice: String(updated.basePrice ?? ''),
       });
 
@@ -347,7 +419,7 @@ export default function EditProductPage() {
                 <Input
                   value={form.sku}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, sku: e.target.value }))
+                    setForm((prev) => ({ ...prev, sku: e.target.value.toUpperCase() }))
                   }
                   placeholder={`Masukkan SKU ${productLabelLower}`}
                 />
@@ -355,19 +427,18 @@ export default function EditProductPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">
-                  Brand
+                  Barcode
                 </label>
                 <div className="relative">
                   <Input
-                    value={form.brand}
+                    value={form.barcode}
                     onChange={(e) =>
-                      setForm((prev) => ({ ...prev, brand: e.target.value }))
+                      setForm((prev) => ({
+                        ...prev,
+                        barcode: e.target.value.toUpperCase(),
+                      }))
                     }
-                    placeholder={
-                      businessType === 'RESTAURANT'
-                        ? 'Contoh: Kitchen Internal'
-                        : 'Contoh: Sosro'
-                    }
+                    placeholder="Masukkan barcode"
                     className="pl-11"
                   />
                   <FontAwesomeIcon
@@ -375,6 +446,23 @@ export default function EditProductPage() {
                     className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">
+                  Brand
+                </label>
+                <Input
+                  value={form.brand}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, brand: e.target.value }))
+                  }
+                  placeholder={
+                    businessType === 'RESTAURANT'
+                      ? 'Contoh: Kitchen Internal'
+                      : 'Contoh: Sosro'
+                  }
+                />
               </div>
 
               <div className="space-y-2">
@@ -420,22 +508,58 @@ export default function EditProductPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">
-                  Image URL
+                  Foto {productLabel}
                 </label>
-                <div className="relative">
-                  <Input
-                    value={form.imageUrl}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, imageUrl: e.target.value }))
-                    }
-                    placeholder="https://example.com/image.jpg"
-                    className="pl-11"
+
+                <label className="flex min-h-27.5 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center transition hover:border-indigo-400 hover:bg-white">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    className="hidden"
+                    onChange={handleImageChange}
                   />
-                  <FontAwesomeIcon
-                    icon={faImage}
-                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                  />
-                </div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm">
+                    <FontAwesomeIcon icon={faUpload} className="h-4 w-4" />
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-slate-800">
+                    Ganti foto
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    JPG, PNG, WEBP • maksimal 5 MB
+                  </p>
+                </label>
+
+                {imagePreview || existingImageUrl ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-start gap-4">
+                      <Image
+                        src={imagePreview || resolveImageUrl(existingImageUrl) }
+                        alt={form.name || 'Preview foto produk'}
+                        width={96}
+                        height={96}
+                        className="h-24 w-24 rounded-2xl object-cover"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {imageFile?.name || 'Foto aktif'}
+                        </p>
+                        <p className="mt-1 break-all text-xs text-slate-500">
+                          {imageFile
+                            ? `${Math.round(imageFile.size / 1024)} KB`
+                            : resolveImageUrl(existingImageUrl)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={removeSelectedImage}
+                          className="mt-3 inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                        >
+                          <FontAwesomeIcon icon={faTrash} className="h-3.5 w-3.5" />
+                          Hapus foto
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -472,7 +596,8 @@ export default function EditProductPage() {
               <Link href="/dashboard/products">
                 <Button
                   type="button"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-slate-700 hover:bg-slate-50"
+                  variant="secondary"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5"
                 >
                   <FontAwesomeIcon icon={faArrowLeft} className="h-4 w-4" />
                   Cancel
@@ -522,19 +647,19 @@ export default function EditProductPage() {
 
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Brand
+                  SKU / Barcode
                 </p>
                 <p className="mt-2 font-medium text-slate-800">
-                  {form.brand || '-'}
+                  {[form.sku || '-', form.barcode || '-'].join(' • ')}
                 </p>
               </div>
 
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Unit
+                  Brand / Unit
                 </p>
                 <p className="mt-2 font-medium text-slate-800">
-                  {form.unit || '-'}
+                  {[form.brand || '-', form.unit || '-'].join(' • ')}
                 </p>
               </div>
 
@@ -571,8 +696,9 @@ export default function EditProductPage() {
 
             <div className="mt-4 space-y-2">
               {[
-                `${productLabel} name, category, sku, brand, unit, base price, imageUrl, dan description boleh diperbarui.`,
+                `${productLabel} name, category, sku, barcode, brand, unit, base price, foto, dan description boleh diperbarui.`,
                 `Code ${productLabelLower} bersifat readonly dan tidak bisa diedit.`,
+                `Barcode ${productLabelLower} boleh dikosongkan dulu.`,
                 `Status ${productLabelLower} boleh diubah ACTIVE / INACTIVE.`,
                 'Business scope product tetap dijaga backend.',
               ].map((note) => (
@@ -593,17 +719,17 @@ export default function EditProductPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Category & SKU
+                  Category, SKU & Barcode
                 </p>
                 <p className="text-xs text-slate-500">
-                  Pastikan category dan SKU sesuai kebutuhan operasional outlet.
+                  Pastikan category, SKU, dan barcode sesuai kebutuhan operasional outlet.
                 </p>
               </div>
             </div>
 
             <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              SKU bisa dikosongkan jika memang belum dipakai, tetapi jika diisi harus
-              tetap unik dalam business aktif.
+              SKU dan barcode bisa dikosongkan jika memang belum dipakai, tetapi jika
+              diisi harus tetap unik dalam business aktif.
             </div>
           </div>
 
@@ -631,6 +757,7 @@ export default function EditProductPage() {
               <Button
                 type="button"
                 disabled={statusLoading}
+                variant="danger"
                 onClick={handleToggleStatus}
                 className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl ${
                   getStatusButtonClass(status)

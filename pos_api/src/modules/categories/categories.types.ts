@@ -11,14 +11,12 @@ export type CategoryParams = {
 
 export type CreateCategoryBody = {
   name: string;
-  code?: string | null;
   description?: string | null;
   sortOrder?: number;
 };
 
 export type UpdateCategoryBody = {
   name: string;
-  code?: string | null;
   description?: string | null;
   sortOrder?: number;
 };

@@ -30,14 +30,12 @@ const categoryParamsSchema = z.object({
 
 const createCategoryBodySchema = z.object({
   name: z.string().trim().min(1, 'Nama kategori wajib diisi').max(100),
-  code: nullableTrimmedString(50),
   description: nullableTrimmedString(500),
   sortOrder: z.coerce.number().int().min(0).default(0),
 });
 
 const updateCategoryBodySchema = z.object({
   name: z.string().trim().min(1, 'Nama kategori wajib diisi').max(100),
-  code: nullableTrimmedString(50),
   description: nullableTrimmedString(500),
   sortOrder: z.coerce.number().int().min(0).default(0),
 });

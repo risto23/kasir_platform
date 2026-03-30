@@ -40,6 +40,15 @@ function createHttpError(message: string, statusCode: number) {
   return error;
 }
 
+function slugifyCategoryName(name: string) {
+  return name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+}
+
 async function ensureCategoryExists(businessId: string, categoryId: string) {
   const category = await prisma.category.findFirst({
     where: {
@@ -119,6 +128,33 @@ async function ensureCategoryCodeUnique(
   }
 }
 
+async function generateCategoryCode(
+  businessId: string,
+  categoryName: string,
+) {
+  const baseSlug = slugifyCategoryName(categoryName) || 'CATEGORY';
+
+  for (let index = 1; index <= 9999; index += 1) {
+    const candidate = `CAT-${baseSlug}-${String(index).padStart(3, '0')}`;
+
+    const exists = await prisma.category.findFirst({
+      where: {
+        businessId,
+        code: candidate,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!exists) {
+      return candidate;
+    }
+  }
+
+  throw createHttpError('Gagal generate code kategori.', 500);
+}
+
 export async function listCategories(
   businessId: string,
   query: CategoryListQuery,
@@ -193,8 +229,9 @@ export async function createCategory(
   payload: CreateCategoryBody,
 ) {
   const normalizedName = normalizeName(payload.name);
-  const normalizedCode = normalizeCode(payload.code);
   const normalizedDescription = normalizeDescription(payload.description);
+  const generatedCode = await generateCategoryCode(businessId, normalizedName);
+  const normalizedCode = normalizeCode(generatedCode);
 
   await ensureCategoryNameUnique(businessId, normalizedName);
   await ensureCategoryCodeUnique(businessId, normalizedCode);
@@ -218,11 +255,9 @@ export async function updateCategory(
   await ensureCategoryExists(businessId, params.id);
 
   const normalizedName = normalizeName(payload.name);
-  const normalizedCode = normalizeCode(payload.code);
   const normalizedDescription = normalizeDescription(payload.description);
 
   await ensureCategoryNameUnique(businessId, normalizedName, params.id);
-  await ensureCategoryCodeUnique(businessId, normalizedCode, params.id);
 
   return prisma.category.update({
     where: {
@@ -230,7 +265,6 @@ export async function updateCategory(
     },
     data: {
       name: normalizedName,
-      code: normalizedCode,
       description: normalizedDescription,
       sortOrder: payload.sortOrder ?? 0,
     },

@@ -345,6 +345,7 @@ model Product {
   name        String
   code        String?
   sku         String?
+  barcode     String?
   brand       String?
   unit        String?
   description String?
@@ -361,11 +362,13 @@ model Product {
 
   @@unique([businessId, code])
   @@unique([businessId, sku])
+  @@unique([businessId, barcode])
   @@index([businessId, status])
   @@index([businessId, categoryId])
   @@index([businessId, name])
   @@index([businessId, brand])
   @@index([businessId, unit])
+  @@index([businessId, barcode])
   @@map("products")
 }
 
