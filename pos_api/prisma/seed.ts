@@ -97,7 +97,6 @@ async function enableFeatureFlag(
 async function main() {
   const passwordHash = await bcrypt.hash('password123', 10);
 
-  // Platform roles
   const superAdminRole = await prisma.platformRole.upsert({
     where: { code: PlatformRoleCode.SUPER_ADMIN },
     update: {},
@@ -108,7 +107,6 @@ async function main() {
     },
   });
 
-  // Business roles
   const ownerRole = await prisma.businessRole.upsert({
     where: { code: BusinessRoleCode.OWNER },
     update: {},
@@ -159,7 +157,6 @@ async function main() {
     },
   });
 
-  // Business permissions - phase 1 & 2
   const permissionBusinessRoleView = await upsertBusinessPermission(
     BusinessPermissionCode.BUSINESS_ROLE_VIEW,
     'Business Role View',
@@ -232,7 +229,6 @@ async function main() {
     'Mengubah status outlet',
   );
 
-  // Business permissions - phase 3
   const permissionCategoryView = await upsertBusinessPermission(
     BusinessPermissionCode.CATEGORY_VIEW,
     'Category View',
@@ -341,6 +337,54 @@ async function main() {
     'Mengubah status meja outlet',
   );
 
+  const permissionOrderView = await upsertBusinessPermission(
+    BusinessPermissionCode.ORDER_VIEW,
+    'Order View',
+    'Melihat daftar dan detail order transaksi',
+  );
+
+  const permissionOrderCreate = await upsertBusinessPermission(
+    BusinessPermissionCode.ORDER_CREATE,
+    'Order Create',
+    'Membuat order transaksi',
+  );
+
+  const permissionOrderUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.ORDER_UPDATE,
+    'Order Update',
+    'Mengubah item, qty, note, dan data draft order',
+  );
+
+  const permissionOrderStatusUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.ORDER_STATUS_UPDATE,
+    'Order Status Update',
+    'Mengubah status order transaksi',
+  );
+
+  const permissionPaymentView = await upsertBusinessPermission(
+    BusinessPermissionCode.PAYMENT_VIEW,
+    'Payment View',
+    'Melihat daftar dan detail pembayaran',
+  );
+
+  const permissionPaymentCreate = await upsertBusinessPermission(
+    BusinessPermissionCode.PAYMENT_CREATE,
+    'Payment Create',
+    'Membuat pembayaran transaksi',
+  );
+
+  const permissionPaymentStatusUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.PAYMENT_STATUS_UPDATE,
+    'Payment Status Update',
+    'Mengubah status pembayaran transaksi',
+  );
+
+  const permissionReceiptView = await upsertBusinessPermission(
+    BusinessPermissionCode.RECEIPT_VIEW,
+    'Receipt View',
+    'Melihat dan mencetak struk transaksi',
+  );
+
   const ownerPermissionIds = [
     permissionBusinessRoleView.id,
     permissionBusinessPermissionView.id,
@@ -368,6 +412,14 @@ async function main() {
     permissionPromoCreate.id,
     permissionPromoUpdate.id,
     permissionPromoStatusUpdate.id,
+    permissionOrderView.id,
+    permissionOrderCreate.id,
+    permissionOrderUpdate.id,
+    permissionOrderStatusUpdate.id,
+    permissionPaymentView.id,
+    permissionPaymentCreate.id,
+    permissionPaymentStatusUpdate.id,
+    permissionReceiptView.id,
     permissionOutletTableView.id,
     permissionOutletTableCreate.id,
     permissionOutletTableUpdate.id,
@@ -401,6 +453,14 @@ async function main() {
     permissionPromoCreate.id,
     permissionPromoUpdate.id,
     permissionPromoStatusUpdate.id,
+    permissionOrderView.id,
+    permissionOrderCreate.id,
+    permissionOrderUpdate.id,
+    permissionOrderStatusUpdate.id,
+    permissionPaymentView.id,
+    permissionPaymentCreate.id,
+    permissionPaymentStatusUpdate.id,
+    permissionReceiptView.id,
     permissionOutletTableView.id,
     permissionOutletTableCreate.id,
     permissionOutletTableUpdate.id,
@@ -413,6 +473,13 @@ async function main() {
     permissionProductView.id,
     permissionProductOutletView.id,
     permissionPromoView.id,
+    permissionOrderView.id,
+    permissionOrderCreate.id,
+    permissionOrderUpdate.id,
+    permissionOrderStatusUpdate.id,
+    permissionPaymentView.id,
+    permissionPaymentCreate.id,
+    permissionReceiptView.id,
     permissionOutletTableView.id,
   ];
 
@@ -438,7 +505,6 @@ async function main() {
   await assignRolePermissions(kitchenRole.id, kitchenPermissionIds);
   await assignRolePermissions(inventoryRole.id, inventoryPermissionIds);
 
-  // Users
   const superAdminRetail = await prisma.user.upsert({
     where: { email: 'superadmin-retail@pos.local' },
     update: {
@@ -584,7 +650,6 @@ async function main() {
     },
   });
 
-  // Businesses
   const retailBusiness = await prisma.business.upsert({
     where: { slug: 'demo-retail' },
     update: {},
@@ -607,7 +672,6 @@ async function main() {
     },
   });
 
-  // Outlets - Retail
   const retailOutletOne = await prisma.outlet.upsert({
     where: {
       businessId_code: {
@@ -642,7 +706,6 @@ async function main() {
     },
   });
 
-  // Outlets - Restaurant
   const restaurantOutletOne = await prisma.outlet.upsert({
     where: {
       businessId_code: {
@@ -677,7 +740,6 @@ async function main() {
     },
   });
 
-  // Business memberships - retail
   const retailOwnerBusinessUser = await prisma.businessUser.upsert({
     where: {
       businessId_userId: {
@@ -816,7 +878,6 @@ async function main() {
     },
   });
 
-  // Business memberships - restaurant
   const restaurantOwnerBusinessUser = await prisma.businessUser.upsert({
     where: {
       businessId_userId: {
@@ -886,7 +947,6 @@ async function main() {
     },
   });
 
-  // Outlet access assignments
   const accessRows = [
     {
       businessUserId: retailAdminLimitedBusinessUser.id,
@@ -979,7 +1039,6 @@ async function main() {
     skipDuplicates: true,
   });
 
-  // Feature flags
   await enableFeatureFlag(
     retailBusiness.id,
     'BUSINESS_MANAGEMENT',
@@ -1068,7 +1127,6 @@ async function main() {
     true,
   );
 
-  // Categories - Retail
   const retailCategoryBeverages = await prisma.category.upsert({
     where: {
       businessId_name: {
@@ -1115,7 +1173,6 @@ async function main() {
     },
   });
 
-  // Categories - Restaurant
   const restaurantCategoryFood = await prisma.category.upsert({
     where: {
       businessId_name: {
@@ -1162,145 +1219,142 @@ async function main() {
     },
   });
 
-    // Products - Retail
-    const retailProductTea = await prisma.product.upsert({
-      where: {
-        businessId_code: {
-          businessId: retailBusiness.id,
-          code: 'PRD-TEH-BOTOL',
-        },
-      },
-      update: {
-        categoryId: retailCategoryBeverages.id,
-        name: 'Teh Botol',
-        sku: 'SKU-TEH-BOTOL',
-        barcode: '8992761130012',
-        brand: 'Sosro',
-        unit: 'Botol',
-        description: 'Teh botol retail',
-        imageUrl: 'https://example.com/products/teh-botol.jpg',
-        basePrice: 5000,
-        status: ProductStatus.ACTIVE,
-      },
-      create: {
+  const retailProductTea = await prisma.product.upsert({
+    where: {
+      businessId_code: {
         businessId: retailBusiness.id,
-        categoryId: retailCategoryBeverages.id,
-        name: 'Teh Botol',
         code: 'PRD-TEH-BOTOL',
-        sku: 'SKU-TEH-BOTOL',
-        barcode: '8992761130012',
-        brand: 'Sosro',
-        unit: 'Botol',
-        description: 'Teh botol retail',
-        imageUrl: 'https://example.com/products/teh-botol.jpg',
-        basePrice: 5000,
-        status: ProductStatus.ACTIVE,
       },
-    });
+    },
+    update: {
+      categoryId: retailCategoryBeverages.id,
+      name: 'Teh Botol',
+      sku: 'SKU-TEH-BOTOL',
+      barcode: '8992761130012',
+      brand: 'Sosro',
+      unit: 'Botol',
+      description: 'Teh botol retail',
+      imageUrl: 'https://example.com/products/teh-botol.jpg',
+      basePrice: 5000,
+      status: ProductStatus.ACTIVE,
+    },
+    create: {
+      businessId: retailBusiness.id,
+      categoryId: retailCategoryBeverages.id,
+      name: 'Teh Botol',
+      code: 'PRD-TEH-BOTOL',
+      sku: 'SKU-TEH-BOTOL',
+      barcode: '8992761130012',
+      brand: 'Sosro',
+      unit: 'Botol',
+      description: 'Teh botol retail',
+      imageUrl: 'https://example.com/products/teh-botol.jpg',
+      basePrice: 5000,
+      status: ProductStatus.ACTIVE,
+    },
+  });
 
-    const retailProductChips = await prisma.product.upsert({
-      where: {
-        businessId_code: {
-          businessId: retailBusiness.id,
-          code: 'PRD-KERIPIK',
-        },
-      },
-      update: {
-        categoryId: retailCategorySnacks.id,
-        name: 'Keripik Kentang',
-        sku: 'SKU-KERIPIK',
-        barcode: '8996001600027',
-        brand: 'Qtela',
-        unit: 'Pcs',
-        description: 'Keripik kentang retail',
-        imageUrl: 'https://example.com/products/keripik-kentang.jpg',
-        basePrice: 12000,
-        status: ProductStatus.ACTIVE,
-      },
-      create: {
+  const retailProductChips = await prisma.product.upsert({
+    where: {
+      businessId_code: {
         businessId: retailBusiness.id,
-        categoryId: retailCategorySnacks.id,
-        name: 'Keripik Kentang',
         code: 'PRD-KERIPIK',
-        sku: 'SKU-KERIPIK',
-        barcode: '8996001600027',
-        brand: 'Qtela',
-        unit: 'Pcs',
-        description: 'Keripik kentang retail',
-        imageUrl: 'https://example.com/products/keripik-kentang.jpg',
-        basePrice: 12000,
-        status: ProductStatus.ACTIVE,
       },
-    });
+    },
+    update: {
+      categoryId: retailCategorySnacks.id,
+      name: 'Keripik Kentang',
+      sku: 'SKU-KERIPIK',
+      barcode: '8996001600027',
+      brand: 'Qtela',
+      unit: 'Pcs',
+      description: 'Keripik kentang retail',
+      imageUrl: 'https://example.com/products/keripik-kentang.jpg',
+      basePrice: 12000,
+      status: ProductStatus.ACTIVE,
+    },
+    create: {
+      businessId: retailBusiness.id,
+      categoryId: retailCategorySnacks.id,
+      name: 'Keripik Kentang',
+      code: 'PRD-KERIPIK',
+      sku: 'SKU-KERIPIK',
+      barcode: '8996001600027',
+      brand: 'Qtela',
+      unit: 'Pcs',
+      description: 'Keripik kentang retail',
+      imageUrl: 'https://example.com/products/keripik-kentang.jpg',
+      basePrice: 12000,
+      status: ProductStatus.ACTIVE,
+    },
+  });
 
-    // Products - Restaurant
-    const restaurantProductNasiGoreng = await prisma.product.upsert({
-      where: {
-        businessId_code: {
-          businessId: restaurantBusiness.id,
-          code: 'MENU-NASGOR',
-        },
-      },
-      update: {
-        categoryId: restaurantCategoryFood.id,
-        name: 'Nasi Goreng Special',
-        sku: 'SKU-NASGOR',
-        brand: 'Kitchen Internal',
-        unit: 'Porsi',
-        description: 'Menu nasi goreng special',
-        imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
-        basePrice: 28000,
-        status: ProductStatus.ACTIVE,
-      },
-      create: {
+  const restaurantProductNasiGoreng = await prisma.product.upsert({
+    where: {
+      businessId_code: {
         businessId: restaurantBusiness.id,
-        categoryId: restaurantCategoryFood.id,
-        name: 'Nasi Goreng Special',
         code: 'MENU-NASGOR',
-        sku: 'SKU-NASGOR',
-        brand: 'Kitchen Internal',
-        unit: 'Porsi',
-        description: 'Menu nasi goreng special',
-        imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
-        basePrice: 28000,
-        status: ProductStatus.ACTIVE,
       },
-    });
+    },
+    update: {
+      categoryId: restaurantCategoryFood.id,
+      name: 'Nasi Goreng Special',
+      sku: 'SKU-NASGOR',
+      brand: 'Kitchen Internal',
+      unit: 'Porsi',
+      description: 'Menu nasi goreng special',
+      imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
+      basePrice: 28000,
+      status: ProductStatus.ACTIVE,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      categoryId: restaurantCategoryFood.id,
+      name: 'Nasi Goreng Special',
+      code: 'MENU-NASGOR',
+      sku: 'SKU-NASGOR',
+      brand: 'Kitchen Internal',
+      unit: 'Porsi',
+      description: 'Menu nasi goreng special',
+      imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
+      basePrice: 28000,
+      status: ProductStatus.ACTIVE,
+    },
+  });
 
-    const restaurantProductEsTeh = await prisma.product.upsert({
-      where: {
-        businessId_code: {
-          businessId: restaurantBusiness.id,
-          code: 'MENU-ESTEH',
-        },
-      },
-      update: {
-        categoryId: restaurantCategoryDrink.id,
-        name: 'Es Teh Manis',
-        sku: 'SKU-ESTEH',
-        brand: 'Kitchen Internal',
-        unit: 'Gelas',
-        description: 'Menu es teh manis',
-        imageUrl: 'https://example.com/products/es-teh-manis.jpg',
-        basePrice: 8000,
-        status: ProductStatus.ACTIVE,
-      },
-      create: {
+  const restaurantProductEsTeh = await prisma.product.upsert({
+    where: {
+      businessId_code: {
         businessId: restaurantBusiness.id,
-        categoryId: restaurantCategoryDrink.id,
-        name: 'Es Teh Manis',
         code: 'MENU-ESTEH',
-        sku: 'SKU-ESTEH',
-        brand: 'Kitchen Internal',
-        unit: 'Gelas',
-        description: 'Menu es teh manis',
-        imageUrl: 'https://example.com/products/es-teh-manis.jpg',
-        basePrice: 8000,
-        status: ProductStatus.ACTIVE,
       },
-    });
+    },
+    update: {
+      categoryId: restaurantCategoryDrink.id,
+      name: 'Es Teh Manis',
+      sku: 'SKU-ESTEH',
+      brand: 'Kitchen Internal',
+      unit: 'Gelas',
+      description: 'Menu es teh manis',
+      imageUrl: 'https://example.com/products/es-teh-manis.jpg',
+      basePrice: 8000,
+      status: ProductStatus.ACTIVE,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      categoryId: restaurantCategoryDrink.id,
+      name: 'Es Teh Manis',
+      code: 'MENU-ESTEH',
+      sku: 'SKU-ESTEH',
+      brand: 'Kitchen Internal',
+      unit: 'Gelas',
+      description: 'Menu es teh manis',
+      imageUrl: 'https://example.com/products/es-teh-manis.jpg',
+      basePrice: 8000,
+      status: ProductStatus.ACTIVE,
+    },
+  });
 
-  // Product outlet settings - Retail
   const retailProductOutletSettings = [
     {
       productId: retailProductTea.id,
@@ -1349,7 +1403,6 @@ async function main() {
     });
   }
 
-  // Product outlet settings - Restaurant
   const restaurantProductOutletSettings = [
     {
       productId: restaurantProductNasiGoreng.id,
@@ -1398,7 +1451,6 @@ async function main() {
     });
   }
 
-  // Tables - Restaurant only
   const restaurantTables = [
     {
       outletId: restaurantOutletOne.id,
@@ -1513,6 +1565,24 @@ async function main() {
         'RESTO-01:T02',
         'RESTO-02:T01',
         'RESTO-02:T02',
+      ],
+    },
+    phase4: {
+      permissions: [
+        'ORDER_VIEW',
+        'ORDER_CREATE',
+        'ORDER_UPDATE',
+        'ORDER_STATUS_UPDATE',
+        'PAYMENT_VIEW',
+        'PAYMENT_CREATE',
+        'PAYMENT_STATUS_UPDATE',
+        'RECEIPT_VIEW',
+      ],
+      receiptSnapshotFields: [
+        'businessName',
+        'outletName',
+        'outletAddress',
+        'contentSnapshot',
       ],
     },
   });

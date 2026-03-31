@@ -7,11 +7,13 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faBoxOpen,
+  faCashRegister,
   faChartLine,
   faChevronRight,
   faLayerGroup,
   faLocationDot,
   faPercent,
+  faReceipt,
   faShapes,
   faShop,
   faSliders,
@@ -61,7 +63,7 @@ function isMenuActive(pathname: string, href: string) {
 }
 
 function normalizePermissionList(
-  values: Array<string | PermissionLike> | undefined
+  values: Array<string | PermissionLike> | undefined,
 ): string[] {
   if (!Array.isArray(values)) {
     return [];
@@ -91,24 +93,24 @@ function getPermissionCodes(user: CurrentUser | null): string[] {
 
   const fromAccessProfile = normalizePermissionList(accessProfile.permissions);
   const fromBusinessPermissions = normalizePermissionList(
-    accessProfile.businessPermissions
+    accessProfile.businessPermissions,
   );
   const fromPlatformPermissions = normalizePermissionList(
-    accessProfile.platformPermissions
+    accessProfile.platformPermissions,
   );
   const fromDefaultMembership = Array.isArray(
-    accessProfile.defaultBusinessMembership?.permissions
+    accessProfile.defaultBusinessMembership?.permissions,
   )
     ? accessProfile.defaultBusinessMembership.permissions
     : [];
   const fromMemberships = Array.isArray(accessProfile.memberships)
     ? accessProfile.memberships.flatMap((membership) =>
-        Array.isArray(membership.permissions) ? membership.permissions : []
+        Array.isArray(membership.permissions) ? membership.permissions : [],
       )
     : [];
   const fromUserMemberships = Array.isArray(user.businessMemberships)
     ? user.businessMemberships.flatMap((membership) =>
-        Array.isArray(membership.permissions) ? membership.permissions : []
+        Array.isArray(membership.permissions) ? membership.permissions : [],
       )
     : [];
 
@@ -120,7 +122,7 @@ function getPermissionCodes(user: CurrentUser | null): string[] {
       ...fromDefaultMembership,
       ...fromMemberships,
       ...fromUserMemberships,
-    ])
+    ]),
   );
 }
 
@@ -133,7 +135,7 @@ function getActiveMembership(user: CurrentUser | null): BusinessMembership | nul
 
   const matchedMembership = Array.isArray(user.businessMemberships)
     ? user.businessMemberships.find(
-        (item) => item.businessId === activeBusinessId && item.status === 'ACTIVE'
+        (item) => item.businessId === activeBusinessId && item.status === 'ACTIVE',
       )
     : null;
 
@@ -272,6 +274,27 @@ const menuGroups: MenuGroup[] = [
       },
     ],
   },
+  {
+    section: 'POS Transaction',
+    items: [
+      {
+        href: '/dashboard/pos',
+        label: 'POS Kasir',
+        icon: faCashRegister,
+        requiredPermissions: ['ORDER_VIEW'],
+        businessOnly: true,
+        requireOutletScope: true,
+      },
+      {
+        href: '/dashboard/payments',
+        label: 'Payment History',
+        icon: faReceipt,
+        requiredPermissions: ['PAYMENT_VIEW'],
+        businessOnly: true,
+        requireOutletScope: true,
+      },
+    ],
+  },
 ];
 
 export function AppSidebar() {
@@ -319,7 +342,7 @@ export function AppSidebar() {
           }
 
           return item.requiredPermissions.some((permission) =>
-            permissionCodes.includes(permission)
+            permissionCodes.includes(permission),
           );
         });
 
@@ -349,14 +372,12 @@ export function AppSidebar() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-600">
               POS Platform
             </p>
-            <h2 className="text-base font-semibold text-slate-900">
-              Admin Panel
-            </h2>
+            <h2 className="text-base font-semibold text-slate-900">Admin Panel</h2>
           </div>
         </div>
 
         <p className="mt-4 text-xs leading-6 text-slate-500">
-          Fase 3 management untuk category, product, outlet pricing, promo, dan meja outlet restoran.
+          POS management untuk master data, transaksi kasir, histori payment, dan receipt.
         </p>
       </div>
 
@@ -420,12 +441,12 @@ export function AppSidebar() {
           <p className="mt-1 text-xs leading-5 text-slate-500">
             {businessType === 'RESTAURANT'
               ? outletScopeAvailable
-                ? 'Business type restaurant aktif. Modul meja outlet, promo, dan pricing tampil sesuai permission serta scope outlet.'
+                ? 'Business type restaurant aktif. POS, payment history, receipt, meja outlet, promo, dan pricing tampil sesuai permission serta scope outlet.'
                 : 'Business type restaurant aktif, tetapi scope outlet belum tersedia.'
               : businessType === 'RETAIL'
                 ? outletScopeAvailable
-                  ? 'Business type retail aktif. Modul meja outlet disembunyikan, promo dan pricing tampil sesuai permission dan scope outlet.'
-                  : 'Business type retail aktif. Modul meja outlet disembunyikan, promo tetap mengikuti permission business.'
+                  ? 'Business type retail aktif. POS, payment history, receipt, promo, dan pricing tampil sesuai permission serta scope outlet.'
+                  : 'Business type retail aktif. Scope outlet belum tersedia.'
                 : 'Pilih business aktif untuk menampilkan modul business-level dengan benar.'}
           </p>
         </div>

@@ -11,6 +11,9 @@ import businessUserRoutes from '../modules/business-users/business-user.routes';
 import productRoutes from '../modules/products/products.routes';
 import productRouter from '../modules/business-product/product.routes';
 import promoRoutes from '../modules/promos/promo.routes';
+import orderRoutes from '../modules/orders/order.routes'
+import paymentRoutes from '../modules/payments/payment.routes'
+import receiptRoutes from '../modules/receipts/receipt.routes'
 
 
 
@@ -28,5 +31,10 @@ router.use('/business-users', businessUserRoutes);
 router.use('/products', productRoutes);
 router.use('/business/products', productRouter);
 router.use('/promos', promoRoutes);
+router.use('/orders', orderRoutes);
+router.use('/payments', paymentRoutes);
+router.use('/receipts', receiptRoutes);
+
+
 
 export default router;
