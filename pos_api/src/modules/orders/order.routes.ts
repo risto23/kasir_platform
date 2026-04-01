@@ -1,4 +1,4 @@
-import { Router, Request } from 'express';
+import { Router, type Request } from 'express';
 import { BusinessPermissionCode } from '@prisma/client';
 
 import { authMiddleware } from '../../middlewares/auth.middleware';
@@ -24,14 +24,95 @@ import {
   updateOrderStatusSchema,
 } from './order.validation';
 
-function resolveOutletIdFromQueryOrHeader(req: Request): string | null {
-  if (typeof req.query.outletId === 'string' && req.query.outletId.trim() !== '') {
-    return req.query.outletId.trim();
-  }
-
+function getHeaderOutletId(req: Request): string | null {
   const headerOutletId = req.headers['x-outlet-id'];
+
   if (typeof headerOutletId === 'string' && headerOutletId.trim() !== '') {
     return headerOutletId.trim();
+  }
+
+  return null;
+}
+
+function resolveOutletIdFromListOrders(req: Request): string | null {
+  const parsed = listOrdersSchema.safeParse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  if (parsed.success) {
+    return parsed.data.query.outletId;
+  }
+
+  return getHeaderOutletId(req);
+}
+
+function resolveOutletIdFromGetOrderById(req: Request): string | null {
+  const parsed = getOrderByIdSchema.safeParse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  if (parsed.success && parsed.data.query.outletId) {
+    return parsed.data.query.outletId;
+  }
+
+  return getHeaderOutletId(req);
+}
+
+function resolveOutletIdFromCreateOrder(req: Request): string | null {
+  const parsed = createOrderSchema.safeParse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  if (parsed.success) {
+    return parsed.data.body.outletId;
+  }
+
+  return null;
+}
+
+function resolveOutletIdFromAddOrderItem(req: Request): string | null {
+  const parsed = addOrderItemSchema.safeParse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  if (parsed.success) {
+    return parsed.data.body.outletId;
+  }
+
+  return null;
+}
+
+function resolveOutletIdFromUpdateOrderItem(req: Request): string | null {
+  const parsed = updateOrderItemSchema.safeParse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  if (parsed.success) {
+    return parsed.data.body.outletId;
+  }
+
+  return null;
+}
+
+function resolveOutletIdFromUpdateOrderStatus(req: Request): string | null {
+  const parsed = updateOrderStatusSchema.safeParse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  if (parsed.success) {
+    return parsed.data.body.outletId;
   }
 
   return null;
@@ -46,7 +127,7 @@ router.get(
   '/',
   requireBusinessPermission(BusinessPermissionCode.ORDER_VIEW),
   validate(listOrdersSchema),
-  requireOutletAccess(resolveOutletIdFromQueryOrHeader),
+  requireOutletAccess(resolveOutletIdFromListOrders),
   listOrdersHandler,
 );
 
@@ -54,7 +135,7 @@ router.get(
   '/:id',
   requireBusinessPermission(BusinessPermissionCode.ORDER_VIEW),
   validate(getOrderByIdSchema),
-  requireOutletAccess(resolveOutletIdFromQueryOrHeader),
+  requireOutletAccess(resolveOutletIdFromGetOrderById),
   getOrderByIdHandler,
 );
 
@@ -62,7 +143,7 @@ router.post(
   '/',
   requireBusinessPermission(BusinessPermissionCode.ORDER_CREATE),
   validate(createOrderSchema),
-  requireOutletAccess((req) => req.body.outletId),
+  requireOutletAccess(resolveOutletIdFromCreateOrder),
   createOrderHandler,
 );
 
@@ -70,7 +151,7 @@ router.post(
   '/:id/items',
   requireBusinessPermission(BusinessPermissionCode.ORDER_UPDATE),
   validate(addOrderItemSchema),
-  requireOutletAccess((req) => req.body.outletId),
+  requireOutletAccess(resolveOutletIdFromAddOrderItem),
   addOrderItemHandler,
 );
 
@@ -78,7 +159,7 @@ router.put(
   '/:id/items/:itemId',
   requireBusinessPermission(BusinessPermissionCode.ORDER_UPDATE),
   validate(updateOrderItemSchema),
-  requireOutletAccess((req) => req.body.outletId),
+  requireOutletAccess(resolveOutletIdFromUpdateOrderItem),
   updateOrderItemHandler,
 );
 
@@ -86,7 +167,7 @@ router.patch(
   '/:id/status',
   requireBusinessPermission(BusinessPermissionCode.ORDER_STATUS_UPDATE),
   validate(updateOrderStatusSchema),
-  requireOutletAccess((req) => req.body.outletId),
+  requireOutletAccess(resolveOutletIdFromUpdateOrderStatus),
   updateOrderStatusHandler,
 );
 

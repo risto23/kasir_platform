@@ -4,283 +4,43 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faBell,
-  faBoxOpen,
   faChevronRight,
-  faChartLine,
-  faLayerGroup,
-  faLocationDot,
-  faPercent,
   faRightFromBracket,
-  faShapes,
-  faShop,
-  faSliders,
   faStore,
-  faTableCellsLarge,
   faUser,
-  faUsers,
 } from '@fortawesome/free-solid-svg-icons';
 
-import { getActiveBusinessId, getCachedCurrentUser, logout } from '@/lib/auth';
-import type { CurrentUser, BusinessMembership } from '@/types/auth';
+import { getCachedCurrentUser, logout } from '@/lib/auth';
+import {
+  getFilteredNavigation,
+  getNavigationContext,
+  isMenuActive,
+} from '@/components/layout/app-navigation';
 
 type AppHeaderProps = {
   title?: string;
   subtitle?: string;
 };
 
-type PermissionLike = {
-  code?: string;
-};
-
-type AccessProfileLike = {
-  isSuperAdmin?: boolean;
-  permissions?: Array<string | PermissionLike>;
-  businessPermissions?: Array<string | PermissionLike>;
-  platformPermissions?: Array<string | PermissionLike>;
-  defaultBusinessMembership?: BusinessMembership | null;
-  memberships?: BusinessMembership[];
-};
-
-type MobileNavItem = {
-  href: string;
-  label: string;
-  icon: IconDefinition;
-  requiredPermissions?: string[];
-  platformOnly?: boolean;
-  businessOnly?: boolean;
-  restaurantOnly?: boolean;
-  requireOutletScope?: boolean;
-};
-
-const mobileNavItems: MobileNavItem[] = [
-  {
-    href: '/dashboard',
-    label: 'Dashboard',
-    icon: faChartLine,
-  },
-  {
-    href: '/dashboard/businesses',
-    label: 'Businesses',
-    icon: faShop,
-    platformOnly: true,
-  },
-  {
-    href: '/dashboard/business-types',
-    label: 'Business Types',
-    icon: faLayerGroup,
-    platformOnly: true,
-  },
-  {
-    href: '/dashboard/outlets',
-    label: 'Outlets',
-    icon: faLocationDot,
-    requiredPermissions: ['OUTLET_VIEW'],
-    businessOnly: true,
-  },
-  {
-    href: '/dashboard/business-users',
-    label: 'Business Users',
-    icon: faUsers,
-    requiredPermissions: ['BUSINESS_USER_VIEW'],
-    businessOnly: true,
-  },
-  {
-    href: '/dashboard/categories',
-    label: 'Categories',
-    icon: faShapes,
-    requiredPermissions: ['CATEGORY_VIEW'],
-    businessOnly: true,
-  },
-  {
-    href: '/dashboard/products',
-    label: 'Products / Menu',
-    icon: faBoxOpen,
-    requiredPermissions: ['PRODUCT_VIEW'],
-    businessOnly: true,
-  },
-  {
-    href: '/dashboard/product-outlet-settings',
-    label: 'Outlet Pricing',
-    icon: faSliders,
-    requiredPermissions: ['PRODUCT_OUTLET_VIEW'],
-    businessOnly: true,
-    requireOutletScope: true,
-  },
-  {
-    href: '/dashboard/outlet-tables',
-    label: 'Outlet Tables',
-    icon: faTableCellsLarge,
-    requiredPermissions: ['OUTLET_TABLE_VIEW'],
-    businessOnly: true,
-    restaurantOnly: true,
-    requireOutletScope: true,
-  },
-  {
-    href: '/dashboard/promos',
-    label: 'Promos',
-    icon: faPercent,
-    requiredPermissions: ['PROMO_VIEW'],
-    businessOnly: true,
-  },
-];
-
-function isMenuActive(pathname: string, href: string) {
-  if (href === '/dashboard') {
-    return pathname === href;
-  }
-
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function normalizePermissionList(
-  values: Array<string | PermissionLike> | undefined
-): string[] {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-
-  return values
-    .map((item) => {
-      if (typeof item === 'string') {
-        return item;
-      }
-
-      if (item && typeof item.code === 'string') {
-        return item.code;
-      }
-
-      return null;
-    })
-    .filter((item): item is string => Boolean(item));
-}
-
-function getPermissionCodes(user: CurrentUser | null): string[] {
-  if (!user) {
-    return [];
-  }
-
-  const accessProfile = (user.accessProfile || {}) as AccessProfileLike;
-
-  const fromAccessProfile = normalizePermissionList(accessProfile.permissions);
-  const fromBusinessPermissions = normalizePermissionList(
-    accessProfile.businessPermissions
-  );
-  const fromPlatformPermissions = normalizePermissionList(
-    accessProfile.platformPermissions
-  );
-  const fromDefaultMembership = Array.isArray(
-    accessProfile.defaultBusinessMembership?.permissions
-  )
-    ? accessProfile.defaultBusinessMembership.permissions
-    : [];
-  const fromMemberships = Array.isArray(accessProfile.memberships)
-    ? accessProfile.memberships.flatMap((membership) =>
-        Array.isArray(membership.permissions) ? membership.permissions : []
-      )
-    : [];
-  const fromUserMemberships = Array.isArray(user.businessMemberships)
-    ? user.businessMemberships.flatMap((membership) =>
-        Array.isArray(membership.permissions) ? membership.permissions : []
-      )
-    : [];
-
-  return Array.from(
-    new Set([
-      ...fromAccessProfile,
-      ...fromBusinessPermissions,
-      ...fromPlatformPermissions,
-      ...fromDefaultMembership,
-      ...fromMemberships,
-      ...fromUserMemberships,
-    ])
-  );
-}
-
-function getActiveMembership(user: CurrentUser | null): BusinessMembership | null {
-  if (!user) {
-    return null;
-  }
-
-  const activeBusinessId = getActiveBusinessId();
-
-  const matchedMembership = Array.isArray(user.businessMemberships)
-    ? user.businessMemberships.find(
-        (item) => item.businessId === activeBusinessId && item.status === 'ACTIVE'
-      )
-    : null;
-
-  if (matchedMembership) {
-    return matchedMembership;
-  }
-
-  const defaultMembership = user.accessProfile?.defaultBusinessMembership;
-
-  if (defaultMembership?.status === 'ACTIVE') {
-    return defaultMembership;
-  }
-
-  const firstActiveMembership = Array.isArray(user.businessMemberships)
-    ? user.businessMemberships.find((item) => item.status === 'ACTIVE')
-    : null;
-
-  return firstActiveMembership ?? null;
-}
-
-function getBusinessType(user: CurrentUser | null): 'RESTAURANT' | 'RETAIL' | null {
-  const membership = getActiveMembership(user);
-
-  if (membership?.businessType === 'RESTAURANT') {
-    return 'RESTAURANT';
-  }
-
-  if (membership?.businessType === 'RETAIL') {
-    return 'RETAIL';
-  }
-
-  return null;
-}
-
-function getPrimaryRoleLabel(user: CurrentUser | null) {
-  if (!user) {
-    return 'User';
-  }
-
-  const membership = getActiveMembership(user);
-
-  if (user.accessProfile?.isSuperAdmin) {
-    if (membership?.role) {
-      return `Super Admin • ${membership.role}`;
+function getPrimaryRoleLabel(
+  isSuperAdmin: boolean,
+  membershipRole: string | null | undefined,
+) {
+  if (isSuperAdmin) {
+    if (membershipRole) {
+      return `Super Admin • ${membershipRole}`;
     }
 
     return 'Super Admin';
   }
 
-  if (membership?.role) {
-    return membership.role;
-  }
-
-  return 'User';
+  return membershipRole || 'User';
 }
 
-function hasOutletScope(user: CurrentUser | null): boolean {
-  const membership = getActiveMembership(user);
-
-  if (!membership || membership.status !== 'ACTIVE') {
-    return false;
-  }
-
-  if (membership.hasAllOutletAccess) {
-    return true;
-  }
-
-  return Array.isArray(membership.allowedOutletIds) && membership.allowedOutletIds.length > 0;
-}
-
-function getOutletScopeLabel(user: CurrentUser | null): string {
-  const membership = getActiveMembership(user);
+function getOutletScopeLabel(currentUser: ReturnType<typeof getCachedCurrentUser>): string {
+  const membership = getNavigationContext(currentUser).activeMembership;
 
   if (!membership || membership.status !== 'ACTIVE') {
     return 'Belum ada scope';
@@ -309,57 +69,26 @@ export function AppHeader({
   const pathname = usePathname();
 
   const currentUser = useMemo(() => getCachedCurrentUser(), []);
-  const accessProfile = (currentUser?.accessProfile || {}) as AccessProfileLike;
-  const activeMembership = useMemo(() => getActiveMembership(currentUser), [currentUser]);
-  const isSuperAdmin = Boolean(accessProfile.isSuperAdmin);
-  const permissionCodes = useMemo(() => getPermissionCodes(currentUser), [currentUser]);
-  const businessType = useMemo(() => getBusinessType(currentUser), [currentUser]);
-  const roleLabel = useMemo(() => getPrimaryRoleLabel(currentUser), [currentUser]);
-  const hasBusinessContext = Boolean(activeMembership);
-  const outletScopeAvailable = useMemo(() => hasOutletScope(currentUser), [currentUser]);
-  const outletScopeLabel = useMemo(() => getOutletScopeLabel(currentUser), [currentUser]);
-
-  const filteredMobileNavItems = useMemo(() => {
-    return mobileNavItems.filter((item) => {
-      if (item.platformOnly && !isSuperAdmin) {
-        return false;
-      }
-
-      if (item.businessOnly && !hasBusinessContext) {
-        return false;
-      }
-
-      if (item.restaurantOnly && businessType !== 'RESTAURANT') {
-        return false;
-      }
-
-      if (item.requireOutletScope && !isSuperAdmin && !outletScopeAvailable) {
-        return false;
-      }
-
-      if (!item.requiredPermissions || item.requiredPermissions.length === 0) {
-        return true;
-      }
-
-      if (isSuperAdmin && item.platformOnly) {
-        return true;
-      }
-
-      if (isSuperAdmin && item.businessOnly && hasBusinessContext) {
-        return true;
-      }
-
-      return item.requiredPermissions.some((permission) =>
-        permissionCodes.includes(permission)
-      );
-    });
-  }, [
+  const filteredMobileNavItems = useMemo(
+    () => getFilteredNavigation(currentUser).flatMap((group) => group.items),
+    [currentUser],
+  );
+  const {
+    activeMembership,
+    isSuperAdmin,
     businessType,
     hasBusinessContext,
-    isSuperAdmin,
-    outletScopeAvailable,
-    permissionCodes,
-  ]);
+  } = useMemo(() => getNavigationContext(currentUser), [currentUser]);
+
+  const outletScopeLabel = useMemo(
+    () => getOutletScopeLabel(currentUser),
+    [currentUser],
+  );
+
+  const roleLabel = useMemo(
+    () => getPrimaryRoleLabel(isSuperAdmin, activeMembership?.role),
+    [activeMembership?.role, isSuperAdmin],
+  );
 
   function handleLogout() {
     logout();
@@ -439,9 +168,7 @@ export function AppHeader({
       <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-6 lg:hidden">
         <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
           <FontAwesomeIcon icon={faStore} className="h-3.5 w-3.5" />
-          <span>
-            Navigasi cepat untuk modul fase 3, termasuk category, product, promo, pricing, dan meja outlet restaurant.
-          </span>
+          <span>Navigasi cepat mengikuti menu yang sama dengan sidebar.</span>
         </div>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

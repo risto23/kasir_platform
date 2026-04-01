@@ -1,8 +1,8 @@
-// pos_web/src/app/dashboard/pos/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -11,9 +11,8 @@ import {
   faBasketShopping,
   faBoxesStacked,
   faCashRegister,
-  faClockRotateLeft,
   faCreditCard,
-  faEye,
+  faImage,
   faMagnifyingGlass,
   faMinus,
   faPlus,
@@ -24,8 +23,10 @@ import {
   faWallet,
 } from '@fortawesome/free-solid-svg-icons';
 
+import { api } from '@/lib/api';
 import { getActiveBusinessId, getCachedCurrentUser } from '@/lib/auth';
 import { getReceiptByOrderId } from '@/lib/receipt';
+import { resolveImageUrl } from '@/lib/resolve-image-url';
 import {
   addOrderItem,
   buildCharges,
@@ -35,9 +36,7 @@ import {
   createPayment,
   formatCurrency,
   formatDateTime,
-  getOutletOrderHistory,
   getPosChargeSettings,
-  getPosOutlets,
   getPosProducts,
   getPosTables,
   recalculateCart,
@@ -45,7 +44,6 @@ import {
 import type {
   PosBusinessType,
   PosCartItem,
-  PosHistoryItem,
   PosOutletItem,
   PosPaymentMethod,
   PosProductItem,
@@ -53,6 +51,135 @@ import type {
   PosSettingsChargeRule,
   PosTableItem,
 } from '@/types/pos';
+
+type OutletListEnvelope = {
+  success?: boolean;
+  message?: string;
+  data?: {
+    items?: PosOutletItem[];
+    meta?: {
+      page?: number;
+      limit?: number;
+      total?: number;
+      totalPages?: number;
+    };
+  };
+};
+
+type ParsedMembershipOutlet = {
+  id: string;
+  name: string;
+};
+
+type ParsedMembership = {
+  businessId: string;
+  businessType: PosBusinessType;
+  hasAllOutletAccess: boolean;
+  allowedOutletIds: string[];
+  allowedOutlets: ParsedMembershipOutlet[];
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getStringValue(
+  source: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = source[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function getBooleanValue(
+  source: Record<string, unknown>,
+  key: string,
+): boolean {
+  return source[key] === true;
+}
+
+function getStringArrayValue(
+  source: Record<string, unknown>,
+  key: string,
+): string[] {
+  const value = source[key];
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (item): item is string => typeof item === 'string' && item.trim().length > 0,
+  );
+}
+
+function getAllowedOutletsValue(
+  source: Record<string, unknown>,
+): ParsedMembershipOutlet[] {
+  const rawAllowedOutlets = source['allowedOutlets'];
+
+  if (!Array.isArray(rawAllowedOutlets)) {
+    return [];
+  }
+
+  return rawAllowedOutlets
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const id = getStringValue(item, 'id');
+      const name = getStringValue(item, 'name');
+
+      if (!id || !name) {
+        return null;
+      }
+
+      return { id, name };
+    })
+    .filter((item): item is ParsedMembershipOutlet => item !== null);
+}
+
+function getActiveMembership(): ParsedMembership | null {
+  const activeBusinessId = getActiveBusinessId();
+  const currentUserUnknown: unknown = getCachedCurrentUser();
+
+  if (!activeBusinessId || !isRecord(currentUserUnknown)) {
+    return null;
+  }
+
+  const rawMemberships = currentUserUnknown['businessMemberships'];
+
+  if (!Array.isArray(rawMemberships)) {
+    return null;
+  }
+
+  for (const item of rawMemberships) {
+    if (!isRecord(item)) {
+      continue;
+    }
+
+    const membershipBusinessId = getStringValue(item, 'businessId');
+
+    if (membershipBusinessId !== activeBusinessId) {
+      continue;
+    }
+
+    const membershipBusinessType = getStringValue(item, 'businessType');
+    const businessType: PosBusinessType =
+      membershipBusinessType === 'RESTAURANT' ? 'RESTAURANT' : 'RETAIL';
+
+    return {
+      businessId: membershipBusinessId,
+      businessType,
+      hasAllOutletAccess: getBooleanValue(item, 'hasAllOutletAccess'),
+      allowedOutletIds: getStringArrayValue(item, 'allowedOutletIds'),
+      allowedOutlets: getAllowedOutletsValue(item),
+    };
+  }
+
+  return null;
+}
 
 function getMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -67,35 +194,8 @@ function getMessage(error: unknown, fallback: string): string {
 }
 
 function getBusinessType(): PosBusinessType {
-  const currentUser = getCachedCurrentUser();
-  const activeBusinessId = getActiveBusinessId();
-
-  const membership = currentUser?.businessMemberships?.find(
-    (item) => item.businessId === activeBusinessId,
-  );
-
+  const membership = getActiveMembership();
   return membership?.businessType === 'RESTAURANT' ? 'RESTAURANT' : 'RETAIL';
-}
-
-function getAvailableOutletsFromMembership(): string[] {
-  const currentUser = getCachedCurrentUser();
-  const activeBusinessId = getActiveBusinessId();
-
-  const membership = currentUser?.businessMemberships?.find(
-    (item) => item.businessId === activeBusinessId,
-  );
-
-  if (!membership) {
-    return [];
-  }
-
-  if (membership.hasAllOutletAccess) {
-    return [];
-  }
-
-  return Array.isArray(membership.allowedOutletIds)
-    ? membership.allowedOutletIds
-    : [];
 }
 
 function getPaymentMethods(): PosPaymentMethod[] {
@@ -106,22 +206,74 @@ function getStorageKey(activeBusinessId: string | null): string {
   return `pos_cart_${activeBusinessId || 'default'}`;
 }
 
-function getStatusBadgeClass(status: string): string {
-  switch (status) {
-    case 'COMPLETED':
-    case 'PAID':
-      return 'border border-emerald-200 bg-emerald-50 text-emerald-700';
-    case 'CANCELLED':
-      return 'border border-rose-200 bg-rose-50 text-rose-700';
-    case 'READY':
-      return 'border border-sky-200 bg-sky-50 text-sky-700';
-    case 'IN_PROGRESS':
-    case 'PROCESSING':
-    case 'PARTIAL':
-      return 'border border-amber-200 bg-amber-50 text-amber-700';
-    default:
-      return 'border border-slate-200 bg-slate-100 text-slate-700';
+function getProductImageUrl(product: PosProductItem): string {
+  return resolveImageUrl(product.imageUrl);
+}
+
+async function getManagedOutlets(businessId: string): Promise<PosOutletItem[]> {
+  const response = await api.get<OutletListEnvelope>('/business/outlets', {
+    params: {
+      businessId,
+      status: 'ACTIVE',
+      page: 1,
+      perPage: 100,
+    },
+    headers: {
+      'x-business-id': businessId,
+    },
+  });
+
+  const items = response.data.data?.items;
+  return Array.isArray(items) ? items : [];
+}
+
+function buildFallbackOutletsFromMembership(
+  businessId: string,
+  membership: ParsedMembership,
+): PosOutletItem[] {
+  if (membership.allowedOutlets.length > 0) {
+    return membership.allowedOutlets.map((item, index) => ({
+      id: item.id,
+      businessId,
+      code: `OUTLET-${String(index + 1).padStart(2, '0')}`,
+      name: item.name,
+      address: '',
+      phone: '',
+      status: 'ACTIVE',
+      createdAt: '',
+      updatedAt: '',
+      totalAssignedUsers: 0,
+    }));
   }
+
+  return membership.allowedOutletIds.map((id, index) => ({
+    id,
+    businessId,
+    code: `OUTLET-${String(index + 1).padStart(2, '0')}`,
+    name: `Outlet ${index + 1}`,
+    address: '',
+    phone: '',
+    status: 'ACTIVE',
+    createdAt: '',
+    updatedAt: '',
+    totalAssignedUsers: 0,
+  }));
+}
+
+async function getPosOutletsForCurrentUser(
+  businessId: string,
+): Promise<PosOutletItem[]> {
+  const membership = getActiveMembership();
+
+  if (!membership) {
+    return [];
+  }
+
+  if (membership.hasAllOutletAccess) {
+    return getManagedOutlets(businessId);
+  }
+
+  return buildFallbackOutletsFromMembership(businessId, membership);
 }
 
 export default function PosCashierPage() {
@@ -136,20 +288,15 @@ export default function PosCashierPage() {
   const [selectedTableId, setSelectedTableId] = useState('');
   const [products, setProducts] = useState<PosProductItem[]>([]);
   const [cart, setCart] = useState<PosCartItem[]>([]);
-  const [history, setHistory] = useState<PosHistoryItem[]>([]);
   const [chargeRules, setChargeRules] = useState<PosSettingsChargeRule[]>([]);
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [productLoading, setProductLoading] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [historyReceiptLoadingId, setHistoryReceiptLoadingId] = useState('');
-  const [historyPrintLoadingId, setHistoryPrintLoadingId] = useState('');
 
   const [searchInput, setSearchInput] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [historySearchInput, setHistorySearchInput] = useState('');
-  const [historySearch, setHistorySearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
 
   const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('CASH');
   const [paymentNote, setPaymentNote] = useState('');
@@ -160,30 +307,45 @@ export default function PosCashierPage() {
   const activeBusinessId =
     typeof window !== 'undefined' ? getActiveBusinessId() : null;
 
+  const categoryOptions = useMemo(() => {
+    const categoryMap = new Map<string, string>();
+
+    products.forEach((item) => {
+      const categoryName = item.category?.name?.trim();
+
+      if (categoryName) {
+        categoryMap.set(categoryName, categoryName);
+      }
+    });
+
+    return ['ALL', ...Array.from(categoryMap.values()).sort((a, b) => a.localeCompare(b))];
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase();
 
-    if (!keyword) {
-      return products;
-    }
-
     return products.filter((item) => {
-      const haystacks = [
-        item.name,
-        item.code,
-        item.sku,
-        item.barcode,
-        item.brand,
-        item.unit,
-        item.category?.name,
-      ]
+      const matchesCategory =
+        selectedCategory === 'ALL'
+          ? true
+          : item.category?.name?.trim() === selectedCategory;
+
+      if (!matchesCategory) {
+        return false;
+      }
+
+      if (!keyword) {
+        return true;
+      }
+
+      const haystacks = [item.name, item.category?.name, item.brand]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
 
       return haystacks.includes(keyword);
     });
-  }, [products, searchKeyword]);
+  }, [products, searchKeyword, selectedCategory]);
 
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.subtotal, 0),
@@ -255,21 +417,23 @@ export default function PosCashierPage() {
       setInitialLoading(true);
       setPageMessage('');
 
-      const [outletResponse, chargeSettingsResponse] = await Promise.all([
-        getPosOutlets(),
+      if (!activeBusinessId) {
+        setOutlets([]);
+        setProducts([]);
+        setTables([]);
+        setPageMessage('Business aktif belum dipilih');
+        return;
+      }
+
+      const [outletItems, chargeSettingsResponse] = await Promise.all([
+        getPosOutletsForCurrentUser(activeBusinessId),
         getPosChargeSettings(),
       ]);
 
-      const allowedOutletIds = getAvailableOutletsFromMembership();
-      const visibleOutlets =
-        allowedOutletIds.length > 0
-          ? outletResponse.items.filter((item) => allowedOutletIds.includes(item.id))
-          : outletResponse.items;
-
-      setOutlets(visibleOutlets);
+      setOutlets(outletItems);
       setChargeRules(chargeSettingsResponse.charges);
 
-      if (visibleOutlets.length > 0) {
+      if (outletItems.length > 0) {
         const storedOutletId =
           typeof window !== 'undefined'
             ? window.localStorage.getItem('activeOutletId')
@@ -277,18 +441,22 @@ export default function PosCashierPage() {
 
         const resolvedOutletId =
           storedOutletId &&
-          visibleOutlets.some((item) => item.id === storedOutletId)
+          outletItems.some((item) => item.id === storedOutletId)
             ? storedOutletId
-            : visibleOutlets[0].id;
+            : outletItems[0].id;
 
         setSelectedOutletId((prev) => prev || resolvedOutletId);
       } else {
+        setSelectedOutletId('');
         setProducts([]);
         setTables([]);
-        setHistory([]);
       }
     } catch (error: unknown) {
       setPageMessage(getMessage(error, 'Gagal memuat data POS'));
+      setOutlets([]);
+      setSelectedOutletId('');
+      setProducts([]);
+      setTables([]);
     } finally {
       setInitialLoading(false);
     }
@@ -343,37 +511,13 @@ export default function PosCashierPage() {
     }
   }
 
-  async function loadHistory(outletId: string, search?: string) {
-    if (!outletId) {
-      setHistory([]);
-      return;
-    }
-
-    try {
-      setHistoryLoading(true);
-      setPageMessage('');
-
-      const response = await getOutletOrderHistory({
-        outletId,
-        search: search?.trim() || undefined,
-      });
-
-      setHistory(response.items);
-    } catch (error: unknown) {
-      setHistory([]);
-      setPageMessage(getMessage(error, 'Gagal memuat histori transaksi'));
-    } finally {
-      setHistoryLoading(false);
-    }
-  }
-
   async function refreshProducts() {
     await loadProducts(selectedOutletId);
   }
 
   useEffect(() => {
     void loadInitialData();
-  }, []);
+  }, [activeBusinessId]);
 
   useEffect(() => {
     if (!selectedOutletId) {
@@ -382,22 +526,17 @@ export default function PosCashierPage() {
 
     void loadProducts(selectedOutletId);
     void loadTables(selectedOutletId);
-    void loadHistory(selectedOutletId, historySearch);
-  }, [selectedOutletId, historySearch, businessType]);
+  }, [selectedOutletId, businessType]);
 
   function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSearchKeyword(searchInput.trim());
   }
 
-  function handleHistorySearchSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setHistorySearch(historySearchInput.trim());
-  }
-
   function handleResetProductSearch() {
     setSearchInput('');
     setSearchKeyword('');
+    setSelectedCategory('ALL');
   }
 
   function addToCart(product: PosProductItem) {
@@ -464,44 +603,6 @@ export default function PosCashierPage() {
     setCartMessage('');
   }
 
-  async function handleOpenReceiptFromHistory(orderId: string) {
-    if (!selectedOutletId) {
-      setPageMessage('Pilih outlet aktif terlebih dahulu');
-      return;
-    }
-
-    try {
-      setHistoryReceiptLoadingId(orderId);
-      setPageMessage('');
-
-      const receipt = await getReceiptByOrderId(orderId, selectedOutletId);
-      router.push(`/dashboard/receipts/${receipt.id}`);
-    } catch (error: unknown) {
-      setPageMessage(getMessage(error, 'Receipt untuk order ini belum tersedia'));
-    } finally {
-      setHistoryReceiptLoadingId('');
-    }
-  }
-
-  async function handlePrintReceiptFromHistory(orderId: string) {
-    if (!selectedOutletId) {
-      setPageMessage('Pilih outlet aktif terlebih dahulu');
-      return;
-    }
-
-    try {
-      setHistoryPrintLoadingId(orderId);
-      setPageMessage('');
-
-      const receipt = await getReceiptByOrderId(orderId, selectedOutletId);
-      window.open(`/dashboard/receipts/${receipt.id}`, '_blank', 'noopener,noreferrer');
-    } catch (error: unknown) {
-      setPageMessage(getMessage(error, 'Receipt untuk order ini belum tersedia'));
-    } finally {
-      setHistoryPrintLoadingId('');
-    }
-  }
-
   async function handleCheckout() {
     if (!selectedOutletId) {
       setCartMessage('Pilih outlet aktif terlebih dahulu');
@@ -526,7 +627,8 @@ export default function PosCashierPage() {
 
       const order = await createOrder({
         outletId: selectedOutletId,
-        tableId: businessType === 'RESTAURANT' ? selectedTableId || undefined : undefined,
+        tableId:
+          businessType === 'RESTAURANT' ? selectedTableId || undefined : undefined,
       });
 
       for (const item of cart) {
@@ -553,7 +655,8 @@ export default function PosCashierPage() {
       clearCart();
       setPaymentMethod('CASH');
       setPaymentNote('');
-      await loadHistory(selectedOutletId, historySearch);
+
+      router.push(`/dashboard/receipts/${receipt.id}`);
     } catch (error: unknown) {
       setCartMessage(getMessage(error, 'Gagal menyelesaikan checkout'));
     } finally {
@@ -590,7 +693,7 @@ export default function PosCashierPage() {
             POS Kasir
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Kiri untuk pilih {productLabelLower}, kanan untuk cart, checkout, dan receipt final.
+            Pilih {productLabelLower}, atur cart, checkout, dan buka receipt final.
           </p>
         </div>
 
@@ -635,10 +738,10 @@ export default function PosCashierPage() {
         </section>
       ) : null}
 
-      <section className="grid gap-5 xl:grid-cols-[1.2fr_0.95fr]">
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_380px] 2xl:grid-cols-[minmax(0,1.35fr)_420px] xl:items-start">
         <div className="space-y-5">
-          <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+          <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm xl:flex xl:flex-col xl:overflow-hidden">
+            <div className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6 xl:sticky xl:top-0 xl:z-10">
               <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_auto_auto]">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -694,7 +797,7 @@ export default function PosCashierPage() {
                       <input
                         value={searchInput}
                         onChange={(event) => setSearchInput(event.target.value)}
-                        placeholder={`Cari nama, kode, SKU, barcode, brand, atau unit`}
+                        placeholder={`Cari nama ${productLabelLower}`}
                         className="h-full w-full bg-transparent text-sm text-slate-900 outline-none"
                       />
                     </div>
@@ -730,214 +833,114 @@ export default function PosCashierPage() {
                   </button>
                 </div>
               </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {categoryOptions.map((category) => {
+                  const isActive = selectedCategory === category;
+                  const label = category === 'ALL' ? 'Semua' : category;
+
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setSelectedCategory(category)}
+                      className={`inline-flex h-10 items-center justify-center rounded-2xl px-4 text-sm font-semibold transition ${
+                        isActive
+                          ? 'bg-slate-900 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {productLoading ? (
-              <div className="grid gap-3 p-5 sm:px-6 sm:py-5">
-                {Array.from({ length: 6 }).map((_, index) => (
-                  <div key={index} className="h-24 animate-pulse rounded-2xl bg-slate-100" />
-                ))}
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-500 sm:px-6">
-                Belum ada {productLabelLower} aktif untuk outlet ini.
-              </div>
-            ) : (
-              <div className="grid gap-3 p-5 sm:grid-cols-2 sm:px-6 sm:py-5">
-                {filteredProducts.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                          {item.code ? <span>Kode: {item.code}</span> : null}
-                          {item.sku ? <span>SKU: {item.sku}</span> : null}
-                          {item.barcode ? <span>Barcode: {item.barcode}</span> : null}
-                          {item.brand ? <span>Brand: {item.brand}</span> : null}
-                          {item.unit ? <span>Unit: {item.unit}</span> : null}
-                          {item.category?.name ? <span>Kategori: {item.category.name}</span> : null}
+            <div className="xl:max-h-[620px] xl:overflow-y-auto">
+              {productLoading ? (
+                <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-2 sm:px-6 sm:py-5">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-[280px] animate-pulse rounded-[24px] bg-slate-100"
+                    />
+                  ))}
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="px-5 py-10 text-center text-sm text-slate-500 sm:px-6">
+                  Belum ada {productLabelLower} aktif untuk outlet ini.
+                </div>
+              ) : (
+                <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 sm:px-6 sm:py-5">
+                  {filteredProducts.map((item) => {
+                    const imageUrl = getProductImageUrl(item);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                      >
+                        <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
+                          {imageUrl ? (
+                            <Image
+                              src={imageUrl}
+                              alt={item.name}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-400">
+                              <FontAwesomeIcon icon={faImage} className="h-10 w-10" />
+                            </div>
+                          )}
+
+                          {item.category?.name ? (
+                            <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur">
+                              {item.category.name}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="space-y-4 p-4">
+                          <div>
+                            <h3 className="line-clamp-2 text-base font-semibold text-slate-900 sm:text-lg">
+                              {item.name}
+                            </h3>
+
+                            {item.brand ? (
+                              <p className="mt-1 text-sm text-slate-500">{item.brand}</p>
+                            ) : null}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-base font-semibold text-slate-900 sm:text-lg">
+                              {formatCurrency(item.basePrice)}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center">
+                            <button
+                              type="button"
+                              onClick={() => addToCart(item)}
+                              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                            >
+                              <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
+                              Tambah
+                            </button>
+                          </div>
                         </div>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => addToCart(item)}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-                      >
-                        <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
-                        Tambah
-                      </button>
-                    </div>
-
-                    <p className="mt-4 text-sm font-semibold text-slate-900">
-                      {formatCurrency(item.basePrice)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
-                    <FontAwesomeIcon icon={faClockRotateLeft} className="h-3 w-3" />
-                    Histori Transaksi Outlet
-                  </div>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Buka receipt lama atau print ulang dari transaksi sebelumnya.
-                  </p>
+                    );
+                  })}
                 </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    href="/dashboard/pos/history"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    <FontAwesomeIcon icon={faClockRotateLeft} className="h-4 w-4" />
-                    Histori Transaksi
-                  </Link>
-                  <Link
-                    href="/dashboard/payments/history"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    <FontAwesomeIcon icon={faWallet} className="h-4 w-4" />
-                    Payment History
-                  </Link>
-                </div>
-              </div>
-
-              <form
-                onSubmit={handleHistorySearchSubmit}
-                className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]"
-              >
-                <div className="flex h-11 items-center rounded-2xl border border-slate-200 px-4">
-                  <FontAwesomeIcon
-                    icon={faMagnifyingGlass}
-                    className="mr-3 h-4 w-4 text-slate-400"
-                  />
-                  <input
-                    value={historySearchInput}
-                    onChange={(event) => setHistorySearchInput(event.target.value)}
-                    placeholder="Cari nomor order atau catatan"
-                    className="h-full w-full bg-transparent text-sm text-slate-900 outline-none"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
-                  Cari
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHistorySearchInput('');
-                    setHistorySearch('');
-                  }}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  <FontAwesomeIcon icon={faArrowRotateLeft} className="h-4 w-4" />
-                  Reset
-                </button>
-              </form>
+              )}
             </div>
-
-            {historyLoading ? (
-              <div className="grid gap-3 px-5 py-5 sm:px-6">
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className="h-20 animate-pulse rounded-2xl bg-slate-100" />
-                ))}
-              </div>
-            ) : history.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-500 sm:px-6">
-                Belum ada transaksi untuk outlet ini.
-              </div>
-            ) : (
-              <div className="grid gap-3 p-5 sm:px-6 sm:py-5">
-                {history.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-slate-900">
-                            {item.orderNo}
-                          </p>
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getStatusBadgeClass(
-                              item.status,
-                            )}`}
-                          >
-                            {item.status}
-                          </span>
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getStatusBadgeClass(
-                              item.paymentStatus,
-                            )}`}
-                          >
-                            {item.paymentStatus}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-500">
-                          <span>{item.outletName}</span>
-                          {item.tableName ? <span>• {item.tableName}</span> : null}
-                          <span>• {item.itemCount} item</span>
-                          <span>• {formatDateTime(item.createdAt)}</span>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                          Total
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">
-                          {formatCurrency(item.totalAmount)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleOpenReceiptFromHistory(item.id)}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        disabled={historyReceiptLoadingId === item.id}
-                      >
-                        <FontAwesomeIcon icon={faEye} className="h-4 w-4" />
-                        {historyReceiptLoadingId === item.id ? 'Membuka...' : 'Buka Receipt'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => void handlePrintReceiptFromHistory(item.id)}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-                        disabled={historyPrintLoadingId === item.id}
-                      >
-                        <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
-                        {historyPrintLoadingId === item.id ? 'Mencetak...' : 'Print Ulang'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </section>
         </div>
 
-        <div className="space-y-5">
-          <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <div className="space-y-5 xl:sticky xl:top-5">
+          <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm xl:flex xl:flex-col">
             <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -970,85 +973,88 @@ export default function PosCashierPage() {
 
             {cart.length === 0 ? (
               <div className="px-5 py-10 text-center sm:px-6">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-                  <FontAwesomeIcon icon={faBasketShopping} className="h-5 w-5" />
+                <div>
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                    <FontAwesomeIcon icon={faBasketShopping} className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold text-slate-900">
+                    Cart masih kosong
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Tambahkan {productLabelLower} dari daftar sebelah kiri.
+                  </p>
                 </div>
-                <h3 className="mt-4 text-base font-semibold text-slate-900">
-                  Cart masih kosong
-                </h3>
-                <p className="mt-2 text-sm text-slate-500">
-                  Tambahkan {productLabelLower} dari daftar sebelah kiri.
-                </p>
               </div>
             ) : (
-              <div className="space-y-4 p-5 sm:px-6 sm:py-5">
-                {cart.map((item) => (
-                  <div
-                    key={item.lineId}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {item.productName}
-                        </p>
-                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                          {item.productCode ? <span>Kode: {item.productCode}</span> : null}
-                          {item.unit ? <span>Unit: {item.unit}</span> : null}
+              <div className="p-5 sm:px-6 sm:py-5 xl:flex xl:flex-col">
+                <div className="space-y-4 xl:max-h-[360px] xl:overflow-y-auto xl:pr-1">
+                  {cart.map((item) => (
+                    <div
+                      key={item.lineId}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {item.productName}
+                          </p>
+                          {item.unit ? (
+                            <div className="mt-1 text-xs text-slate-500">{item.unit}</div>
+                          ) : null}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeCartItem(item.lineId)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100"
+                        >
+                          <FontAwesomeIcon icon={faTrashCan} className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1">
+                          <button
+                            type="button"
+                            onClick={() => updateCartQty(item.lineId, item.qty - 1)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100"
+                          >
+                            <FontAwesomeIcon icon={faMinus} className="h-4 w-4" />
+                          </button>
+                          <span className="min-w-10 text-center text-sm font-semibold text-slate-900">
+                            {item.qty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateCartQty(item.lineId, item.qty + 1)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100"
+                          >
+                            <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-xs text-slate-500">
+                            {formatCurrency(item.price)} x {item.qty}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {formatCurrency(item.subtotal)}
+                          </p>
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => removeCartItem(item.lineId)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100"
-                      >
-                        <FontAwesomeIcon icon={faTrashCan} className="h-4 w-4" />
-                      </button>
+                      <textarea
+                        value={item.note}
+                        onChange={(event) => updateCartNote(item.lineId, event.target.value)}
+                        rows={2}
+                        placeholder="Catatan item (opsional)"
+                        className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      />
                     </div>
+                  ))}
+                </div>
 
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1">
-                        <button
-                          type="button"
-                          onClick={() => updateCartQty(item.lineId, item.qty - 1)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100"
-                        >
-                          <FontAwesomeIcon icon={faMinus} className="h-4 w-4" />
-                        </button>
-                        <span className="min-w-10 text-center text-sm font-semibold text-slate-900">
-                          {item.qty}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => updateCartQty(item.lineId, item.qty + 1)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100"
-                        >
-                          <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="text-xs text-slate-500">
-                          {formatCurrency(item.price)} x {item.qty}
-                        </p>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {formatCurrency(item.subtotal)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <textarea
-                      value={item.note}
-                      onChange={(event) => updateCartNote(item.lineId, event.target.value)}
-                      rows={2}
-                      placeholder="Catatan item (opsional)"
-                      className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                ))}
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="mt-4 shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                   <div className="grid gap-3">
                     <div className="flex items-center justify-between text-sm text-slate-600">
                       <span>Subtotal</span>
@@ -1204,7 +1210,7 @@ export default function PosCashierPage() {
                       href={`/dashboard/receipts/${receiptResult.id}`}
                       className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
-                      <FontAwesomeIcon icon={faEye} className="h-4 w-4" />
+                      <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
                       Lihat Detail Struk
                     </Link>
 

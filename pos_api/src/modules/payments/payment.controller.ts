@@ -1,15 +1,17 @@
+// pos_api/src/modules/payments/payment.controller.ts
 import type { Request, Response, NextFunction } from 'express';
-import {
-  createPayment,
-  getPaymentById,
-  listPayments,
-} from './payment.service';
+import { createPayment, getPaymentById, listPayments } from './payment.service';
 import type {
   CreatePaymentBody,
   GetPaymentParams,
   GetPaymentQuery,
   ListPaymentsQuery,
 } from './payment.types';
+import {
+  createPaymentSchema,
+  getPaymentByIdSchema,
+  listPaymentsSchema,
+} from './payment.validation';
 
 function createHttpError(message: string, statusCode: number) {
   const error = new Error(message) as Error & { statusCode?: number };
@@ -17,12 +19,12 @@ function createHttpError(message: string, statusCode: number) {
   return error;
 }
 
-function getBusinessIdFromRequest(req: Request) {
+function getBusinessIdFromRequest(req: Request): string {
   const businessId =
     req.businessAccess?.businessId ||
     (typeof req.headers['x-business-id'] === 'string'
-      ? req.headers['x-business-id']
-      : undefined);
+      ? req.headers['x-business-id'].trim()
+      : '');
 
   if (!businessId) {
     throw createHttpError(
@@ -34,7 +36,7 @@ function getBusinessIdFromRequest(req: Request) {
   return businessId;
 }
 
-function getBusinessUserIdFromRequest(req: Request) {
+function getBusinessUserIdFromRequest(req: Request): string {
   const businessUserId = req.businessAccess?.businessUserId;
 
   if (!businessUserId) {
@@ -44,6 +46,67 @@ function getBusinessUserIdFromRequest(req: Request) {
   return businessUserId;
 }
 
+function parseListPaymentsQuery(req: Request): ListPaymentsQuery {
+  const parsed = listPaymentsSchema.parse({
+    query: req.query,
+    body: {},
+    params: {},
+  });
+
+  return {
+    businessId: '',
+    outletId: parsed.query.outletId,
+    page: parsed.query.page ?? 1,
+    perPage: parsed.query.perPage ?? 10,
+    orderId: parsed.query.orderId,
+  };
+}
+
+function parseGetPaymentParams(req: Request): GetPaymentParams {
+  const parsed = getPaymentByIdSchema.parse({
+    params: req.params,
+    query: req.query,
+    body: {},
+  });
+
+  return {
+    id: parsed.params.id,
+  };
+}
+
+function parseGetPaymentQuery(req: Request): GetPaymentQuery {
+  const parsed = getPaymentByIdSchema.parse({
+    params: req.params,
+    query: req.query,
+    body: {},
+  });
+
+  if (!parsed.query.outletId) {
+    throw createHttpError('outletId wajib diisi', 400);
+  }
+
+  return {
+    outletId: parsed.query.outletId,
+  };
+}
+
+function parseCreatePaymentBody(req: Request): CreatePaymentBody {
+  const parsed = createPaymentSchema.parse({
+    body: req.body,
+    query: {},
+    params: {},
+  });
+
+  return {
+    orderId: parsed.body.orderId,
+    outletId: parsed.body.outletId,
+    method: parsed.body.method,
+    amountPaid: parsed.body.amountPaid,
+    amountTendered: parsed.body.amountTendered,
+    note: parsed.body.note,
+  };
+}
+
 export async function listPaymentsHandler(
   req: Request,
   res: Response,
@@ -51,13 +114,13 @@ export async function listPaymentsHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const query = res.locals.validatedQuery as ListPaymentsQuery;
+    const query = parseListPaymentsQuery(req);
 
     const result = await listPayments({
       businessId,
       outletId: query.outletId,
-      page: query.page ?? 1,
-      perPage: query.perPage ?? 10,
+      page: query.page,
+      perPage: query.perPage,
       orderId: query.orderId,
     });
 
@@ -67,7 +130,7 @@ export async function listPaymentsHandler(
       data: result.items,
       meta: result.meta,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 }
@@ -79,8 +142,8 @@ export async function getPaymentByIdHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const params = res.locals.validatedParams as GetPaymentParams;
-    const query = res.locals.validatedQuery as GetPaymentQuery;
+    const params = parseGetPaymentParams(req);
+    const query = parseGetPaymentQuery(req);
 
     const result = await getPaymentById({
       businessId,
@@ -93,7 +156,7 @@ export async function getPaymentByIdHandler(
       message: 'Detail pembayaran berhasil diambil.',
       data: result,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 }
@@ -106,7 +169,7 @@ export async function createPaymentHandler(
   try {
     const businessId = getBusinessIdFromRequest(req);
     const businessUserId = getBusinessUserIdFromRequest(req);
-    const body = res.locals.validatedBody as CreatePaymentBody;
+    const body = parseCreatePaymentBody(req);
 
     const result = await createPayment({
       businessId,
@@ -124,7 +187,7 @@ export async function createPaymentHandler(
       message: 'Pembayaran berhasil dibuat.',
       data: result,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 }

@@ -1,6 +1,6 @@
 // pos_web/src/lib/pos.ts
 import { api } from './api';
-import { getActiveBusinessId } from './auth';
+import { getActiveBusinessId, getCachedCurrentUser } from './auth';
 import type {
   PosAddOrderItemPayload,
   PosCartItem,
@@ -28,6 +28,7 @@ import type {
   PosTableListResponse,
   PosUpdateOrderItemPayload,
 } from '@/types/pos';
+import type { BusinessMembership, CurrentUser } from '@/types/auth';
 
 type ApiEnvelope<T> = {
   success?: boolean;
@@ -223,6 +224,46 @@ type OrderHistoryParams = {
   paymentStatus?: PosOrderResponse['paymentStatus'];
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isOrderApiRow(value: unknown): value is OrderApiRow {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    typeof value.businessId === 'string' &&
+    typeof value.outletId === 'string' &&
+    typeof value.orderNumber === 'string' &&
+    typeof value.createdAt === 'string' &&
+    typeof value.updatedAt === 'string'
+  );
+}
+
+function extractOrderApiRow(value: unknown): OrderApiRow | null {
+  if (isOrderApiRow(value)) {
+    return value;
+  }
+
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const candidateKeys = ['order', 'item', 'result', 'payload'];
+
+  for (const key of candidateKeys) {
+    const candidate = value[key];
+    if (isOrderApiRow(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 function getBusinessIdOrThrow(): string {
   const businessId = getActiveBusinessId();
 
@@ -349,7 +390,6 @@ function mapOrderItem(row: OrderItemApiRow, orderId: string): PosOrderItemRespon
     lineTotal,
     note: row.note ?? null,
     status: row.status ?? 'PENDING',
-
     qty: quantity,
     price: unitPrice,
     subtotal: lineSubtotal,
@@ -389,7 +429,6 @@ function mapOrder(row: OrderApiRow): PosOrderResponse {
     items: Array.isArray(row.items)
       ? row.items.map((item) => mapOrderItem(item, row.id))
       : undefined,
-
     orderNo: row.orderNumber,
     note: row.notes ?? null,
     total: totalAmount,
@@ -419,7 +458,6 @@ function mapPayment(row: PaymentApiRow): PosPaymentResponse {
     receipt: row.receipt ?? null,
     receiptId: row.receiptId ?? row.receipt?.id ?? null,
     receiptNumber: row.receiptNumber ?? row.receipt?.receiptNumber ?? null,
-
     amount: amountPaid,
   };
 }
@@ -444,7 +482,6 @@ function mapReceiptItem(row: ReceiptItemApiRow): PosReceiptItemSnapshot {
     lineTotal,
     note: row.note ?? null,
     status: row.status ?? 'PENDING',
-
     qty: quantity,
     price: unitPrice,
     subtotal: lineSubtotal,
@@ -517,7 +554,6 @@ function mapReceipt(row: ReceiptApiRow): PosReceiptResponse {
           paidAt: row.payment.paidAt ?? null,
         }
       : null,
-
     receiptNo: row.receiptNumber,
     total: toNumber(row.order?.totalAmount ?? snapshot?.totalAmount ?? 0),
   };
@@ -541,6 +577,85 @@ function mapHistoryItem(row: OrderApiRow): PosHistoryItem {
     itemCount: mapped.itemCount,
     createdAt: mapped.createdAt,
   };
+}
+
+function getActiveMembership(user: CurrentUser | null): BusinessMembership | null {
+  if (!user) {
+    return null;
+  }
+
+  const activeBusinessId = getActiveBusinessId();
+
+  const matchedMembership = Array.isArray(user.businessMemberships)
+    ? user.businessMemberships.find(
+        (item) => item.businessId === activeBusinessId && item.status === 'ACTIVE',
+      )
+    : null;
+
+  if (matchedMembership) {
+    return matchedMembership;
+  }
+
+  const defaultMembership = user.accessProfile?.defaultBusinessMembership;
+  if (defaultMembership?.status === 'ACTIVE') {
+    return defaultMembership;
+  }
+
+  const firstActiveMembership = Array.isArray(user.businessMemberships)
+    ? user.businessMemberships.find((item) => item.status === 'ACTIVE')
+    : null;
+
+  return firstActiveMembership ?? null;
+}
+
+function getOutletListFromMembership(): PosOutletItem[] {
+  const currentUser = getCachedCurrentUser();
+  const membership = getActiveMembership(currentUser);
+
+  if (!membership || membership.status !== 'ACTIVE') {
+    return [];
+  }
+
+  const rawAllowedOutlets = Array.isArray(
+    (membership as BusinessMembership & { allowedOutlets?: unknown }).allowedOutlets,
+  )
+    ? ((membership as BusinessMembership & {
+        allowedOutlets?: Array<{
+          outletId: string;
+          outletName?: string | null;
+          outletCode?: string | null;
+          outletAddress?: string | null;
+          outletPhone?: string | null;
+          status?: 'ACTIVE' | 'INACTIVE';
+        }>;
+      }).allowedOutlets ?? [])
+    : [];
+
+  if (rawAllowedOutlets.length > 0) {
+    return rawAllowedOutlets.map((item) => ({
+      id: item.outletId,
+      businessId: membership.businessId,
+      name: item.outletName ?? item.outletCode ?? 'Outlet',
+      code: item.outletCode ?? '-',
+      address: item.outletAddress ?? null,
+      phone: item.outletPhone ?? null,
+      status: item.status ?? 'ACTIVE',
+    }));
+  }
+
+  if (membership.hasAllOutletAccess) {
+    return [];
+  }
+
+  return (membership.allowedOutletIds ?? []).map((outletId, index) => ({
+    id: outletId,
+    businessId: membership.businessId,
+    name: `Outlet ${index + 1}`,
+    code: `OUTLET-${index + 1}`,
+    address: null,
+    phone: null,
+    status: 'ACTIVE',
+  }));
 }
 
 export function formatCurrency(value: number): string {
@@ -653,10 +768,22 @@ export async function getPosProducts(
 }
 
 export async function getPosOutlets(): Promise<PosOutletListResponse> {
-  const response = await api.get<ApiEnvelope<OutletApiRow[]>>('/platform/outlets', {
+  const outletsFromMembership = getOutletListFromMembership();
+
+  if (outletsFromMembership.length > 0) {
+    return {
+      items: outletsFromMembership,
+      meta: {
+        page: 1,
+        perPage: outletsFromMembership.length,
+        total: outletsFromMembership.length,
+        totalPages: 1,
+      },
+    };
+  }
+
+  const response = await api.get<ApiEnvelope<OutletApiRow[]>>('/business/outlets', {
     params: {
-      page: 1,
-      perPage: 100,
       businessId: getBusinessIdOrThrow(),
     },
     headers: buildScopedHeaders(),
@@ -693,7 +820,7 @@ export async function getPosTables(outletId: string): Promise<PosTableListRespon
 export async function createOrder(
   payload: PosCreateOrderPayload,
 ): Promise<PosOrderResponse> {
-  const response = await api.post<ApiEnvelope<OrderApiRow>>(
+  const response = await api.post<ApiEnvelope<unknown>>(
     '/orders',
     {
       outletId: payload.outletId,
@@ -706,11 +833,13 @@ export async function createOrder(
     },
   );
 
-  if (!response.data.data) {
+  const orderRow = extractOrderApiRow(response.data.data);
+
+  if (!orderRow) {
     throw new Error('Response order kosong');
   }
 
-  return mapOrder(response.data.data);
+  return mapOrder(orderRow);
 }
 
 export async function addOrderItem(
@@ -719,7 +848,7 @@ export async function addOrderItem(
 ): Promise<PosOrderResponse> {
   const quantity = payload.quantity ?? payload.qty ?? 1;
 
-  const response = await api.post<ApiEnvelope<OrderApiRow>>(
+  const response = await api.post<ApiEnvelope<unknown>>(
     `/orders/${orderId}/items`,
     {
       outletId: payload.outletId,
@@ -732,11 +861,13 @@ export async function addOrderItem(
     },
   );
 
-  if (!response.data.data) {
+  const orderRow = extractOrderApiRow(response.data.data);
+
+  if (!orderRow) {
     throw new Error('Response add item order kosong');
   }
 
-  return mapOrder(response.data.data);
+  return mapOrder(orderRow);
 }
 
 export async function updateOrderItem(
@@ -746,7 +877,7 @@ export async function updateOrderItem(
 ): Promise<PosOrderResponse> {
   const quantity = payload.quantity ?? payload.qty ?? 1;
 
-  const response = await api.put<ApiEnvelope<OrderApiRow>>(
+  const response = await api.put<ApiEnvelope<unknown>>(
     `/orders/${orderId}/items/${itemId}`,
     {
       outletId: payload.outletId,
@@ -758,29 +889,33 @@ export async function updateOrderItem(
     },
   );
 
-  if (!response.data.data) {
+  const orderRow = extractOrderApiRow(response.data.data);
+
+  if (!orderRow) {
     throw new Error('Response update item order kosong');
   }
 
-  return mapOrder(response.data.data);
+  return mapOrder(orderRow);
 }
 
 export async function getOrderDetail(
   orderId: string,
   outletId: string,
 ): Promise<PosOrderResponse> {
-  const response = await api.get<ApiEnvelope<OrderApiRow>>(`/orders/${orderId}`, {
+  const response = await api.get<ApiEnvelope<unknown>>(`/orders/${orderId}`, {
     params: {
       outletId,
     },
     headers: buildScopedHeaders(outletId),
   });
 
-  if (!response.data.data) {
+  const orderRow = extractOrderApiRow(response.data.data);
+
+  if (!orderRow) {
     throw new Error('Detail order tidak ditemukan');
   }
 
-  return mapOrder(response.data.data);
+  return mapOrder(orderRow);
 }
 
 export async function getOutletOrderHistory(

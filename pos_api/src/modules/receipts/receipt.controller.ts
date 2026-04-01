@@ -5,6 +5,10 @@ import type {
   GetReceiptByOrderParams,
   GetReceiptQuery,
 } from './receipt.types';
+import {
+  getReceiptByIdSchema,
+  getReceiptByOrderIdSchema,
+} from './receipt.validation';
 
 function createHttpError(message: string, statusCode: number) {
   const error = new Error(message) as Error & { statusCode?: number };
@@ -12,12 +16,12 @@ function createHttpError(message: string, statusCode: number) {
   return error;
 }
 
-function getBusinessIdFromRequest(req: Request) {
+function getBusinessIdFromRequest(req: Request): string {
   const businessId =
     req.businessAccess?.businessId ||
     (typeof req.headers['x-business-id'] === 'string'
-      ? req.headers['x-business-id']
-      : undefined);
+      ? req.headers['x-business-id'].trim()
+      : '');
 
   if (!businessId) {
     throw createHttpError(
@@ -29,10 +33,55 @@ function getBusinessIdFromRequest(req: Request) {
   return businessId;
 }
 
-function getOutletIdFromRequest(
-  req: Request,
-  query: GetReceiptQuery,
-) {
+function parseGetReceiptParams(req: Request): GetReceiptParams {
+  const parsed = getReceiptByIdSchema.parse({
+    params: req.params,
+    query: req.query,
+    body: {},
+  });
+
+  return {
+    id: parsed.params.id,
+  };
+}
+
+function parseGetReceiptByOrderParams(req: Request): GetReceiptByOrderParams {
+  const parsed = getReceiptByOrderIdSchema.parse({
+    params: req.params,
+    query: req.query,
+    body: {},
+  });
+
+  return {
+    orderId: parsed.params.orderId,
+  };
+}
+
+function parseReceiptQueryForById(req: Request): GetReceiptQuery {
+  const parsed = getReceiptByIdSchema.parse({
+    params: req.params,
+    query: req.query,
+    body: {},
+  });
+
+  return {
+    outletId: parsed.query.outletId,
+  };
+}
+
+function parseReceiptQueryForByOrder(req: Request): GetReceiptQuery {
+  const parsed = getReceiptByOrderIdSchema.parse({
+    params: req.params,
+    query: req.query,
+    body: {},
+  });
+
+  return {
+    outletId: parsed.query.outletId,
+  };
+}
+
+function getOutletIdFromRequest(req: Request, query: GetReceiptQuery): string {
   if (typeof query.outletId === 'string' && query.outletId.trim() !== '') {
     return query.outletId.trim();
   }
@@ -55,8 +104,8 @@ export async function getReceiptByIdHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const params = res.locals.validatedParams as GetReceiptParams;
-    const query = res.locals.validatedQuery as GetReceiptQuery;
+    const params = parseGetReceiptParams(req);
+    const query = parseReceiptQueryForById(req);
     const outletId = getOutletIdFromRequest(req, query);
 
     const result = await getReceiptById({
@@ -70,7 +119,7 @@ export async function getReceiptByIdHandler(
       message: 'Detail receipt berhasil diambil.',
       data: result,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 }
@@ -82,8 +131,8 @@ export async function getReceiptByOrderIdHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const params = res.locals.validatedParams as GetReceiptByOrderParams;
-    const query = res.locals.validatedQuery as GetReceiptQuery;
+    const params = parseGetReceiptByOrderParams(req);
+    const query = parseReceiptQueryForByOrder(req);
     const outletId = getOutletIdFromRequest(req, query);
 
     const result = await getReceiptByOrderId({
@@ -97,7 +146,7 @@ export async function getReceiptByOrderIdHandler(
       message: 'Receipt order berhasil diambil.',
       data: result,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 }

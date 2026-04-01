@@ -1,145 +1,161 @@
 'use client';
 
-import { formatCurrency, formatDateTime } from '@/lib/pos';
-import type { PosReceiptResponse } from '@/types/pos';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPrint } from '@fortawesome/free-solid-svg-icons';
 
-type JsonRecord = Record<string, unknown>;
+import type { ReceiptDetailResponse, ReceiptItemSnapshot } from '@/types/receipt';
+import { formatReceiptCurrency, formatReceiptDateTime } from '@/lib/receipt';
 
-type ReceiptSnapshotItem = {
-  name: string;
-  qty: number;
-  price: number;
-  subtotal: number;
-  note: string | null;
+type ReceiptPrintProps = {
+  receipt: ReceiptDetailResponse | null | undefined;
+  showPrintButton?: boolean;
 };
 
-type ReceiptSnapshotCharge = {
-  label: string;
-  amount: number;
-};
-
-type ReceiptSnapshot = {
-  businessName: string | null;
-  outletName: string | null;
-  outletAddress: string | null;
-  orderNo: string | null;
-  paymentMethod: string | null;
-  cashierName: string | null;
-  createdAt: string | null;
-  subtotal: number | null;
-  total: number | null;
-  items: ReceiptSnapshotItem[];
-  charges: ReceiptSnapshotCharge[];
-};
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null;
-}
-
-function toNumber(value: unknown, fallback = 0): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
+function normalizeNumber(value: number | string | null | undefined): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
   }
 
   if (typeof value === 'string') {
     const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  return fallback;
+  return 0;
 }
 
-function toStringOrNull(value: unknown): string | null {
-  if (typeof value === 'string') {
-    return value;
-  }
-
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-
-  return null;
+function isReceiptItemSnapshotArray(value: unknown): value is ReceiptItemSnapshot[] {
+  return Array.isArray(value);
 }
 
-function parseSnapshot(snapshot: unknown): ReceiptSnapshot {
-  if (!isRecord(snapshot)) {
-    return {
-      businessName: null,
-      outletName: null,
-      outletAddress: null,
-      orderNo: null,
-      paymentMethod: null,
-      cashierName: null,
-      createdAt: null,
-      subtotal: null,
-      total: null,
-      items: [],
-      charges: [],
-    };
+function getReceiptItems(
+  receipt: ReceiptDetailResponse | null | undefined,
+): ReceiptItemSnapshot[] {
+  if (!receipt || typeof receipt !== 'object') {
+    return [];
   }
 
-  const rawItems = Array.isArray(snapshot.items) ? snapshot.items : [];
-  const rawCharges = Array.isArray(snapshot.charges) ? snapshot.charges : [];
+  const snapshot = receipt.contentSnapshot;
+  if (!snapshot || typeof snapshot !== 'object') {
+    return [];
+  }
 
-  const items = rawItems
-    .filter(isRecord)
-    .map((item) => ({
-      name: toStringOrNull(item.name) ?? '-',
-      qty: toNumber(item.qty, 0),
-      price: toNumber(item.price, 0),
-      subtotal: toNumber(item.subtotal, 0),
-      note: toStringOrNull(item.note),
-    }));
+  if (!isReceiptItemSnapshotArray(snapshot.items)) {
+    return [];
+  }
 
-  const charges = rawCharges
-    .filter(isRecord)
-    .map((item) => ({
-      label: toStringOrNull(item.label) ?? '-',
-      amount: toNumber(item.amount, 0),
-    }));
-
-  return {
-    businessName: toStringOrNull(snapshot.businessName),
-    outletName: toStringOrNull(snapshot.outletName),
-    outletAddress: toStringOrNull(snapshot.outletAddress),
-    orderNo: toStringOrNull(snapshot.orderNo),
-    paymentMethod: toStringOrNull(snapshot.paymentMethod),
-    cashierName: toStringOrNull(snapshot.cashierName),
-    createdAt: toStringOrNull(snapshot.createdAt),
-    subtotal:
-      snapshot.subtotal === undefined || snapshot.subtotal === null
-        ? null
-        : toNumber(snapshot.subtotal),
-    total:
-      snapshot.total === undefined || snapshot.total === null
-        ? null
-        : toNumber(snapshot.total),
-    items,
-    charges,
-  };
+  return snapshot.items;
 }
 
-type ReceiptPrintProps = {
-  receipt: PosReceiptResponse;
-  showPrintButton?: boolean;
-};
+function getPaymentMethodLabel(method: string | null | undefined): string {
+  if (!method) {
+    return '-';
+  }
+
+  switch (method) {
+    case 'CASH':
+      return 'Cash';
+    case 'QRIS':
+      return 'QRIS';
+    case 'TRANSFER':
+      return 'Transfer';
+    case 'CARD':
+      return 'Card';
+    default:
+      return method;
+  }
+}
+
+function getItemName(item: ReceiptItemSnapshot): string {
+  if (typeof item.productName === 'string' && item.productName.trim() !== '') {
+    return item.productName.trim();
+  }
+
+  if (typeof item.productCode === 'string' && item.productCode.trim() !== '') {
+    return item.productCode.trim();
+  }
+
+  if (typeof item.productSku === 'string' && item.productSku.trim() !== '') {
+    return item.productSku.trim();
+  }
+
+  if (typeof item.productBarcode === 'string' && item.productBarcode.trim() !== '') {
+    return item.productBarcode.trim();
+  }
+
+  return 'Produk';
+}
 
 export default function ReceiptPrint({
   receipt,
   showPrintButton = true,
 }: ReceiptPrintProps) {
-  const snapshot = parseSnapshot(receipt.contentSnapshot);
+  const items = getReceiptItems(receipt);
 
-  const businessName = snapshot.businessName || receipt.businessName || '-';
-  const outletName = snapshot.outletName || receipt.outletName || '-';
-  const outletAddress = snapshot.outletAddress || receipt.outletAddress || '-';
-  const subtotal = snapshot.subtotal ?? receipt.subtotal ?? 0;
-  const total = snapshot.total ?? receipt.total ?? 0;
-  const createdAt = snapshot.createdAt || receipt.createdAt || null;
-  const itemList = snapshot.items;
-  const chargeList = snapshot.charges;
+  const businessName =
+    receipt?.businessName ||
+    receipt?.contentSnapshot?.businessName ||
+    '-';
+
+  const outletName =
+    receipt?.outletName ||
+    receipt?.contentSnapshot?.outletName ||
+    '-';
+
+  const outletAddress =
+    receipt?.outletAddress ||
+    receipt?.contentSnapshot?.outletAddress ||
+    '-';
+
+  const orderNumber =
+    receipt?.order?.orderNumber ||
+    receipt?.contentSnapshot?.orderNumber ||
+    receipt?.orderId ||
+    '-';
+
+  const receiptNumber =
+    receipt?.receiptNo ||
+    receipt?.receiptNumber ||
+    receipt?.id ||
+    '-';
+
+  const paymentMethod = getPaymentMethodLabel(receipt?.payment?.method);
+  const cashierLabel = '-';
+
+  const subtotal = normalizeNumber(
+    receipt?.contentSnapshot?.subtotal ??
+      receipt?.order?.subtotal ??
+      0,
+  );
+
+  const discountAmount = normalizeNumber(
+    receipt?.contentSnapshot?.discountAmount ??
+      receipt?.order?.discountAmount ??
+      0,
+  );
+
+  const taxAmount = normalizeNumber(
+    receipt?.contentSnapshot?.taxAmount ??
+      receipt?.order?.taxAmount ??
+      0,
+  );
+
+  const serviceChargeAmount = normalizeNumber(
+    receipt?.contentSnapshot?.serviceChargeAmount ??
+      receipt?.order?.serviceChargeAmount ??
+      0,
+  );
+
+  const total = normalizeNumber(
+    receipt?.contentSnapshot?.totalAmount ??
+      receipt?.order?.totalAmount ??
+      receipt?.total ??
+      0,
+  );
+
+  const amountPaid = normalizeNumber(receipt?.payment?.amountPaid);
+  const amountTendered = normalizeNumber(receipt?.payment?.amountTendered);
+  const changeAmount = normalizeNumber(receipt?.payment?.changeAmount);
 
   function handlePrint() {
     if (typeof window === 'undefined') {
@@ -150,124 +166,173 @@ export default function ReceiptPrint({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-[420px]">
       {showPrintButton ? (
-        <div className="print:hidden">
+        <div className="mb-4 flex justify-end print:hidden">
           <button
             type="button"
             onClick={handlePrint}
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            Print Receipt
+            <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
+            Print
           </button>
         </div>
       ) : null}
 
-      <div className="mx-auto w-full max-w-[420px] rounded-[24px] border border-slate-200 bg-white px-5 py-5 text-slate-900 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
-        <div className="text-center">
-          <p className="text-lg font-semibold">{businessName}</p>
-          <p className="mt-1 text-sm text-slate-600">{outletName}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{outletAddress}</p>
-        </div>
-
-        <div className="mt-4 border-t border-dashed border-slate-300 pt-4 text-xs text-slate-600">
-          <div className="flex items-start justify-between gap-3">
-            <span>Receipt No</span>
-            <span className="text-right font-medium text-slate-900">
-              {receipt.receiptNo || receipt.id}
-            </span>
+      <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
+        <div className="mx-auto w-full max-w-[280px] text-[11px] leading-5 text-slate-700">
+          <div className="border-b border-dashed border-slate-300 pb-4 text-center">
+            <h2 className="text-lg font-bold text-slate-900">
+              {businessName}
+            </h2>
+            <p className="mt-1 text-sm font-medium text-slate-800">
+              {outletName}
+            </p>
+            <p className="text-slate-500">{outletAddress}</p>
           </div>
 
-          <div className="mt-2 flex items-start justify-between gap-3">
-            <span>Order</span>
-            <span className="text-right font-medium text-slate-900">
-              {snapshot.orderNo || receipt.orderId}
-            </span>
-          </div>
-
-          <div className="mt-2 flex items-start justify-between gap-3">
-            <span>Tanggal</span>
-            <span className="text-right font-medium text-slate-900">
-              {formatDateTime(createdAt)}
-            </span>
-          </div>
-
-          <div className="mt-2 flex items-start justify-between gap-3">
-            <span>Metode</span>
-            <span className="text-right font-medium text-slate-900">
-              {snapshot.paymentMethod || '-'}
-            </span>
-          </div>
-
-          <div className="mt-2 flex items-start justify-between gap-3">
-            <span>Kasir</span>
-            <span className="text-right font-medium text-slate-900">
-              {snapshot.cashierName || '-'}
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-4 border-t border-dashed border-slate-300 pt-4">
-          {itemList.length === 0 ? (
-            <div className="text-sm text-slate-500">Tidak ada item snapshot.</div>
-          ) : (
-            <div className="space-y-3">
-              {itemList.map((item, index) => (
-                <div key={`${item.name}-${index}`} className="text-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-slate-900">{item.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {item.qty} x {formatCurrency(item.price)}
-                      </p>
-                      {item.note ? (
-                        <p className="mt-1 text-xs italic text-slate-500">
-                          Note: {item.note}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="shrink-0 text-right font-medium text-slate-900">
-                      {formatCurrency(item.subtotal)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 border-t border-dashed border-slate-300 pt-4 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-slate-600">Subtotal</span>
-            <span className="font-medium text-slate-900">
-              {formatCurrency(subtotal)}
-            </span>
-          </div>
-
-          {chargeList.map((charge, index) => (
-            <div
-              key={`${charge.label}-${index}`}
-              className="mt-2 flex items-center justify-between"
-            >
-              <span className="text-slate-600">{charge.label}</span>
-              <span className="font-medium text-slate-900">
-                {formatCurrency(charge.amount)}
+          <div className="border-b border-dashed border-slate-300 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-slate-500">Receipt No</span>
+              <span className="text-right font-semibold text-slate-900">
+                {receiptNumber}
               </span>
             </div>
-          ))}
 
-          <div className="mt-3 flex items-center justify-between border-t border-dashed border-slate-300 pt-3 text-base">
-            <span className="font-semibold text-slate-900">Total</span>
-            <span className="font-semibold text-slate-900">
-              {formatCurrency(total)}
-            </span>
+            <div className="mt-1 flex items-start justify-between gap-3">
+              <span className="text-slate-500">Order</span>
+              <span className="text-right text-slate-900">{orderNumber}</span>
+            </div>
+
+            <div className="mt-1 flex items-start justify-between gap-3">
+              <span className="text-slate-500">Tanggal</span>
+              <span className="text-right text-slate-900">
+                {formatReceiptDateTime(receipt?.issuedAt || receipt?.createdAt)}
+              </span>
+            </div>
+
+            <div className="mt-1 flex items-start justify-between gap-3">
+              <span className="text-slate-500">Metode</span>
+              <span className="text-right text-slate-900">{paymentMethod}</span>
+            </div>
+
+            <div className="mt-1 flex items-start justify-between gap-3">
+              <span className="text-slate-500">Kasir</span>
+              <span className="text-right text-slate-900">{cashierLabel}</span>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-5 border-t border-dashed border-slate-300 pt-4 text-center text-xs leading-5 text-slate-500">
-          <p>Terima kasih.</p>
-          <p>Simpan struk ini sebagai bukti transaksi.</p>
+          <div className="border-b border-dashed border-slate-300 py-4">
+            {items.length === 0 ? (
+              <div className="text-center text-slate-500">
+                Tidak ada item receipt
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {items.map((item) => {
+                  const itemName = getItemName(item);
+                  const quantity = normalizeNumber(item.qty ?? item.quantity);
+                  const unitPrice = normalizeNumber(item.price ?? item.unitPrice);
+                  const lineTotal = normalizeNumber(
+                    item.lineTotal ?? item.subtotal ?? item.lineSubtotal,
+                  );
+
+                  return (
+                    <div key={item.id} className="space-y-1">
+                      <div className="font-semibold text-slate-900">
+                        {itemName}
+                      </div>
+
+                      {item.note ? (
+                        <div className="text-[10px] text-slate-500">
+                          Catatan: {item.note}
+                        </div>
+                      ) : null}
+
+                      <div className="flex items-center justify-between gap-3 text-[10px] text-slate-500">
+                        <span>
+                          {quantity} x {formatReceiptCurrency(unitPrice)}
+                        </span>
+                        <span className="font-semibold text-slate-900">
+                          {formatReceiptCurrency(lineTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="border-b border-dashed border-slate-300 py-4">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Subtotal</span>
+              <span className="text-slate-900">
+                {formatReceiptCurrency(subtotal)}
+              </span>
+            </div>
+
+            {discountAmount > 0 ? (
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-slate-500">Diskon</span>
+                <span className="text-slate-900">
+                  -{formatReceiptCurrency(discountAmount)}
+                </span>
+              </div>
+            ) : null}
+
+            {taxAmount > 0 ? (
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-slate-500">Tax</span>
+                <span className="text-slate-900">
+                  {formatReceiptCurrency(taxAmount)}
+                </span>
+              </div>
+            ) : null}
+
+            {serviceChargeAmount > 0 ? (
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-slate-500">Service Charge</span>
+                <span className="text-slate-900">
+                  {formatReceiptCurrency(serviceChargeAmount)}
+                </span>
+              </div>
+            ) : null}
+
+            <div className="mt-3 flex items-center justify-between text-base font-bold text-slate-900">
+              <span>Total</span>
+              <span>{formatReceiptCurrency(total)}</span>
+            </div>
+
+            <div className="mt-3 border-t border-dashed border-slate-300 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Dibayar</span>
+                <span className="text-slate-900">
+                  {formatReceiptCurrency(amountPaid)}
+                </span>
+              </div>
+
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-slate-500">Tunai / Tendered</span>
+                <span className="text-slate-900">
+                  {formatReceiptCurrency(amountTendered)}
+                </span>
+              </div>
+
+              <div className="mt-1 flex items-center justify-between font-semibold">
+                <span className="text-slate-700">Kembalian</span>
+                <span className="text-slate-900">
+                  {formatReceiptCurrency(changeAmount)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 text-center text-[10px] text-slate-500">
+            <p>Terima kasih.</p>
+            <p>Simpan struk ini sebagai bukti transaksi.</p>
+          </div>
         </div>
       </div>
     </div>

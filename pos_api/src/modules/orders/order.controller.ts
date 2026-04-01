@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import {
   addOrderItem,
   createOrder,
@@ -8,15 +8,23 @@ import {
   updateOrderStatus,
 } from './order.service';
 import type {
-  CreateOrderBody,
   AddOrderItemBody,
-  UpdateOrderItemBody,
-  UpdateOrderStatusBody,
+  CreateOrderBody,
   GetOrderParams,
   GetOrderQuery,
   ListOrdersQuery,
+  UpdateOrderItemBody,
   UpdateOrderItemParams,
+  UpdateOrderStatusBody,
 } from './order.types';
+import {
+  addOrderItemSchema,
+  createOrderSchema,
+  getOrderByIdSchema,
+  listOrdersSchema,
+  updateOrderItemSchema,
+  updateOrderStatusSchema,
+} from './order.validation';
 
 function createHttpError(message: string, statusCode: number) {
   const error = new Error(message) as Error & { statusCode?: number };
@@ -24,7 +32,7 @@ function createHttpError(message: string, statusCode: number) {
   return error;
 }
 
-function getBusinessIdFromRequest(req: Request) {
+function getBusinessIdFromRequest(req: Request): string {
   const businessId =
     req.businessAccess?.businessId ||
     (typeof req.headers['x-business-id'] === 'string'
@@ -41,7 +49,7 @@ function getBusinessIdFromRequest(req: Request) {
   return businessId;
 }
 
-function getBusinessUserIdFromRequest(req: Request) {
+function getBusinessUserIdFromRequest(req: Request): string {
   const businessUserId = req.businessAccess?.businessUserId;
 
   if (!businessUserId) {
@@ -51,6 +59,98 @@ function getBusinessUserIdFromRequest(req: Request) {
   return businessUserId;
 }
 
+function parseListOrdersRequest(req: Request): {
+  query: ListOrdersQuery;
+} {
+  const parsed = listOrdersSchema.parse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  return {
+    query: parsed.query,
+  };
+}
+
+function parseGetOrderByIdRequest(req: Request): {
+  params: GetOrderParams;
+  query: GetOrderQuery;
+} {
+  const parsed = getOrderByIdSchema.parse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  return {
+    params: parsed.params,
+    query: parsed.query,
+  };
+}
+
+function parseCreateOrderRequest(req: Request): {
+  body: CreateOrderBody;
+} {
+  const parsed = createOrderSchema.parse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  return {
+    body: parsed.body,
+  };
+}
+
+function parseAddOrderItemRequest(req: Request): {
+  params: GetOrderParams;
+  body: AddOrderItemBody;
+} {
+  const parsed = addOrderItemSchema.parse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  return {
+    params: parsed.params,
+    body: parsed.body,
+  };
+}
+
+function parseUpdateOrderItemRequest(req: Request): {
+  params: UpdateOrderItemParams;
+  body: UpdateOrderItemBody;
+} {
+  const parsed = updateOrderItemSchema.parse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  return {
+    params: parsed.params,
+    body: parsed.body,
+  };
+}
+
+function parseUpdateOrderStatusRequest(req: Request): {
+  params: GetOrderParams;
+  body: UpdateOrderStatusBody;
+} {
+  const parsed = updateOrderStatusSchema.parse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  return {
+    params: parsed.params,
+    body: parsed.body,
+  };
+}
+
 export async function listOrdersHandler(
   req: Request,
   res: Response,
@@ -58,7 +158,7 @@ export async function listOrdersHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const query = res.locals.validatedQuery as ListOrdersQuery;
+    const { query } = parseListOrdersRequest(req);
 
     const result = await listOrders({
       businessId,
@@ -88,8 +188,11 @@ export async function getOrderByIdHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const params = res.locals.validatedParams as GetOrderParams;
-    const query = res.locals.validatedQuery as GetOrderQuery;
+    const { params, query } = parseGetOrderByIdRequest(req);
+
+    if (!query.outletId) {
+      throw createHttpError('outletId wajib diisi', 400);
+    }
 
     const result = await getOrderById({
       businessId,
@@ -115,7 +218,7 @@ export async function createOrderHandler(
   try {
     const businessId = getBusinessIdFromRequest(req);
     const businessUserId = getBusinessUserIdFromRequest(req);
-    const body = res.locals.validatedBody as CreateOrderBody;
+    const { body } = parseCreateOrderRequest(req);
 
     const result = await createOrder({
       businessId,
@@ -143,8 +246,7 @@ export async function addOrderItemHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const params = res.locals.validatedParams as GetOrderParams;
-    const body = res.locals.validatedBody as AddOrderItemBody;
+    const { params, body } = parseAddOrderItemRequest(req);
 
     const result = await addOrderItem({
       businessId,
@@ -172,8 +274,7 @@ export async function updateOrderItemHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const params = res.locals.validatedParams as UpdateOrderItemParams;
-    const body = res.locals.validatedBody as UpdateOrderItemBody;
+    const { params, body } = parseUpdateOrderItemRequest(req);
 
     const result = await updateOrderItem({
       businessId,
@@ -201,8 +302,7 @@ export async function updateOrderStatusHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const params = res.locals.validatedParams as GetOrderParams;
-    const body = res.locals.validatedBody as UpdateOrderStatusBody;
+    const { params, body } = parseUpdateOrderStatusRequest(req);
 
     const result = await updateOrderStatus({
       businessId,

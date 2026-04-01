@@ -10,14 +10,16 @@ import type {
   AddOrderItemInput,
   CreateOrderInput,
   CreateOrderItemInput,
-  ListOrdersQuery,
+  ListOrdersInput,
   OrderDetailDto,
   OrderSummaryDto,
   UpdateOrderItemInput,
   UpdateOrderStatusInput,
 } from './order.types';
 
-function toMoneyString(value: Prisma.Decimal | number | string | null | undefined): string {
+function toMoneyString(
+  value: Prisma.Decimal | number | string | null | undefined,
+): string {
   if (value === null || value === undefined) {
     return '0';
   }
@@ -295,7 +297,78 @@ function mapOrderSummary(order: {
   };
 }
 
-export async function listOrders(params: ListOrdersQuery) {
+type OrderReader = Prisma.TransactionClient | typeof prisma;
+
+async function getOrderByIdInternal(
+  db: OrderReader,
+  params: {
+    businessId: string;
+    outletId: string;
+    orderId: string;
+  },
+): Promise<OrderDetailDto> {
+  const order = await db.order.findFirst({
+    where: {
+      id: params.orderId,
+      businessId: params.businessId,
+      outletId: params.outletId,
+    },
+    include: {
+      outlet: {
+        select: {
+          name: true,
+          business: {
+            select: {
+              businessType: true,
+            },
+          },
+        },
+      },
+      table: {
+        select: {
+          name: true,
+        },
+      },
+      items: {
+        orderBy: {
+          createdAt: 'asc',
+        },
+      },
+    },
+  });
+
+  if (!order) {
+    throw new Error('Order tidak ditemukan');
+  }
+
+  return {
+    ...mapOrderSummary({
+      ...order,
+      table: order.table,
+    }),
+    businessType: order.outlet.business.businessType,
+    outletName: order.outlet.name,
+    items: order.items.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      productName: item.productName,
+      productCode: item.productCode,
+      productSku: item.productSku,
+      productBarcode: item.productBarcode,
+      quantity: toMoneyString(item.quantity),
+      unitPrice: toMoneyString(item.unitPrice),
+      lineSubtotal: toMoneyString(item.lineSubtotal),
+      lineDiscountAmount: toMoneyString(item.lineDiscountAmount),
+      lineTotal: toMoneyString(item.lineTotal),
+      note: item.note,
+      status: item.status,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+    })),
+  };
+}
+
+export async function listOrders(params: ListOrdersInput) {
   const where: Prisma.OrderWhereInput = {
     businessId: params.businessId,
     outletId: params.outletId,
@@ -363,65 +436,7 @@ export async function getOrderById(params: {
   outletId: string;
   orderId: string;
 }): Promise<OrderDetailDto> {
-  const order = await prisma.order.findFirst({
-    where: {
-      id: params.orderId,
-      businessId: params.businessId,
-      outletId: params.outletId,
-    },
-    include: {
-      outlet: {
-        select: {
-          name: true,
-          business: {
-            select: {
-              businessType: true,
-            },
-          },
-        },
-      },
-      table: {
-        select: {
-          name: true,
-        },
-      },
-      items: {
-        orderBy: {
-          createdAt: 'asc',
-        },
-      },
-    },
-  });
-
-  if (!order) {
-    throw new Error('Order tidak ditemukan');
-  }
-
-  return {
-    ...mapOrderSummary({
-      ...order,
-      table: order.table,
-    }),
-    businessType: order.outlet.business.businessType,
-    outletName: order.outlet.name,
-    items: order.items.map((item) => ({
-      id: item.id,
-      productId: item.productId,
-      productName: item.productName,
-      productCode: item.productCode,
-      productSku: item.productSku,
-      productBarcode: item.productBarcode,
-      quantity: toMoneyString(item.quantity),
-      unitPrice: toMoneyString(item.unitPrice),
-      lineSubtotal: toMoneyString(item.lineSubtotal),
-      lineDiscountAmount: toMoneyString(item.lineDiscountAmount),
-      lineTotal: toMoneyString(item.lineTotal),
-      note: item.note,
-      status: item.status,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-    })),
-  };
+  return getOrderByIdInternal(prisma, params);
 }
 
 async function createSingleOrderItem(
@@ -518,12 +533,12 @@ export async function createOrder(input: CreateOrderInput) {
       });
     }
 
-    const recalculated = await recalculateOrderTotals(tx, order.id);
+    await recalculateOrderTotals(tx, order.id);
 
-    return getOrderById({
-      businessId: recalculated.businessId,
-      outletId: recalculated.outletId,
-      orderId: recalculated.id,
+    return getOrderByIdInternal(tx, {
+      businessId: input.businessId,
+      outletId: input.outletId,
+      orderId: order.id,
     });
   });
 }
@@ -563,7 +578,7 @@ export async function addOrderItem(input: AddOrderItemInput) {
 
     await recalculateOrderTotals(tx, order.id);
 
-    return getOrderById({
+    return getOrderByIdInternal(tx, {
       businessId: input.businessId,
       outletId: input.outletId,
       orderId: input.orderId,
@@ -628,7 +643,7 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
 
     await recalculateOrderTotals(tx, input.orderId);
 
-    return getOrderById({
+    return getOrderByIdInternal(tx, {
       businessId: input.businessId,
       outletId: input.outletId,
       orderId: input.orderId,
@@ -672,7 +687,7 @@ export async function updateOrderStatus(input: UpdateOrderStatusInput) {
     }
 
     if (order.status === input.status) {
-      return getOrderById({
+      return getOrderByIdInternal(tx, {
         businessId: input.businessId,
         outletId: input.outletId,
         orderId: input.orderId,
@@ -681,7 +696,10 @@ export async function updateOrderStatus(input: UpdateOrderStatusInput) {
 
     validateOrderStatusTransition(order.status, input.status);
 
-    if (input.status === OrderStatus.COMPLETED && order.paymentStatus !== PaymentStatus.PAID) {
+    if (
+      input.status === OrderStatus.COMPLETED &&
+      order.paymentStatus !== PaymentStatus.PAID
+    ) {
       throw new Error('Order hanya bisa diselesaikan jika status pembayaran sudah PAID');
     }
 
@@ -693,12 +711,9 @@ export async function updateOrderStatus(input: UpdateOrderStatusInput) {
       },
       data: {
         status: input.status,
-        submittedAt:
-          input.status === OrderStatus.SUBMITTED ? now : undefined,
-        completedAt:
-          input.status === OrderStatus.COMPLETED ? now : undefined,
-        cancelledAt:
-          input.status === OrderStatus.CANCELLED ? now : undefined,
+        submittedAt: input.status === OrderStatus.SUBMITTED ? now : undefined,
+        completedAt: input.status === OrderStatus.COMPLETED ? now : undefined,
+        cancelledAt: input.status === OrderStatus.CANCELLED ? now : undefined,
       },
     });
 
@@ -767,7 +782,7 @@ export async function updateOrderStatus(input: UpdateOrderStatusInput) {
       });
     }
 
-    return getOrderById({
+    return getOrderByIdInternal(tx, {
       businessId: input.businessId,
       outletId: input.outletId,
       orderId: input.orderId,

@@ -13,7 +13,7 @@ import {
   faStore,
 } from '@fortawesome/free-solid-svg-icons';
 
-import { login, logout } from '@/lib/auth';
+import { login, resolveRouteByRole } from '@/lib/auth';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -35,14 +35,9 @@ export function LoginForm() {
 
     try {
       const result = await login(form.email, form.password);
+      const targetRoute = resolveRouteByRole(result.user);
 
-      if (!result.user.accessProfile.isSuperAdmin) {
-        logout();
-        setError('Akun ini tidak memiliki akses ke dashboard platform.');
-        return;
-      }
-
-      router.push('/dashboard');
+      router.push(targetRoute);
       router.refresh();
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -81,7 +76,7 @@ export function LoginForm() {
         </p>
 
         <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500">
-          Fase 1 • Super Admin Access
+          Multi Role Access
         </div>
       </div>
 
@@ -162,8 +157,9 @@ export function LoginForm() {
         </Button>
 
         <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-500">
-          Gunakan akun Super Admin yang sudah disediakan untuk fase awal
-          pengembangan dan pengujian platform.
+          Super Admin akan masuk ke dashboard platform. User business seperti
+          owner, admin, cashier, kitchen, dan inventory akan diarahkan ke
+          dashboard sesuai role masing-masing.
         </div>
       </form>
     </div>

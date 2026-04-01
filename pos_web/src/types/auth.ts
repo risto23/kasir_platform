@@ -1,3 +1,5 @@
+export type PlatformRoleCode = 'SUPER_ADMIN';
+
 export type BusinessRoleCode =
   | 'OWNER'
   | 'ADMIN'
@@ -33,13 +35,17 @@ export type BusinessPermissionCode =
   | 'OUTLET_TABLE_UPDATE'
   | 'OUTLET_TABLE_STATUS_UPDATE';
 
+export type BusinessTypeCode = 'RESTAURANT' | 'RETAIL';
+
+export type UserStatusCode = 'ACTIVE' | 'INACTIVE';
+
 export type BusinessMembership = {
   businessUserId: string;
   businessId: string;
   businessName: string;
-  businessType: 'RESTAURANT' | 'RETAIL';
+  businessType: BusinessTypeCode;
   role: BusinessRoleCode;
-  status: 'ACTIVE' | 'INACTIVE';
+  status: UserStatusCode;
   isPrimary: boolean;
   hasAllOutletAccess: boolean;
   allowedOutletIds: string[];
@@ -57,9 +63,9 @@ export type CurrentUser = {
   id: string;
   fullName: string;
   email: string;
-  status: 'ACTIVE' | 'INACTIVE';
+  status: UserStatusCode;
   lastLoginAt?: string | null;
-  platformRoles: Array<'SUPER_ADMIN'>;
+  platformRoles: PlatformRoleCode[];
   businessMemberships: BusinessMembership[];
   accessProfile: AccessProfile;
 };

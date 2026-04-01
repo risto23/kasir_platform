@@ -7,6 +7,15 @@ import {
 } from '@prisma/client';
 
 export type ListOrdersQuery = {
+  outletId: string;
+  page?: number;
+  perPage?: number;
+  search?: string;
+  status?: OrderStatus;
+  paymentStatus?: PaymentStatus;
+};
+
+export type ListOrdersInput = {
   businessId: string;
   outletId: string;
   page: number;
@@ -21,7 +30,7 @@ export type GetOrderParams = {
 };
 
 export type GetOrderQuery = {
-  outletId: string;
+  outletId?: string;
 };
 
 export type CreateOrderItemInput = {
