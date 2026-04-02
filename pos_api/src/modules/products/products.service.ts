@@ -1,4 +1,12 @@
-import { Prisma, ProductStatus, BusinessType } from '@prisma/client';
+import {
+  Prisma,
+  ProductStatus,
+  BusinessType,
+  PromoDiscountType,
+  PromoOutletScope,
+  PromoStatus,
+  PromoTargetType,
+} from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import type {
   ProductListQuery,
@@ -6,6 +14,8 @@ import type {
   CreateProductBody,
   UpdateProductBody,
   UpdateProductStatusBody,
+  ProductAppliedPromo,
+  ProductListItem,
 } from './products.types';
 
 function normalizeCode(value?: string | null) {
@@ -46,6 +56,11 @@ function sanitizeSearch(search?: string) {
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
 
+function sanitizeOutletId(outletId?: string) {
+  const trimmed = outletId?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
+}
+
 function createHttpError(message: string, statusCode: number) {
   const error = new Error(message) as Error & { statusCode?: number };
   error.statusCode = statusCode;
@@ -59,6 +74,101 @@ function slugifyProductName(name: string) {
     .replace(/[^A-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .replace(/-{2,}/g, '-');
+}
+
+function toNumber(value: Prisma.Decimal | string | number | null | undefined): number {
+  if (value === null || value === undefined) {
+    return 0;
+  }
+
+  if (value instanceof Prisma.Decimal) {
+    return Number(value.toString());
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toDecimalString(
+  value: Prisma.Decimal | string | number | null | undefined,
+): string {
+  if (value === null || value === undefined) {
+    return '0';
+  }
+
+  if (value instanceof Prisma.Decimal) {
+    return value.toString();
+  }
+
+  return new Prisma.Decimal(value).toString();
+}
+
+function formatDateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function getJakartaNowParts() {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(new Date());
+
+  const year = parts.find((item) => item.type === 'year')?.value ?? '0000';
+  const month = parts.find((item) => item.type === 'month')?.value ?? '00';
+  const day = parts.find((item) => item.type === 'day')?.value ?? '00';
+  const hour = parts.find((item) => item.type === 'hour')?.value ?? '00';
+  const minute = parts.find((item) => item.type === 'minute')?.value ?? '00';
+
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hour}:${minute}`,
+  };
+}
+
+function isPromoActiveNow(promo: {
+  startDate: Date;
+  endDate: Date;
+  startTime: string;
+  endTime: string;
+  status: PromoStatus;
+}) {
+  if (promo.status !== PromoStatus.ACTIVE) {
+    return false;
+  }
+
+  const now = getJakartaNowParts();
+  const startDate = formatDateOnly(promo.startDate);
+  const endDate = formatDateOnly(promo.endDate);
+
+  if (now.date < startDate) {
+    return false;
+  }
+
+  if (now.date > endDate) {
+    return false;
+  }
+
+  if (now.date === startDate && now.time < promo.startTime) {
+    return false;
+  }
+
+  if (now.date === endDate && now.time > promo.endTime) {
+    return false;
+  }
+
+  return true;
+}
+
+function normalizeComparableText(value?: string | null) {
+  const normalized = value?.trim().toLowerCase();
+  return normalized && normalized.length > 0 ? normalized : null;
 }
 
 async function getBusinessOrThrow(businessId: string) {
@@ -126,6 +236,32 @@ async function ensureCategoryExists(businessId: string, categoryId?: string | nu
   }
 
   return category;
+}
+
+async function ensureOutletExistsInBusiness(
+  businessId: string,
+  outletId?: string,
+) {
+  if (!outletId) {
+    return null;
+  }
+
+  const outlet = await prisma.outlet.findFirst({
+    where: {
+      id: outletId,
+      businessId,
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!outlet) {
+    throw createHttpError('Outlet tidak ditemukan pada business ini.', 404);
+  }
+
+  return outlet;
 }
 
 async function ensureProductExists(businessId: string, productId: string) {
@@ -266,6 +402,208 @@ async function ensureProductBarcodeUnique(
   }
 }
 
+type ProductWithCategory = Prisma.ProductGetPayload<{
+  include: {
+    category: true;
+  };
+}>;
+
+type PromoForProductResolution = {
+  id: string;
+  name: string;
+  targetType: PromoTargetType;
+  categoryId: string | null;
+  productId: string | null;
+  targetTextValue: string | null;
+  discountType: PromoDiscountType;
+  discountValue: Prisma.Decimal | null;
+  startDate: Date;
+  endDate: Date;
+  startTime: string;
+  endTime: string;
+  status: PromoStatus;
+  outletScope: PromoOutletScope | null;
+  promoOutlets: Array<{
+    outletId: string;
+  }>;
+};
+
+async function getActivePromosForProducts(
+  businessId: string,
+  outletId?: string,
+): Promise<PromoForProductResolution[]> {
+  const promos = await prisma.promo.findMany({
+    where: {
+      businessId,
+      status: PromoStatus.ACTIVE,
+    },
+    include: {
+      promoOutlets: {
+        select: {
+          outletId: true,
+        },
+      },
+    },
+    orderBy: [{ createdAt: 'desc' }],
+  });
+
+  return promos.filter((promo) => {
+    if (!isPromoActiveNow(promo)) {
+      return false;
+    }
+
+    const outletScope = promo.outletScope ?? PromoOutletScope.ALL_OUTLETS;
+
+    if (outletScope === PromoOutletScope.ALL_OUTLETS) {
+      return true;
+    }
+
+    if (!outletId) {
+      return false;
+    }
+
+    return promo.promoOutlets.some((item) => item.outletId === outletId);
+  });
+}
+
+function doesPromoMatchProduct(
+  promo: PromoForProductResolution,
+  product: ProductWithCategory,
+) {
+  if (promo.targetType === PromoTargetType.CATEGORY) {
+    return promo.categoryId !== null && promo.categoryId === product.categoryId;
+  }
+
+  if (promo.targetType === PromoTargetType.PRODUCT) {
+    return promo.productId !== null && promo.productId === product.id;
+  }
+
+  const promoTargetText = normalizeComparableText(promo.targetTextValue);
+
+  if (!promoTargetText) {
+    return false;
+  }
+
+  if (promo.targetType === PromoTargetType.PRODUCT_NAME) {
+    return normalizeComparableText(product.name) === promoTargetText;
+  }
+
+  if (promo.targetType === PromoTargetType.BRAND) {
+    return normalizeComparableText(product.brand) === promoTargetText;
+  }
+
+  if (promo.targetType === PromoTargetType.UNIT) {
+    return normalizeComparableText(product.unit) === promoTargetText;
+  }
+
+  return false;
+}
+
+function calculatePromoDiscountAmount(
+  basePrice: number,
+  discountType: PromoDiscountType,
+  discountValue: Prisma.Decimal | null,
+) {
+  const parsedDiscountValue = toNumber(discountValue);
+
+  if (discountType === PromoDiscountType.PERCENTAGE) {
+    const percentageDiscount = (basePrice * parsedDiscountValue) / 100;
+    return percentageDiscount > basePrice ? basePrice : percentageDiscount;
+  }
+
+  return parsedDiscountValue > basePrice ? basePrice : parsedDiscountValue;
+}
+
+function resolvePromoTargetValue(promo: PromoForProductResolution): string {
+  if (promo.targetType === PromoTargetType.CATEGORY) {
+    return promo.categoryId ?? '';
+  }
+
+  if (promo.targetType === PromoTargetType.PRODUCT) {
+    return promo.productId ?? '';
+  }
+
+  return promo.targetTextValue ?? '';
+}
+
+function resolveBestPromoForProduct(
+  product: ProductWithCategory,
+  promos: PromoForProductResolution[],
+): ProductAppliedPromo | null {
+  const matchedPromos = promos.filter((promo) => doesPromoMatchProduct(promo, product));
+
+  if (matchedPromos.length === 0) {
+    return null;
+  }
+
+  const basePrice = toNumber(product.basePrice);
+
+  let bestPromo: ProductAppliedPromo | null = null;
+
+  for (const promo of matchedPromos) {
+    const discountAmount = calculatePromoDiscountAmount(
+      basePrice,
+      promo.discountType,
+      promo.discountValue,
+    );
+
+    const mappedPromo: ProductAppliedPromo = {
+      id: promo.id,
+      name: promo.name,
+      targetType: promo.targetType,
+      targetValue: resolvePromoTargetValue(promo),
+      discountType: promo.discountType,
+      discountValue: toDecimalString(promo.discountValue),
+      discountAmount,
+    };
+
+    if (!bestPromo || mappedPromo.discountAmount > bestPromo.discountAmount) {
+      bestPromo = mappedPromo;
+      continue;
+    }
+
+    if (
+      bestPromo &&
+      mappedPromo.discountAmount === bestPromo.discountAmount &&
+      mappedPromo.name.localeCompare(bestPromo.name) < 0
+    ) {
+      bestPromo = mappedPromo;
+    }
+  }
+
+  return bestPromo;
+}
+
+function mapProductListItem(
+  product: ProductWithCategory,
+  appliedPromo: ProductAppliedPromo | null,
+): ProductListItem {
+  const basePrice = toNumber(product.basePrice);
+  const promoDiscountAmount = appliedPromo?.discountAmount ?? 0;
+  const promoPrice = Math.max(basePrice - promoDiscountAmount, 0);
+
+  return {
+    id: product.id,
+    businessId: product.businessId,
+    categoryId: product.categoryId,
+    name: product.name,
+    code: product.code,
+    sku: product.sku,
+    barcode: product.barcode,
+    brand: product.brand,
+    unit: product.unit,
+    description: product.description,
+    imageUrl: product.imageUrl,
+    basePrice,
+    effectivePrice: promoPrice,
+    promoPrice,
+    promoDiscountAmount,
+    appliedPromo,
+    status: product.status,
+    category: product.category,
+  };
+}
+
 export async function listProducts(
   businessId: string,
   query: ProductListQuery,
@@ -273,6 +611,9 @@ export async function listProducts(
   if (query.categoryId) {
     await ensureCategoryExists(businessId, query.categoryId);
   }
+
+  const outletId = sanitizeOutletId(query.outletId);
+  await ensureOutletExistsInBusiness(businessId, outletId);
 
   const search = sanitizeSearch(query.search);
 
@@ -340,7 +681,7 @@ export async function listProducts(
 
   const skip = (query.page - 1) * query.perPage;
 
-  const [items, total] = await Promise.all([
+  const [items, total, activePromos] = await Promise.all([
     prisma.product.findMany({
       where,
       skip,
@@ -351,10 +692,15 @@ export async function listProducts(
       orderBy: [{ name: 'asc' }],
     }),
     prisma.product.count({ where }),
+    getActivePromosForProducts(businessId, outletId),
   ]);
 
+  const mappedItems = items.map((item) =>
+    mapProductListItem(item, resolveBestPromoForProduct(item, activePromos)),
+  );
+
   return {
-    items,
+    items: mappedItems,
     meta: {
       page: query.page,
       perPage: query.perPage,
@@ -384,7 +730,7 @@ export async function createProduct(
     business.businessType,
     normalizedName,
   );
-  const normalizedCode = normalizeCode(generatedCode);
+  const normalizedCode = normalizeCode(generatedCode) ?? '';
 
   await ensureCategoryExists(businessId, payload.categoryId);
   await ensureProductNameUnique(businessId, normalizedName);

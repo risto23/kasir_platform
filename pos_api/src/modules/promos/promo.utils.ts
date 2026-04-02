@@ -3,12 +3,7 @@ import {
   PromoStatus,
   PromoTargetType,
 } from '@prisma/client';
-
-export type PromoEffectiveStatus =
-  | 'ACTIVE'
-  | 'INACTIVE'
-  | 'SCHEDULED'
-  | 'EXPIRED';
+import type { PromoEffectiveStatus } from './promo.types';
 
 type PromoScheduleSource = {
   startDate: Date;
@@ -84,7 +79,7 @@ export function buildPromoTargetLabel(input: {
   categoryName?: string | null;
   productName?: string | null;
   targetTextValue?: string | null;
-}) {
+}): string | null {
   if (input.targetType === PromoTargetType.CATEGORY) {
     return input.categoryName ?? null;
   }
@@ -101,7 +96,7 @@ export function buildPromoTargetValue(input: {
   categoryId?: string | null;
   productId?: string | null;
   targetTextValue?: string | null;
-}) {
+}): string | null {
   if (input.targetType === PromoTargetType.CATEGORY) {
     return input.categoryId ?? null;
   }
@@ -116,7 +111,7 @@ export function buildPromoTargetValue(input: {
 export function mapDiscountPreview(
   discountType: PromoDiscountType,
   discountValue: string,
-) {
+): string {
   if (discountType === PromoDiscountType.PERCENTAGE) {
     return `${discountValue}%`;
   }

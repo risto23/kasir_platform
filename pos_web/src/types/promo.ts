@@ -1,5 +1,3 @@
-export type BusinessType = 'RETAIL' | 'RESTAURANT';
-
 export type PromoTargetType =
   | 'CATEGORY'
   | 'PRODUCT'
@@ -17,27 +15,45 @@ export type PromoEffectiveStatus =
   | 'SCHEDULED'
   | 'EXPIRED';
 
-export type PromoCategoryOption = {
+export type PromoOutletScope = 'ALL_OUTLETS' | 'SELECTED_OUTLETS';
+
+export type PromoMetaCategory = {
   id: string;
   name: string;
-  status: string;
+  status: 'ACTIVE' | 'INACTIVE';
 };
 
-export type PromoProductOption = {
+export type PromoMetaProduct = {
   id: string;
   name: string;
   brand: string | null;
   unit: string | null;
-  status: string;
+  status: 'ACTIVE' | 'INACTIVE';
+};
+
+export type PromoMetaOutlet = {
+  id: string;
+  name: string;
+  code: string;
+  status: 'ACTIVE' | 'INACTIVE';
 };
 
 export type PromoFormMeta = {
-  businessType: BusinessType;
+  businessType: 'RESTAURANT' | 'RETAIL';
   targetTypes: PromoTargetType[];
   discountTypes: PromoDiscountType[];
   statuses: PromoStatus[];
-  categories: PromoCategoryOption[];
-  products: PromoProductOption[];
+  outletScopes: PromoOutletScope[];
+  categories: PromoMetaCategory[];
+  products: PromoMetaProduct[];
+  outlets: PromoMetaOutlet[];
+};
+
+export type PromoSelectedOutletItem = {
+  id: string;
+  outletId: string;
+  outletName: string;
+  outletCode: string;
 };
 
 export type PromoItem = {
@@ -60,29 +76,35 @@ export type PromoItem = {
   endTime: string;
   status: PromoStatus;
   effectiveStatus: PromoEffectiveStatus;
+  outletScope: PromoOutletScope;
+  selectedOutletCount: number;
+  selectedOutlets: PromoSelectedOutletItem[];
   createdAt: string;
   updatedAt: string;
 };
 
 export type PromoPayload = {
   name: string;
-  description?: string | null;
+  description: string | null;
   targetType: PromoTargetType;
-  categoryId?: string | null;
-  productId?: string | null;
-  targetTextValue?: string | null;
+  categoryId: string | null;
+  productId: string | null;
+  targetTextValue: string | null;
   discountType: PromoDiscountType;
   discountValue: number;
   startDate: string;
   endDate: string;
   startTime: string;
   endTime: string;
-  status?: PromoStatus;
+  status: PromoStatus;
+  outletScope: PromoOutletScope;
+  selectedOutletIds: string[];
 };
 
-export type PromoListFilters = {
+export type PromoListParams = {
   search?: string;
   targetType?: PromoTargetType | '';
   status?: PromoStatus | '';
   effectiveStatus?: PromoEffectiveStatus | '';
+  outletScope?: PromoOutletScope | '';
 };

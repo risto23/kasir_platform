@@ -26,6 +26,25 @@ export type PosProductStatus = 'ACTIVE' | 'INACTIVE';
 
 export type PosChargeType = 'PERCENTAGE' | 'FIXED_AMOUNT';
 
+export type PosPromoTargetType =
+  | 'CATEGORY'
+  | 'PRODUCT'
+  | 'PRODUCT_NAME'
+  | 'BRAND'
+  | 'UNIT';
+
+export type PosPromoDiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT';
+
+export type PosAppliedPromo = {
+  id: string;
+  name: string;
+  targetType: PosPromoTargetType;
+  targetValue: string;
+  discountType: PosPromoDiscountType;
+  discountValue: string;
+  discountAmount: number;
+};
+
 export type PosProductItem = {
   id: string;
   businessId: string;
@@ -39,6 +58,10 @@ export type PosProductItem = {
   description: string | null;
   imageUrl: string | null;
   basePrice: number;
+  effectivePrice: number;
+  promoPrice: number;
+  promoDiscountAmount: number;
+  appliedPromo: PosAppliedPromo | null;
   status: PosProductStatus;
   category?: {
     id: string;

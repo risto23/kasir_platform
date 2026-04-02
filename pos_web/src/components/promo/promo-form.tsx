@@ -6,6 +6,7 @@ import {
   createPromo,
   getPromoDiscountTypeLabel,
   getPromoFormMeta,
+  getPromoOutletScopeLabel,
   getPromoTargetTypeLabel,
   updatePromo,
 } from '@/lib/promo';
@@ -13,6 +14,7 @@ import type {
   PromoDiscountType,
   PromoFormMeta,
   PromoItem,
+  PromoOutletScope,
   PromoPayload,
   PromoStatus,
   PromoTargetType,
@@ -39,6 +41,8 @@ type PromoFormState = {
   startTime: string;
   endTime: string;
   status: PromoStatus;
+  outletScope: PromoOutletScope;
+  selectedOutletIds: string[];
 };
 
 function getTodayDate() {
@@ -62,6 +66,8 @@ function getDefaultState(): PromoFormState {
     startTime: '00:00',
     endTime: '23:59',
     status: 'ACTIVE',
+    outletScope: 'ALL_OUTLETS',
+    selectedOutletIds: [],
   };
 }
 
@@ -80,6 +86,8 @@ function mapInitialDataToState(data: PromoItem): PromoFormState {
     startTime: data.startTime,
     endTime: data.endTime,
     status: data.status,
+    outletScope: data.outletScope ?? 'ALL_OUTLETS',
+    selectedOutletIds: (data.selectedOutlets ?? []).map((item) => item.outletId),
   };
 }
 
@@ -146,6 +154,10 @@ export function PromoForm({
     return (meta?.products ?? []).filter((item) => item.status === 'ACTIVE');
   }, [meta?.products]);
 
+  const activeOutlets = useMemo(() => {
+    return (meta?.outlets ?? []).filter((item) => item.status === 'ACTIVE');
+  }, [meta?.outlets]);
+
   function setField<K extends keyof PromoFormState>(
     key: K,
     value: PromoFormState[K],
@@ -154,6 +166,19 @@ export function PromoForm({
       ...prev,
       [key]: value,
     }));
+  }
+
+  function toggleSelectedOutlet(outletId: string) {
+    setForm((prev) => {
+      const exists = prev.selectedOutletIds.includes(outletId);
+
+      return {
+        ...prev,
+        selectedOutletIds: exists
+          ? prev.selectedOutletIds.filter((item) => item !== outletId)
+          : [...prev.selectedOutletIds, outletId],
+      };
+    });
   }
 
   useEffect(() => {
@@ -174,6 +199,15 @@ export function PromoForm({
       setField('targetTextValue', '');
     }
   }, [form.targetType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (
+      form.outletScope !== 'SELECTED_OUTLETS' &&
+      form.selectedOutletIds.length > 0
+    ) {
+      setField('selectedOutletIds', []);
+    }
+  }, [form.outletScope]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function validate() {
     if (!form.name.trim()) {
@@ -223,6 +257,13 @@ export function PromoForm({
       return 'Jam akhir tidak boleh lebih kecil dari jam mulai';
     }
 
+    if (
+      form.outletScope === 'SELECTED_OUTLETS' &&
+      form.selectedOutletIds.length === 0
+    ) {
+      return 'Minimal pilih 1 outlet untuk promo outlet tertentu';
+    }
+
     return '';
   }
 
@@ -246,6 +287,9 @@ export function PromoForm({
       startTime: form.startTime,
       endTime: form.endTime,
       status: form.status,
+      outletScope: form.outletScope,
+      selectedOutletIds:
+        form.outletScope === 'SELECTED_OUTLETS' ? form.selectedOutletIds : [],
     };
   }
 
@@ -295,7 +339,7 @@ export function PromoForm({
           {mode === 'create' ? 'Buat Promo' : 'Ubah Promo'}
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Sesuaikan target, diskon, periode, dan status promo.
+          Sesuaikan target, diskon, periode, status, dan cakupan outlet promo.
         </p>
       </div>
 
@@ -351,6 +395,25 @@ export function PromoForm({
           </select>
         </div>
 
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Scope Outlet
+          </label>
+          <select
+            value={form.outletScope}
+            onChange={(event) =>
+              setField('outletScope', event.target.value as PromoOutletScope)
+            }
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500"
+          >
+            {(meta?.outletScopes ?? []).map((scope) => (
+              <option key={scope} value={scope}>
+                {getPromoOutletScopeLabel(scope)}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {form.targetType === 'CATEGORY' ? (
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -399,7 +462,7 @@ export function PromoForm({
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               {form.targetType === 'PRODUCT_NAME'
-                ? 'Nama Produk/Menu'
+                ? `Nama ${itemLabel}`
                 : form.targetType === 'BRAND'
                   ? 'Brand'
                   : 'Satuan'}
@@ -446,6 +509,52 @@ export function PromoForm({
             className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500"
             placeholder={form.discountType === 'PERCENTAGE' ? '10' : '5000'}
           />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Outlet Berlaku
+          </label>
+
+          {form.outletScope === 'ALL_OUTLETS' ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Promo ini akan berlaku untuk semua outlet aktif dalam business.
+            </div>
+          ) : activeOutlets.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Tidak ada outlet aktif yang bisa dipilih.
+            </div>
+          ) : (
+            <div className="grid gap-3 rounded-xl border border-slate-200 p-4 md:grid-cols-2">
+              {activeOutlets.map((outlet) => {
+                const checked = form.selectedOutletIds.includes(outlet.id);
+
+                return (
+                  <label
+                    key={outlet.id}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition ${
+                      checked
+                        ? 'border-slate-900 bg-slate-50'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSelectedOutlet(outlet.id)}
+                      className="mt-1 h-4 w-4 rounded border-slate-300"
+                    />
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {outlet.name}
+                      </div>
+                      <div className="text-xs text-slate-500">{outlet.code}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div>

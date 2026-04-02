@@ -9,8 +9,8 @@ import { getPromoById } from '@/lib/promo';
 import type { PromoItem } from '@/types/promo';
 
 export default function EditPromoPage() {
-  const router = useRouter();
   const params = useParams<{ id: string }>();
+  const router = useRouter();
 
   const [promo, setPromo] = useState<PromoItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,14 +24,20 @@ export default function EditPromoPage() {
         setLoading(true);
         setError('');
 
-        const response = await getPromoById(params.id);
+        const promoId = params.id;
+
+        if (!promoId) {
+          throw new Error('ID promo tidak ditemukan');
+        }
+
+        const response = await getPromoById(promoId);
 
         if (!cancelled) {
           setPromo(response);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Gagal memuat detail promo');
+          setError(err instanceof Error ? err.message : 'Gagal memuat data promo');
         }
       } finally {
         if (!cancelled) {
@@ -49,52 +55,93 @@ export default function EditPromoPage() {
     };
   }, [params.id]);
 
-  function handleSuccess() {
-    router.push('/dashboard/promos');
+  function handleSuccess(updatedPromo: PromoItem) {
+    router.push(`/dashboard/promos/${updatedPromo.id}`);
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm text-slate-500">Memuat data promo...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/dashboard/promos"
+            className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Kembali ke List Promo
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!promo) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm text-slate-500">Promo tidak ditemukan.</p>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/dashboard/promos"
+            className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Kembali ke List Promo
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Ubah Promo</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">Edit Promo</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Rapikan data promo tanpa mengubah contract backend aktif.
+              Ubah data promo termasuk scope outlet tanpa mengubah alur backend.
             </p>
           </div>
 
-          <Link
-            href="/dashboard/promos"
-            className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Kembali ke List
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={`/dashboard/promos/${promo.id}`}
+              className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Lihat Detail
+            </Link>
+
+            <Link
+              href="/dashboard/promos"
+              className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Kembali ke List
+            </Link>
+          </div>
         </div>
       </div>
 
-      {loading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm text-slate-500">Memuat detail promo...</p>
-        </div>
-      ) : error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : promo ? (
-        <PromoForm
-          mode="edit"
-          promoId={promo.id}
-          initialData={promo}
-          onSuccess={(_updated: PromoItem) => {
-            handleSuccess();
-          }}
-        />
-      ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm text-slate-500">Promo tidak ditemukan.</p>
-        </div>
-      )}
+      <PromoForm
+        mode="edit"
+        promoId={promo.id}
+        initialData={promo}
+        onSuccess={handleSuccess}
+      />
     </div>
   );
 }

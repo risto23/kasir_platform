@@ -1,6 +1,7 @@
 import {
   Prisma,
   PromoDiscountType,
+  PromoOutletScope,
   PromoStatus,
   PromoTargetType,
 } from '@prisma/client';
@@ -12,32 +13,13 @@ import {
   mapDiscountPreview,
   normalizeDateOnlyInput,
   resolvePromoEffectiveStatus,
-  type PromoEffectiveStatus,
 } from './promo.utils';
-
-type PromoPayload = {
-  name: string;
-  description?: string | null;
-  targetType: PromoTargetType;
-  categoryId?: string | null;
-  productId?: string | null;
-  targetTextValue?: string | null;
-  discountType: PromoDiscountType;
-  discountValue: number;
-  startDate: string;
-  endDate: string;
-  startTime: string;
-  endTime: string;
-  status?: PromoStatus;
-};
-
-type ListPromoParams = {
-  businessId: string;
-  search?: string;
-  targetType?: PromoTargetType;
-  effectiveStatus?: PromoEffectiveStatus;
-  status?: PromoStatus;
-};
+import type {
+  ListPromoParams,
+  PromoBody,
+  PromoMappedItem,
+  PromoOutletItem,
+} from './promo.types';
 
 const TEXT_BASED_PROMO_TARGET_TYPES: PromoTargetType[] = [
   PromoTargetType.PRODUCT_NAME,
@@ -45,15 +27,37 @@ const TEXT_BASED_PROMO_TARGET_TYPES: PromoTargetType[] = [
   PromoTargetType.UNIT,
 ];
 
-function isTextBasedPromoTargetType(
-  targetType: PromoTargetType,
-): boolean {
+function isTextBasedPromoTargetType(targetType: PromoTargetType): boolean {
   return TEXT_BASED_PROMO_TARGET_TYPES.includes(targetType);
+}
+
+function toDecimalString(
+  value: Prisma.Decimal | string | number | null | undefined,
+): string {
+  if (value === null || value === undefined) {
+    return '0';
+  }
+
+  if (value instanceof Prisma.Decimal) {
+    return value.toString();
+  }
+
+  return new Prisma.Decimal(value).toString();
+}
+
+function normalizeSelectedOutletIds(outletIds: string[]): string[] {
+  return Array.from(
+    new Set(
+      outletIds
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0),
+    ),
+  );
 }
 
 async function validatePromoTargetOwnership(
   businessId: string,
-  payload: PromoPayload,
+  payload: PromoBody,
 ) {
   if (payload.targetType === PromoTargetType.CATEGORY && payload.categoryId) {
     const category = await prisma.category.findFirst({
@@ -88,29 +92,101 @@ async function validatePromoTargetOwnership(
   }
 }
 
-function mapPromoRecord(
-  promo: {
+async function validateSelectedOutlets(
+  businessId: string,
+  outletScope: PromoOutletScope,
+  selectedOutletIds: string[],
+): Promise<string[]> {
+  if (outletScope === PromoOutletScope.ALL_OUTLETS) {
+    return [];
+  }
+
+  const normalizedIds = normalizeSelectedOutletIds(selectedOutletIds);
+
+  if (normalizedIds.length === 0) {
+    throw new Error(
+      'selectedOutletIds wajib diisi minimal 1 outlet untuk SELECTED_OUTLETS',
+    );
+  }
+
+  const outlets = await prisma.outlet.findMany({
+    where: {
+      id: {
+        in: normalizedIds,
+      },
+      businessId,
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (outlets.length !== normalizedIds.length) {
+    throw new Error(
+      'Semua outlet promo harus aktif dan milik business yang sama',
+    );
+  }
+
+  return normalizedIds;
+}
+
+type PromoRecord = {
+  id: string;
+  businessId: string;
+  name: string;
+  description: string | null;
+  targetType: PromoTargetType;
+  categoryId: string | null;
+  productId: string | null;
+  targetTextValue: string | null;
+  discountType: PromoDiscountType;
+  discountValue: Prisma.Decimal | null;
+  startDate: Date;
+  endDate: Date;
+  startTime: string;
+  endTime: string;
+  status: PromoStatus;
+  outletScope: PromoOutletScope | null;
+  createdAt: Date;
+  updatedAt: Date;
+  category?: { id: string; name: string } | null;
+  product?: { id: string; name: string } | null;
+  promoOutlets?: Array<{
     id: string;
-    businessId: string;
-    name: string;
-    description: string | null;
-    targetType: PromoTargetType;
-    categoryId: string | null;
-    productId: string | null;
-    targetTextValue: string | null;
-    discountType: PromoDiscountType;
-    discountValue: Prisma.Decimal;
-    startDate: Date;
-    endDate: Date;
-    startTime: string;
-    endTime: string;
-    status: PromoStatus;
-    createdAt: Date;
-    updatedAt: Date;
-    category?: { id: string; name: string } | null;
-    product?: { id: string; name: string } | null;
-  },
-) {
+    outletId: string;
+    outlet: {
+      id: string;
+      name: string;
+      code: string;
+    };
+  }>;
+};
+
+function mapSelectedOutlets(
+  promoOutlets?: Array<{
+    id: string;
+    outletId: string;
+    outlet: {
+      id: string;
+      name: string;
+      code: string;
+    };
+  }>,
+): PromoOutletItem[] {
+  if (!promoOutlets || promoOutlets.length === 0) {
+    return [];
+  }
+
+  return promoOutlets.map((item) => ({
+    id: item.id,
+    outletId: item.outletId,
+    outletName: item.outlet.name,
+    outletCode: item.outlet.code,
+  }));
+}
+
+function mapPromoRecord(promo: PromoRecord): PromoMappedItem {
   const effectiveStatus = resolvePromoEffectiveStatus({
     startDate: promo.startDate,
     endDate: promo.endDate,
@@ -119,7 +195,9 @@ function mapPromoRecord(
     status: promo.status,
   });
 
-  const discountValue = promo.discountValue.toString();
+  const discountValue = toDecimalString(promo.discountValue);
+  const selectedOutlets = mapSelectedOutlets(promo.promoOutlets);
+  const outletScope = promo.outletScope ?? PromoOutletScope.ALL_OUTLETS;
 
   return {
     id: promo.id,
@@ -151,6 +229,9 @@ function mapPromoRecord(
     endTime: promo.endTime,
     status: promo.status,
     effectiveStatus,
+    outletScope,
+    selectedOutletCount: selectedOutlets.length,
+    selectedOutlets,
     createdAt: promo.createdAt,
     updatedAt: promo.updatedAt,
   };
@@ -172,7 +253,7 @@ export async function getPromoFormMeta(businessId: string) {
     throw new Error('Business aktif tidak ditemukan');
   }
 
-  const [categories, products] = await Promise.all([
+  const [categories, products, outlets] = await Promise.all([
     prisma.category.findMany({
       where: {
         businessId,
@@ -197,6 +278,19 @@ export async function getPromoFormMeta(businessId: string) {
         status: true,
       },
     }),
+    prisma.outlet.findMany({
+      where: {
+        businessId,
+        status: 'ACTIVE',
+      },
+      orderBy: [{ name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        status: true,
+      },
+    }),
   ]);
 
   return {
@@ -213,8 +307,13 @@ export async function getPromoFormMeta(businessId: string) {
       PromoDiscountType.FIXED_AMOUNT,
     ],
     statuses: [PromoStatus.ACTIVE, PromoStatus.INACTIVE],
+    outletScopes: [
+      PromoOutletScope.ALL_OUTLETS,
+      PromoOutletScope.SELECTED_OUTLETS,
+    ],
     categories,
     products,
+    outlets,
   };
 }
 
@@ -224,6 +323,7 @@ export async function listPromos(params: ListPromoParams) {
       businessId: params.businessId,
       ...(params.targetType ? { targetType: params.targetType } : {}),
       ...(params.status ? { status: params.status } : {}),
+      ...(params.outletScope ? { outletScope: params.outletScope } : {}),
       ...(params.search
         ? {
             OR: [
@@ -278,11 +378,35 @@ export async function listPromos(params: ListPromoParams) {
           name: true,
         },
       },
+      promoOutlets: {
+        include: {
+          outlet: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
+        orderBy: [
+          {
+            outlet: {
+              name: 'asc',
+            },
+          },
+        ],
+      },
     },
     orderBy: [{ createdAt: 'desc' }],
   });
 
-  const mapped = promos.map(mapPromoRecord);
+  const mapped = promos.map((promo) =>
+    mapPromoRecord({
+      ...promo,
+      discountValue: promo.discountValue ?? null,
+      outletScope: promo.outletScope ?? PromoOutletScope.ALL_OUTLETS,
+    }),
+  );
 
   if (!params.effectiveStatus) {
     return mapped;
@@ -310,6 +434,24 @@ export async function getPromoById(businessId: string, id: string) {
           name: true,
         },
       },
+      promoOutlets: {
+        include: {
+          outlet: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
+        orderBy: [
+          {
+            outlet: {
+              name: 'asc',
+            },
+          },
+        ],
+      },
     },
   });
 
@@ -317,60 +459,133 @@ export async function getPromoById(businessId: string, id: string) {
     throw new Error('Promo tidak ditemukan');
   }
 
-  return mapPromoRecord(promo);
+  return mapPromoRecord({
+    ...promo,
+    discountValue: promo.discountValue ?? null,
+    outletScope: promo.outletScope ?? PromoOutletScope.ALL_OUTLETS,
+  });
 }
 
-export async function createPromo(businessId: string, payload: PromoPayload) {
+export async function createPromo(businessId: string, payload: PromoBody) {
   await validatePromoTargetOwnership(businessId, payload);
 
-  const promo = await prisma.promo.create({
-    data: {
-      businessId,
-      name: payload.name,
-      description: payload.description ?? null,
-      targetType: payload.targetType,
-      categoryId:
-        payload.targetType === PromoTargetType.CATEGORY
-          ? payload.categoryId ?? null
+  const validatedSelectedOutletIds = await validateSelectedOutlets(
+    businessId,
+    payload.outletScope,
+    payload.selectedOutletIds,
+  );
+
+  const promo = await prisma.$transaction(async (tx) => {
+    const createdPromo = await tx.promo.create({
+      data: {
+        businessId,
+        name: payload.name,
+        description: payload.description ?? null,
+        targetType: payload.targetType,
+        categoryId:
+          payload.targetType === PromoTargetType.CATEGORY
+            ? payload.categoryId ?? null
+            : null,
+        productId:
+          payload.targetType === PromoTargetType.PRODUCT
+            ? payload.productId ?? null
+            : null,
+        targetTextValue: isTextBasedPromoTargetType(payload.targetType)
+          ? payload.targetTextValue ?? null
           : null,
-      productId:
-        payload.targetType === PromoTargetType.PRODUCT
-          ? payload.productId ?? null
-          : null,
-      targetTextValue: isTextBasedPromoTargetType(payload.targetType)
-        ? payload.targetTextValue ?? null
-        : null,
-      discountType: payload.discountType,
-      discountValue: new Prisma.Decimal(payload.discountValue),
-      startDate: normalizeDateOnlyInput(payload.startDate),
-      endDate: normalizeDateOnlyInput(payload.endDate),
-      startTime: payload.startTime,
-      endTime: payload.endTime,
-      status: payload.status ?? PromoStatus.ACTIVE,
-    },
-    include: {
-      category: {
-        select: {
-          id: true,
-          name: true,
+        discountType: payload.discountType,
+        discountValue: new Prisma.Decimal(payload.discountValue),
+        startDate: normalizeDateOnlyInput(payload.startDate),
+        endDate: normalizeDateOnlyInput(payload.endDate),
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        status: payload.status ?? PromoStatus.ACTIVE,
+        outletScope: payload.outletScope,
+      },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
       },
-      product: {
-        select: {
-          id: true,
-          name: true,
+    });
+
+    if (
+      payload.outletScope === PromoOutletScope.SELECTED_OUTLETS &&
+      validatedSelectedOutletIds.length > 0
+    ) {
+      await tx.promoOutlet.createMany({
+        data: validatedSelectedOutletIds.map((outletId) => ({
+          promoId: createdPromo.id,
+          outletId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return tx.promo.findFirst({
+      where: {
+        id: createdPromo.id,
+        businessId,
+      },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        promoOutlets: {
+          include: {
+            outlet: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+          },
+          orderBy: [
+            {
+              outlet: {
+                name: 'asc',
+              },
+            },
+          ],
         },
       },
-    },
+    });
   });
 
-  return mapPromoRecord(promo);
+  if (!promo) {
+    throw new Error('Promo gagal dibuat');
+  }
+
+  return mapPromoRecord({
+    ...promo,
+    discountValue: promo.discountValue ?? null,
+    outletScope: promo.outletScope ?? PromoOutletScope.ALL_OUTLETS,
+  });
 }
 
 export async function updatePromo(
   businessId: string,
   id: string,
-  payload: PromoPayload,
+  payload: PromoBody,
 ) {
   const existing = await prisma.promo.findFirst({
     where: {
@@ -388,50 +603,111 @@ export async function updatePromo(
 
   await validatePromoTargetOwnership(businessId, payload);
 
-  const promo = await prisma.promo.update({
-    where: {
-      id,
-    },
-    data: {
-      name: payload.name,
-      description: payload.description ?? null,
-      targetType: payload.targetType,
-      categoryId:
-        payload.targetType === PromoTargetType.CATEGORY
-          ? payload.categoryId ?? null
+  const validatedSelectedOutletIds = await validateSelectedOutlets(
+    businessId,
+    payload.outletScope,
+    payload.selectedOutletIds,
+  );
+
+  const promo = await prisma.$transaction(async (tx) => {
+    await tx.promo.update({
+      where: {
+        id,
+      },
+      data: {
+        name: payload.name,
+        description: payload.description ?? null,
+        targetType: payload.targetType,
+        categoryId:
+          payload.targetType === PromoTargetType.CATEGORY
+            ? payload.categoryId ?? null
+            : null,
+        productId:
+          payload.targetType === PromoTargetType.PRODUCT
+            ? payload.productId ?? null
+            : null,
+        targetTextValue: isTextBasedPromoTargetType(payload.targetType)
+          ? payload.targetTextValue ?? null
           : null,
-      productId:
-        payload.targetType === PromoTargetType.PRODUCT
-          ? payload.productId ?? null
-          : null,
-      targetTextValue: isTextBasedPromoTargetType(payload.targetType)
-        ? payload.targetTextValue ?? null
-        : null,
-      discountType: payload.discountType,
-      discountValue: new Prisma.Decimal(payload.discountValue),
-      startDate: normalizeDateOnlyInput(payload.startDate),
-      endDate: normalizeDateOnlyInput(payload.endDate),
-      startTime: payload.startTime,
-      endTime: payload.endTime,
-      status: payload.status ?? PromoStatus.ACTIVE,
-    },
-    include: {
-      category: {
-        select: {
-          id: true,
-          name: true,
+        discountType: payload.discountType,
+        discountValue: new Prisma.Decimal(payload.discountValue),
+        startDate: normalizeDateOnlyInput(payload.startDate),
+        endDate: normalizeDateOnlyInput(payload.endDate),
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        status: payload.status ?? PromoStatus.ACTIVE,
+        outletScope: payload.outletScope,
+      },
+    });
+
+    await tx.promoOutlet.deleteMany({
+      where: {
+        promoId: id,
+      },
+    });
+
+    if (
+      payload.outletScope === PromoOutletScope.SELECTED_OUTLETS &&
+      validatedSelectedOutletIds.length > 0
+    ) {
+      await tx.promoOutlet.createMany({
+        data: validatedSelectedOutletIds.map((outletId) => ({
+          promoId: id,
+          outletId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return tx.promo.findFirst({
+      where: {
+        id,
+        businessId,
+      },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        promoOutlets: {
+          include: {
+            outlet: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+          },
+          orderBy: [
+            {
+              outlet: {
+                name: 'asc',
+              },
+            },
+          ],
         },
       },
-      product: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
+    });
   });
 
-  return mapPromoRecord(promo);
+  if (!promo) {
+    throw new Error('Promo gagal diubah');
+  }
+
+  return mapPromoRecord({
+    ...promo,
+    discountValue: promo.discountValue ?? null,
+    outletScope: promo.outletScope ?? PromoOutletScope.ALL_OUTLETS,
+  });
 }
 
 export async function updatePromoStatus(
@@ -473,8 +749,30 @@ export async function updatePromoStatus(
           name: true,
         },
       },
+      promoOutlets: {
+        include: {
+          outlet: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
+        orderBy: [
+          {
+            outlet: {
+              name: 'asc',
+            },
+          },
+        ],
+      },
     },
   });
 
-  return mapPromoRecord(promo);
+  return mapPromoRecord({
+    ...promo,
+    discountValue: promo.discountValue ?? null,
+    outletScope: promo.outletScope ?? PromoOutletScope.ALL_OUTLETS,
+  });
 }

@@ -1,4 +1,3 @@
-// pos_web/src/app/dashboard/pos/history/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -17,11 +16,8 @@ import {
   faWallet,
 } from '@fortawesome/free-solid-svg-icons';
 
-import { formatOrderCurrency, formatOrderDateTime, getOrderHistory } from '@/lib/order';
-import { getReceiptByOrderId } from '@/lib/receipt';
-import { getPosOutlets } from '@/lib/pos';
-import type { OrderHistoryItem } from '@/types/order';
-import type { PosOutletItem } from '@/types/pos';
+import { getReceiptByOrderId, getPosOutlets, getOutletOrderHistory } from '@/lib/pos';
+import type { PosHistoryItem, PosOutletItem } from '@/types/pos';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -52,12 +48,33 @@ function getStatusBadgeClass(status: string) {
   }
 }
 
+function formatOrderCurrency(value: number): string {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatOrderDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
 export default function PosOrderHistoryPage() {
   const router = useRouter();
 
   const [outlets, setOutlets] = useState<PosOutletItem[]>([]);
   const [selectedOutletId, setSelectedOutletId] = useState('');
-  const [items, setItems] = useState<OrderHistoryItem[]>([]);
+  const [items, setItems] = useState<PosHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -76,19 +93,23 @@ export default function PosOrderHistoryPage() {
 
     setOutlets(outletItems);
 
-    if (outletItems.length > 0) {
-      const storedOutletId =
-        typeof window !== 'undefined'
-          ? window.localStorage.getItem('activeOutletId')
-          : null;
-
-      const resolvedOutletId =
-        storedOutletId && outletItems.some((item) => item.id === storedOutletId)
-          ? storedOutletId
-          : outletItems[0].id;
-
-      setSelectedOutletId((prev) => prev || resolvedOutletId);
+    if (outletItems.length === 0) {
+      setSelectedOutletId('');
+      setLoading(false);
+      return;
     }
+
+    const storedOutletId =
+      typeof window !== 'undefined'
+        ? window.localStorage.getItem('activeOutletId')
+        : null;
+
+    const resolvedOutletId =
+      storedOutletId && outletItems.some((item) => item.id === storedOutletId)
+        ? storedOutletId
+        : outletItems[0].id;
+
+    setSelectedOutletId((prev) => prev || resolvedOutletId);
   }
 
   async function loadOrders(outletId: string, search?: string) {
@@ -102,7 +123,7 @@ export default function PosOrderHistoryPage() {
       setLoading(true);
       setMessage('');
 
-      const response = await getOrderHistory({
+      const response = await getOutletOrderHistory({
         outletId,
         perPage: 50,
         search: search?.trim() || undefined,
@@ -121,6 +142,7 @@ export default function PosOrderHistoryPage() {
     async function initialize() {
       try {
         setLoading(true);
+        setMessage('');
         await loadOutlets();
       } catch (error: unknown) {
         setMessage(getErrorMessage(error, 'Gagal memuat outlet'));
@@ -153,7 +175,7 @@ export default function PosOrderHistoryPage() {
     setSearchKeyword('');
   }
 
-  async function handleOpenReceipt(order: OrderHistoryItem) {
+  async function handleOpenReceipt(order: PosHistoryItem) {
     if (!selectedOutletId) {
       setMessage('Pilih outlet aktif terlebih dahulu');
       return;
@@ -172,7 +194,7 @@ export default function PosOrderHistoryPage() {
     }
   }
 
-  async function handlePrintReceipt(order: OrderHistoryItem) {
+  async function handlePrintReceipt(order: PosHistoryItem) {
     if (!selectedOutletId) {
       setMessage('Pilih outlet aktif terlebih dahulu');
       return;
@@ -355,10 +377,6 @@ export default function PosOrderHistoryPage() {
                         <span>• {item.itemCount} item</span>
                         <span>• {formatOrderDateTime(item.createdAt)}</span>
                       </div>
-
-                      {item.notes ? (
-                        <p className="mt-3 text-sm text-slate-600">{item.notes}</p>
-                      ) : null}
                     </div>
 
                     <div className="text-right">

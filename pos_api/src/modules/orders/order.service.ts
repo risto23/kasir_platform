@@ -4,6 +4,10 @@ import {
   PaymentStatus,
   Prisma,
   ProductOutletStatus,
+  PromoDiscountType,
+  PromoOutletScope,
+  PromoStatus,
+  PromoTargetType,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import type {
@@ -160,15 +164,102 @@ async function ensureTableIsValidForOrder(
   return table;
 }
 
-async function getProductPriceForOutlet(
+function getJakartaNowParts() {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(new Date());
+
+  const year = parts.find((item) => item.type === 'year')?.value ?? '0000';
+  const month = parts.find((item) => item.type === 'month')?.value ?? '00';
+  const day = parts.find((item) => item.type === 'day')?.value ?? '00';
+  const hour = parts.find((item) => item.type === 'hour')?.value ?? '00';
+  const minute = parts.find((item) => item.type === 'minute')?.value ?? '00';
+
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hour}:${minute}`,
+  };
+}
+
+function formatDateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeComparableText(value?: string | null) {
+  const normalized = value?.trim().toLowerCase();
+  return normalized && normalized.length > 0 ? normalized : null;
+}
+
+function isPromoActiveNow(promo: {
+  startDate: Date;
+  endDate: Date;
+  startTime: string;
+  endTime: string;
+  status: PromoStatus;
+}) {
+  if (promo.status !== PromoStatus.ACTIVE) {
+    return false;
+  }
+
+  const now = getJakartaNowParts();
+  const startDate = formatDateOnly(promo.startDate);
+  const endDate = formatDateOnly(promo.endDate);
+
+  if (now.date < startDate) {
+    return false;
+  }
+
+  if (now.date > endDate) {
+    return false;
+  }
+
+  if (now.date === startDate && now.time < promo.startTime) {
+    return false;
+  }
+
+  if (now.date === endDate && now.time > promo.endTime) {
+    return false;
+  }
+
+  return true;
+}
+
+type ProductPricingWithPromo = {
+  product: {
+    id: string;
+    name: string;
+    code: string | null;
+    sku: string | null;
+    barcode: string | null;
+    brand: string | null;
+    unit: string | null;
+    categoryId: string | null;
+  };
+  unitPrice: Prisma.Decimal;
+  unitDiscountAmount: Prisma.Decimal;
+  lineDiscountAmount: Prisma.Decimal;
+  lineSubtotal: Prisma.Decimal;
+  lineTotal: Prisma.Decimal;
+};
+
+async function getProductPricingForOrderItem(
   tx: Prisma.TransactionClient,
   params: {
     businessId: string;
     outletId: string;
     productId: string;
+    quantity: number;
   },
-) {
-  const { businessId, outletId, productId } = params;
+): Promise<ProductPricingWithPromo> {
+  const { businessId, outletId, productId, quantity } = params;
 
   const product = await tx.product.findFirst({
     where: {
@@ -177,7 +268,7 @@ async function getProductPriceForOutlet(
       status: 'ACTIVE',
     },
     include: {
-      outletSettings: {
+      productOutletSettings: {
         where: {
           outletId,
         },
@@ -190,7 +281,7 @@ async function getProductPriceForOutlet(
     throw new Error('Product tidak ditemukan atau tidak aktif');
   }
 
-  const outletSetting = product.outletSettings[0];
+  const outletSetting = product.productOutletSettings[0];
 
   if (!outletSetting) {
     throw new Error('Product belum memiliki pengaturan outlet');
@@ -204,10 +295,101 @@ async function getProductPriceForOutlet(
   }
 
   const unitPrice = outletSetting.priceOverride ?? product.basePrice;
+  const quantityDecimal = new Prisma.Decimal(quantity);
+  const lineSubtotal = unitPrice.mul(quantityDecimal);
+
+  const promos = await tx.promo.findMany({
+    where: {
+      businessId,
+      status: PromoStatus.ACTIVE,
+    },
+    include: {
+      promoOutlets: {
+        select: {
+          outletId: true,
+        },
+      },
+    },
+    orderBy: [{ createdAt: 'desc' }],
+  });
+
+  const eligiblePromos = promos.filter((promo) => {
+    if (!isPromoActiveNow(promo)) {
+      return false;
+    }
+
+    const outletScope = promo.outletScope ?? PromoOutletScope.ALL_OUTLETS;
+
+    if (outletScope === PromoOutletScope.ALL_OUTLETS) {
+      return true;
+    }
+
+    return promo.promoOutlets.some((item) => item.outletId === outletId);
+  });
+
+  let bestUnitDiscount = new Prisma.Decimal(0);
+
+  for (const promo of eligiblePromos) {
+    let isMatch = false;
+
+    if (promo.targetType === PromoTargetType.CATEGORY) {
+      isMatch =
+        promo.categoryId !== null && promo.categoryId === product.categoryId;
+    } else if (promo.targetType === PromoTargetType.PRODUCT) {
+      isMatch = promo.productId !== null && promo.productId === product.id;
+    } else if (promo.targetType === PromoTargetType.PRODUCT_NAME) {
+      isMatch =
+        normalizeComparableText(promo.targetTextValue) ===
+        normalizeComparableText(product.name);
+    } else if (promo.targetType === PromoTargetType.BRAND) {
+      isMatch =
+        normalizeComparableText(promo.targetTextValue) ===
+        normalizeComparableText(product.brand);
+    } else if (promo.targetType === PromoTargetType.UNIT) {
+      isMatch =
+        normalizeComparableText(promo.targetTextValue) ===
+        normalizeComparableText(product.unit);
+    }
+
+    if (!isMatch) {
+      continue;
+    }
+
+    const discountValue = promo.discountValue ?? new Prisma.Decimal(0);
+
+    let candidateUnitDiscount =
+      promo.discountType === PromoDiscountType.PERCENTAGE
+        ? unitPrice.mul(discountValue).div(new Prisma.Decimal(100))
+        : new Prisma.Decimal(discountValue);
+
+    if (candidateUnitDiscount.greaterThan(unitPrice)) {
+      candidateUnitDiscount = new Prisma.Decimal(unitPrice);
+    }
+
+    if (candidateUnitDiscount.greaterThan(bestUnitDiscount)) {
+      bestUnitDiscount = candidateUnitDiscount;
+    }
+  }
+
+  const lineDiscountAmount = bestUnitDiscount.mul(quantityDecimal);
+  const lineTotal = lineSubtotal.minus(lineDiscountAmount);
 
   return {
-    product,
+    product: {
+      id: product.id,
+      name: product.name,
+      code: product.code,
+      sku: product.sku,
+      barcode: product.barcode,
+      brand: product.brand,
+      unit: product.unit,
+      categoryId: product.categoryId,
+    },
     unitPrice,
+    unitDiscountAmount: bestUnitDiscount,
+    lineDiscountAmount,
+    lineSubtotal,
+    lineTotal,
   };
 }
 
@@ -448,16 +630,14 @@ async function createSingleOrderItem(
     item: CreateOrderItemInput;
   },
 ) {
-  const pricing = await getProductPriceForOutlet(tx, {
+  const pricing = await getProductPricingForOrderItem(tx, {
     businessId: params.businessId,
     outletId: params.outletId,
     productId: params.item.productId,
+    quantity: params.item.quantity,
   });
 
   const quantityDecimal = new Prisma.Decimal(params.item.quantity);
-  const lineSubtotal = pricing.unitPrice.mul(quantityDecimal);
-  const lineDiscountAmount = new Prisma.Decimal(0);
-  const lineTotal = lineSubtotal.minus(lineDiscountAmount);
 
   return tx.orderItem.create({
     data: {
@@ -470,9 +650,9 @@ async function createSingleOrderItem(
       unitPrice: pricing.unitPrice,
       quantity: quantityDecimal,
       note: params.item.note?.trim() || null,
-      lineSubtotal,
-      lineDiscountAmount,
-      lineTotal,
+      lineSubtotal: pricing.lineSubtotal,
+      lineDiscountAmount: pricing.lineDiscountAmount,
+      lineTotal: pricing.lineTotal,
     },
   });
 }
@@ -615,7 +795,7 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
       },
       select: {
         id: true,
-        unitPrice: true,
+        productId: true,
       },
     });
 
@@ -623,10 +803,14 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
       throw new Error('Item order tidak ditemukan');
     }
 
+    const pricing = await getProductPricingForOrderItem(tx, {
+      businessId: input.businessId,
+      outletId: input.outletId,
+      productId: item.productId,
+      quantity: input.quantity,
+    });
+
     const quantityDecimal = new Prisma.Decimal(input.quantity);
-    const lineSubtotal = item.unitPrice.mul(quantityDecimal);
-    const lineDiscountAmount = new Prisma.Decimal(0);
-    const lineTotal = lineSubtotal.minus(lineDiscountAmount);
 
     await tx.orderItem.update({
       where: {
@@ -635,9 +819,9 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
       data: {
         quantity: quantityDecimal,
         note: input.note?.trim() || null,
-        lineSubtotal,
-        lineDiscountAmount,
-        lineTotal,
+        lineSubtotal: pricing.lineSubtotal,
+        lineDiscountAmount: pricing.lineDiscountAmount,
+        lineTotal: pricing.lineTotal,
       },
     });
 

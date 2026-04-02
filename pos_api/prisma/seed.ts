@@ -9,6 +9,10 @@ import {
   ProductStatus,
   ProductOutletStatus,
   OutletTableStatus,
+  PromoDiscountType,
+  PromoOutletScope,
+  PromoStatus,
+  PromoTargetType,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -92,6 +96,80 @@ async function enableFeatureFlag(
   });
 
   return featureFlag;
+}
+
+
+type UpsertPromoInput = {
+  businessId: string;
+  name: string;
+  description: string | null;
+  targetType: PromoTargetType;
+  categoryId: string | null;
+  productId: string | null;
+  targetTextValue: string | null;
+  discountType: PromoDiscountType;
+  discountValue: number;
+  startDate: Date;
+  endDate: Date;
+  startTime: string;
+  endTime: string;
+  status: PromoStatus;
+  outletScope: PromoOutletScope;
+};
+
+async function upsertPromoByBusinessAndName(input: UpsertPromoInput) {
+  const existingPromo = await prisma.promo.findFirst({
+    where: {
+      businessId: input.businessId,
+      name: input.name,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingPromo) {
+    return prisma.promo.update({
+      where: {
+        id: existingPromo.id,
+      },
+      data: {
+        description: input.description,
+        targetType: input.targetType,
+        categoryId: input.categoryId,
+        productId: input.productId,
+        targetTextValue: input.targetTextValue,
+        discountType: input.discountType,
+        discountValue: input.discountValue,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        status: input.status,
+        outletScope: input.outletScope,
+      },
+    });
+  }
+
+  return prisma.promo.create({
+    data: {
+      businessId: input.businessId,
+      name: input.name,
+      description: input.description,
+      targetType: input.targetType,
+      categoryId: input.categoryId,
+      productId: input.productId,
+      targetTextValue: input.targetTextValue,
+      discountType: input.discountType,
+      discountValue: input.discountValue,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      status: input.status,
+      outletScope: input.outletScope,
+    },
+  });
 }
 
 async function main() {
@@ -1499,6 +1577,105 @@ async function main() {
     });
   }
 
+  const retailPromoAllOutlets = await upsertPromoByBusinessAndName({
+    businessId: retailBusiness.id,
+    name: 'Promo Teh Semua Outlet',
+    description: 'Promo Teh Botol berlaku untuk semua outlet retail',
+    targetType: PromoTargetType.PRODUCT,
+    categoryId: null,
+    productId: retailProductTea.id,
+    targetTextValue: null,
+    discountType: PromoDiscountType.FIXED_AMOUNT,
+    discountValue: 1000,
+    startDate: new Date('2026-04-01T00:00:00.000Z'),
+    endDate: new Date('2026-04-30T23:59:59.000Z'),
+    startTime: '08:00',
+    endTime: '22:00',
+    status: PromoStatus.ACTIVE,
+    outletScope: PromoOutletScope.ALL_OUTLETS,
+  });
+
+  const retailPromoSelectedOutlet = await upsertPromoByBusinessAndName({
+    businessId: retailBusiness.id,
+    name: 'Promo Snack Outlet Tertentu',
+    description: 'Promo snack hanya berlaku di outlet retail tertentu',
+    targetType: PromoTargetType.CATEGORY,
+    categoryId: retailCategorySnacks.id,
+    productId: null,
+    targetTextValue: null,
+    discountType: PromoDiscountType.PERCENTAGE,
+    discountValue: 10,
+    startDate: new Date('2026-04-01T00:00:00.000Z'),
+    endDate: new Date('2026-04-30T23:59:59.000Z'),
+    startTime: '08:00',
+    endTime: '22:00',
+    status: PromoStatus.ACTIVE,
+    outletScope: PromoOutletScope.SELECTED_OUTLETS,
+  });
+
+  const restaurantPromoAllOutlets = await upsertPromoByBusinessAndName({
+    businessId: restaurantBusiness.id,
+    name: 'Promo Es Teh Semua Outlet',
+    description: 'Promo es teh berlaku di semua outlet restaurant',
+    targetType: PromoTargetType.PRODUCT,
+    categoryId: null,
+    productId: restaurantProductEsTeh.id,
+    targetTextValue: null,
+    discountType: PromoDiscountType.FIXED_AMOUNT,
+    discountValue: 2000,
+    startDate: new Date('2026-04-01T00:00:00.000Z'),
+    endDate: new Date('2026-04-30T23:59:59.000Z'),
+    startTime: '10:00',
+    endTime: '21:00',
+    status: PromoStatus.ACTIVE,
+    outletScope: PromoOutletScope.ALL_OUTLETS,
+  });
+
+  const restaurantPromoSelectedOutlet = await upsertPromoByBusinessAndName({
+    businessId: restaurantBusiness.id,
+    name: 'Promo Nasi Goreng Outlet Utama',
+    description: 'Promo nasi goreng hanya berlaku di outlet utama restaurant',
+    targetType: PromoTargetType.PRODUCT,
+    categoryId: null,
+    productId: restaurantProductNasiGoreng.id,
+    targetTextValue: null,
+    discountType: PromoDiscountType.PERCENTAGE,
+    discountValue: 15,
+    startDate: new Date('2026-04-01T00:00:00.000Z'),
+    endDate: new Date('2026-04-30T23:59:59.000Z'),
+    startTime: '11:00',
+    endTime: '20:00',
+    status: PromoStatus.ACTIVE,
+    outletScope: PromoOutletScope.SELECTED_OUTLETS,
+  });
+
+  await prisma.promoOutlet.deleteMany({
+    where: {
+      promoId: {
+        in: [
+          retailPromoAllOutlets.id,
+          retailPromoSelectedOutlet.id,
+          restaurantPromoAllOutlets.id,
+          restaurantPromoSelectedOutlet.id,
+        ],
+      },
+    },
+  });
+
+  await prisma.promoOutlet.createMany({
+    data: [
+      {
+        promoId: retailPromoSelectedOutlet.id,
+        outletId: retailOutletOne.id,
+      },
+      {
+        promoId: restaurantPromoSelectedOutlet.id,
+        outletId: restaurantOutletOne.id,
+      },
+    ],
+    skipDuplicates: true,
+  });
+
   console.log('Seed completed.');
   console.log({
     superAdmins: {
@@ -1584,6 +1761,18 @@ async function main() {
         'outletAddress',
         'contentSnapshot',
       ],
+    },
+    promoOutletScope: {
+      retailAllOutlets: retailPromoAllOutlets.name,
+      retailSelectedOutlet: {
+        promoName: retailPromoSelectedOutlet.name,
+        outlets: [retailOutletOne.code],
+      },
+      restaurantAllOutlets: restaurantPromoAllOutlets.name,
+      restaurantSelectedOutlet: {
+        promoName: restaurantPromoSelectedOutlet.name,
+        outlets: [restaurantOutletOne.code],
+      },
     },
   });
 }

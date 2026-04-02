@@ -7,6 +7,7 @@ import {
   formatPromoPeriod,
   formatPromoTargetValue,
   getPromoFormMeta,
+  getPromoOutletScopeLabel,
   getPromoStatusLabel,
   getPromoTargetTypeLabel,
   getPromos,
@@ -17,6 +18,7 @@ import type {
   PromoEffectiveStatus,
   PromoFormMeta,
   PromoItem,
+  PromoOutletScope,
   PromoStatus,
   PromoTargetType,
 } from '@/types/promo';
@@ -26,6 +28,7 @@ type Filters = {
   targetType: PromoTargetType | '';
   status: PromoStatus | '';
   effectiveStatus: PromoEffectiveStatus | '';
+  outletScope: PromoOutletScope | '';
 };
 
 const initialFilters: Filters = {
@@ -33,6 +36,7 @@ const initialFilters: Filters = {
   targetType: '',
   status: '',
   effectiveStatus: '',
+  outletScope: '',
 };
 
 export default function PromosPage() {
@@ -57,7 +61,6 @@ export default function PromosPage() {
         setError('');
 
         const response = await getPromoFormMeta();
-        console.log('Meta promo:', response);
 
         if (!cancelled) {
           setMeta(response);
@@ -86,7 +89,6 @@ export default function PromosPage() {
       setError('');
 
       const response = await getPromos(currentFilters);
-      console.log('Daftar promo:', response);
       setItems(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat promo');
@@ -137,7 +139,7 @@ export default function PromosPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Promo</h1>
           <p className="mt-1 text-sm text-slate-500">
             Kelola promo untuk kategori, {itemLabel.toLowerCase()}, nama, brand,
-            dan satuan.
+            satuan, dan cakupan outlet.
           </p>
         </div>
 
@@ -156,7 +158,7 @@ export default function PromosPage() {
       ) : null}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <div className="md:col-span-1">
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Cari
@@ -186,6 +188,27 @@ export default function PromosPage() {
               {(meta?.targetTypes ?? []).map((type) => (
                 <option key={type} value={type}>
                   {getPromoTargetTypeLabel(type)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Scope Outlet
+            </label>
+            <select
+              value={filters.outletScope}
+              onChange={(event) =>
+                setFilter('outletScope', event.target.value as Filters['outletScope'])
+              }
+              disabled={loadingMeta}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500 disabled:bg-slate-100"
+            >
+              <option value="">Semua</option>
+              {(meta?.outletScopes ?? []).map((scope) => (
+                <option key={scope} value={scope}>
+                  {getPromoOutletScopeLabel(scope)}
                 </option>
               ))}
             </select>
@@ -239,6 +262,7 @@ export default function PromosPage() {
               <tr>
                 <th className="px-4 py-3 font-semibold">Promo</th>
                 <th className="px-4 py-3 font-semibold">Target</th>
+                <th className="px-4 py-3 font-semibold">Outlet</th>
                 <th className="px-4 py-3 font-semibold">Diskon</th>
                 <th className="px-4 py-3 font-semibold">Periode</th>
                 <th className="px-4 py-3 font-semibold">Status Dasar</th>
@@ -249,13 +273,13 @@ export default function PromosPage() {
             <tbody>
               {loadingList ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
                     Memuat promo...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
                     Belum ada data promo.
                   </td>
                 </tr>
@@ -275,6 +299,17 @@ export default function PromosPage() {
                       </div>
                       <div className="mt-1 text-xs text-slate-500">
                         {formatPromoTargetValue(item.targetType, item.targetLabel)}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4 align-top">
+                      <div className="font-medium text-slate-800">
+                        {getPromoOutletScopeLabel(item.outletScope)}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {item.outletScope === 'SELECTED_OUTLETS'
+                          ? `${item.selectedOutletCount} outlet`
+                          : 'Semua outlet aktif'}
                       </div>
                     </td>
 

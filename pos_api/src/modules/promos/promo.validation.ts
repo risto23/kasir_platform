@@ -1,5 +1,6 @@
 import {
   PromoDiscountType,
+  PromoOutletScope,
   PromoStatus,
   PromoTargetType,
 } from '@prisma/client';
@@ -19,20 +20,40 @@ const TEXT_BASED_PROMO_TARGET_TYPES: PromoTargetType[] = [
   PromoTargetType.UNIT,
 ];
 
-function isTextBasedPromoTargetType(
-  targetType: PromoTargetType,
-): boolean {
+function isTextBasedPromoTargetType(targetType: PromoTargetType): boolean {
   return TEXT_BASED_PROMO_TARGET_TYPES.includes(targetType);
 }
+
+const selectedOutletIdsSchema = z
+  .array(idSchema)
+  .optional()
+  .transform((value) => {
+    if (!value) {
+      return [];
+    }
+
+    const uniqueIds = Array.from(new Set(value.map((item) => item.trim())));
+    return uniqueIds.filter((item) => item.length > 0);
+  });
 
 const promoBodySchema = z
   .object({
     name: z.string().trim().min(1, 'Nama promo wajib diisi').max(120),
-    description: z.string().trim().max(500).nullable().optional(),
+    description: z
+      .string()
+      .trim()
+      .max(500, 'Deskripsi maksimal 500 karakter')
+      .nullable()
+      .optional(),
     targetType: z.nativeEnum(PromoTargetType),
     categoryId: idSchema.nullable().optional(),
     productId: idSchema.nullable().optional(),
-    targetTextValue: z.string().trim().max(120).nullable().optional(),
+    targetTextValue: z
+      .string()
+      .trim()
+      .max(120, 'Nilai target maksimal 120 karakter')
+      .nullable()
+      .optional(),
     discountType: z.nativeEnum(PromoDiscountType),
     discountValue: z.coerce.number(),
     startDate: dateSchema,
@@ -40,6 +61,10 @@ const promoBodySchema = z
     startTime: timeSchema,
     endTime: timeSchema,
     status: z.nativeEnum(PromoStatus).optional(),
+    outletScope: z
+      .nativeEnum(PromoOutletScope)
+      .default(PromoOutletScope.ALL_OUTLETS),
+    selectedOutletIds: selectedOutletIdsSchema,
   })
   .superRefine((value, ctx) => {
     if (value.discountValue <= 0) {
@@ -79,7 +104,7 @@ const promoBodySchema = z
 
     if (
       isTextBasedPromoTargetType(value.targetType) &&
-      !value.targetTextValue
+      !value.targetTextValue?.trim()
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -88,10 +113,7 @@ const promoBodySchema = z
       });
     }
 
-    if (
-      value.targetType !== PromoTargetType.CATEGORY &&
-      value.categoryId
-    ) {
+    if (value.targetType !== PromoTargetType.CATEGORY && value.categoryId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['categoryId'],
@@ -99,10 +121,7 @@ const promoBodySchema = z
       });
     }
 
-    if (
-      value.targetType !== PromoTargetType.PRODUCT &&
-      value.productId
-    ) {
+    if (value.targetType !== PromoTargetType.PRODUCT && value.productId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['productId'],
@@ -112,12 +131,12 @@ const promoBodySchema = z
 
     if (
       !isTextBasedPromoTargetType(value.targetType) &&
-      value.targetTextValue
+      value.targetTextValue?.trim()
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['targetTextValue'],
-        message: 'targetTextValue hanya boleh diisi untuk name / brand / unit',
+        message: 'targetTextValue hanya boleh diisi untuk target name / brand / unit',
       });
     }
 
@@ -139,6 +158,17 @@ const promoBodySchema = z
         message: 'Jam akhir harus lebih besar dari jam mulai jika tanggal sama',
       });
     }
+
+    if (
+      value.outletScope === PromoOutletScope.SELECTED_OUTLETS &&
+      value.selectedOutletIds.length === 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['selectedOutletIds'],
+        message: 'selectedOutletIds wajib diisi minimal 1 outlet untuk SELECTED_OUTLETS',
+      });
+    }
   });
 
 export const listPromosSchema = z.object({
@@ -149,6 +179,7 @@ export const listPromosSchema = z.object({
       .enum(['ACTIVE', 'INACTIVE', 'SCHEDULED', 'EXPIRED'])
       .optional(),
     status: z.nativeEnum(PromoStatus).optional(),
+    outletScope: z.nativeEnum(PromoOutletScope).optional(),
   }),
 });
 

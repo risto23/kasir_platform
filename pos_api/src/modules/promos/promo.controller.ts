@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { ZodError } from 'zod';
 import {
   createPromo,
   getPromoById,
@@ -7,6 +8,19 @@ import {
   updatePromo,
   updatePromoStatus,
 } from './promo.service';
+import {
+  createPromoSchema,
+  getPromoByIdSchema,
+  listPromosSchema,
+  updatePromoSchema,
+  updatePromoStatusSchema,
+} from './promo.validation';
+import type {
+  PromoBody,
+  PromoListQuery,
+  PromoParams,
+  PromoStatusBody,
+} from './promo.types';
 
 function getBusinessId(req: Request): string {
   const businessId = req.businessAccess?.businessId;
@@ -24,6 +38,102 @@ function getErrorMessage(error: unknown): string {
   }
 
   return 'Terjadi kesalahan';
+}
+
+function getValidationMessage(error: ZodError): string {
+  const firstIssue = error.issues[0];
+
+  if (!firstIssue) {
+    return 'Validation error';
+  }
+
+  return firstIssue.message;
+}
+
+function parseListPromoQuery(req: Request, res: Response): PromoListQuery {
+  if (res.locals.validatedQuery) {
+    return res.locals.validatedQuery as PromoListQuery;
+  }
+
+  const parsed = listPromosSchema.parse({
+    query: req.query,
+  });
+
+  return parsed.query;
+}
+
+function parsePromoParams(req: Request, res: Response): PromoParams {
+  if (res.locals.validatedParams) {
+    return res.locals.validatedParams as PromoParams;
+  }
+
+  const parsed = getPromoByIdSchema.parse({
+    params: req.params,
+  });
+
+  return parsed.params;
+}
+
+function parseCreatePromoBody(req: Request, res: Response): PromoBody {
+  if (res.locals.validatedBody) {
+    return res.locals.validatedBody as PromoBody;
+  }
+
+  const parsed = createPromoSchema.parse({
+    body: req.body,
+  });
+
+  return parsed.body;
+}
+
+function parseUpdatePromoInput(
+  req: Request,
+  res: Response,
+): {
+  params: PromoParams;
+  body: PromoBody;
+} {
+  if (res.locals.validatedParams && res.locals.validatedBody) {
+    return {
+      params: res.locals.validatedParams as PromoParams,
+      body: res.locals.validatedBody as PromoBody,
+    };
+  }
+
+  const parsed = updatePromoSchema.parse({
+    params: req.params,
+    body: req.body,
+  });
+
+  return {
+    params: parsed.params,
+    body: parsed.body,
+  };
+}
+
+function parseUpdatePromoStatusInput(
+  req: Request,
+  res: Response,
+): {
+  params: PromoParams;
+  body: PromoStatusBody;
+} {
+  if (res.locals.validatedParams && res.locals.validatedBody) {
+    return {
+      params: res.locals.validatedParams as PromoParams,
+      body: res.locals.validatedBody as PromoStatusBody,
+    };
+  }
+
+  const parsed = updatePromoStatusSchema.parse({
+    params: req.params,
+    body: req.body,
+  });
+
+  return {
+    params: parsed.params,
+    body: parsed.body,
+  };
 }
 
 export async function getPromoFormMetaController(req: Request, res: Response) {
@@ -51,7 +161,7 @@ export async function getPromoFormMetaController(req: Request, res: Response) {
 export async function listPromosController(req: Request, res: Response) {
   try {
     const businessId = getBusinessId(req);
-    const validatedQuery = res.locals.validatedQuery ?? {};
+    const validatedQuery = parseListPromoQuery(req, res);
 
     const data = await listPromos({
       businessId,
@@ -59,6 +169,7 @@ export async function listPromosController(req: Request, res: Response) {
       targetType: validatedQuery.targetType,
       effectiveStatus: validatedQuery.effectiveStatus,
       status: validatedQuery.status,
+      outletScope: validatedQuery.outletScope,
     });
 
     return res.json({
@@ -67,6 +178,14 @@ export async function listPromosController(req: Request, res: Response) {
       data,
     });
   } catch (error: unknown) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: getValidationMessage(error),
+        errors: error.flatten(),
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: getErrorMessage(error),
@@ -78,7 +197,7 @@ export async function listPromosController(req: Request, res: Response) {
 export async function getPromoByIdController(req: Request, res: Response) {
   try {
     const businessId = getBusinessId(req);
-    const validatedParams = res.locals.validatedParams ?? {};
+    const validatedParams = parsePromoParams(req, res);
 
     const data = await getPromoById(businessId, validatedParams.id);
 
@@ -88,6 +207,14 @@ export async function getPromoByIdController(req: Request, res: Response) {
       data,
     });
   } catch (error: unknown) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: getValidationMessage(error),
+        errors: error.flatten(),
+      });
+    }
+
     const message = getErrorMessage(error);
     const statusCode = message.includes('tidak ditemukan') ? 404 : 500;
 
@@ -102,7 +229,7 @@ export async function getPromoByIdController(req: Request, res: Response) {
 export async function createPromoController(req: Request, res: Response) {
   try {
     const businessId = getBusinessId(req);
-    const validatedBody = res.locals.validatedBody ?? {};
+    const validatedBody = parseCreatePromoBody(req, res);
 
     const data = await createPromo(businessId, validatedBody);
 
@@ -112,6 +239,14 @@ export async function createPromoController(req: Request, res: Response) {
       data,
     });
   } catch (error: unknown) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: getValidationMessage(error),
+        errors: error.flatten(),
+      });
+    }
+
     const message = getErrorMessage(error);
     const statusCode = message.includes('tidak ditemukan') ? 404 : 400;
 
@@ -126,13 +261,12 @@ export async function createPromoController(req: Request, res: Response) {
 export async function updatePromoController(req: Request, res: Response) {
   try {
     const businessId = getBusinessId(req);
-    const validatedParams = res.locals.validatedParams ?? {};
-    const validatedBody = res.locals.validatedBody ?? {};
+    const validatedInput = parseUpdatePromoInput(req, res);
 
     const data = await updatePromo(
       businessId,
-      validatedParams.id,
-      validatedBody,
+      validatedInput.params.id,
+      validatedInput.body,
     );
 
     return res.json({
@@ -141,6 +275,14 @@ export async function updatePromoController(req: Request, res: Response) {
       data,
     });
   } catch (error: unknown) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: getValidationMessage(error),
+        errors: error.flatten(),
+      });
+    }
+
     const message = getErrorMessage(error);
     const statusCode = message.includes('tidak ditemukan') ? 404 : 400;
 
@@ -158,13 +300,12 @@ export async function updatePromoStatusController(
 ) {
   try {
     const businessId = getBusinessId(req);
-    const validatedParams = res.locals.validatedParams ?? {};
-    const validatedBody = res.locals.validatedBody ?? {};
+    const validatedInput = parseUpdatePromoStatusInput(req, res);
 
     const data = await updatePromoStatus(
       businessId,
-      validatedParams.id,
-      validatedBody.status,
+      validatedInput.params.id,
+      validatedInput.body.status,
     );
 
     return res.json({
@@ -173,6 +314,14 @@ export async function updatePromoStatusController(
       data,
     });
   } catch (error: unknown) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: getValidationMessage(error),
+        errors: error.flatten(),
+      });
+    }
+
     const message = getErrorMessage(error);
     const statusCode = message.includes('tidak ditemukan') ? 404 : 400;
 

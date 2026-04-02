@@ -1,8 +1,8 @@
-// pos_web/src/lib/pos.ts
 import { api } from './api';
 import { getActiveBusinessId, getCachedCurrentUser } from './auth';
 import type {
   PosAddOrderItemPayload,
+  PosAppliedPromo,
   PosCartItem,
   PosChargeItem,
   PosCreateOrderPayload,
@@ -37,6 +37,23 @@ type ApiEnvelope<T> = {
   meta?: Partial<PosListMeta>;
 };
 
+type ListApiData<T> =
+  | T[]
+  | {
+      items?: T[];
+      meta?: Partial<PosListMeta>;
+    };
+
+type ProductApiAppliedPromoRow = {
+  id: string;
+  name: string;
+  targetType: 'CATEGORY' | 'PRODUCT' | 'PRODUCT_NAME' | 'BRAND' | 'UNIT';
+  targetValue: string;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue: string;
+  discountAmount?: string | number | null;
+};
+
 type ProductApiRow = {
   id: string;
   businessId: string;
@@ -50,6 +67,10 @@ type ProductApiRow = {
   description?: string | null;
   imageUrl?: string | null;
   basePrice?: string | number | null;
+  effectivePrice?: string | number | null;
+  promoPrice?: string | number | null;
+  promoDiscountAmount?: string | number | null;
+  appliedPromo?: ProductApiAppliedPromoRow | null;
   status?: 'ACTIVE' | 'INACTIVE';
   category?: {
     id: string;
@@ -57,6 +78,8 @@ type ProductApiRow = {
     code?: string | null;
   } | null;
 };
+
+type ProductListApiData = ListApiData<ProductApiRow>;
 
 type OutletApiRow = {
   id: string;
@@ -320,7 +343,58 @@ function normalizeMeta(meta?: Partial<PosListMeta>): PosListMeta {
   };
 }
 
+function extractListRows<T>(data: ListApiData<T> | undefined): T[] {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && Array.isArray(data.items)) {
+    return data.items;
+  }
+
+  return [];
+}
+
+function extractListMeta<T>(
+  envelopeMeta: Partial<PosListMeta> | undefined,
+  data: ListApiData<T> | undefined,
+): PosListMeta {
+  if (data && !Array.isArray(data) && data.meta) {
+    return normalizeMeta(data.meta);
+  }
+
+  return normalizeMeta(envelopeMeta);
+}
+
+function mapAppliedPromo(row?: ProductApiAppliedPromoRow | null): PosAppliedPromo | null {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    targetType: row.targetType,
+    targetValue: row.targetValue,
+    discountType: row.discountType,
+    discountValue: row.discountValue,
+    discountAmount: toNumber(row.discountAmount),
+  };
+}
+
 function mapProduct(row: ProductApiRow): PosProductItem {
+  const basePrice = toNumber(row.basePrice);
+  const effectivePrice =
+    row.effectivePrice !== undefined && row.effectivePrice !== null
+      ? toNumber(row.effectivePrice)
+      : basePrice;
+  const promoPrice =
+    row.promoPrice !== undefined && row.promoPrice !== null
+      ? toNumber(row.promoPrice)
+      : effectivePrice;
+  const promoDiscountAmount = toNumber(row.promoDiscountAmount);
+  const appliedPromo = mapAppliedPromo(row.appliedPromo);
+
   return {
     id: row.id,
     businessId: row.businessId,
@@ -333,7 +407,11 @@ function mapProduct(row: ProductApiRow): PosProductItem {
     unit: row.unit ?? null,
     description: row.description ?? null,
     imageUrl: row.imageUrl ?? null,
-    basePrice: toNumber(row.basePrice),
+    basePrice,
+    effectivePrice,
+    promoPrice,
+    promoDiscountAmount,
+    appliedPromo,
     status: row.status ?? 'ACTIVE',
     category: row.category
       ? {
@@ -658,6 +736,29 @@ function getOutletListFromMembership(): PosOutletItem[] {
   }));
 }
 
+function extractProductRows(data: ProductListApiData | undefined): ProductApiRow[] {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && Array.isArray(data.items)) {
+    return data.items;
+  }
+
+  return [];
+}
+
+function extractProductMeta(
+  envelopeMeta: Partial<PosListMeta> | undefined,
+  data: ProductListApiData | undefined,
+): PosListMeta {
+  if (data && !Array.isArray(data) && data.meta) {
+    return normalizeMeta(data.meta);
+  }
+
+  return normalizeMeta(envelopeMeta);
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -684,6 +785,8 @@ export function formatDateTime(value: string | null | undefined): string {
 }
 
 export function createCartLine(product: PosProductItem): PosCartItem {
+  const linePrice = product.effectivePrice;
+
   return {
     lineId: `${product.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     productId: product.id,
@@ -692,8 +795,8 @@ export function createCartLine(product: PosProductItem): PosCartItem {
     unit: product.unit,
     note: '',
     qty: 1,
-    price: product.basePrice,
-    subtotal: product.basePrice,
+    price: linePrice,
+    subtotal: linePrice,
     imageUrl: product.imageUrl,
   };
 }
@@ -748,7 +851,7 @@ export async function getPosProducts(
 ): Promise<PosProductListResponse> {
   const outletId = params.outletId?.trim() || undefined;
 
-  const response = await api.get<ApiEnvelope<ProductApiRow[]>>('/products', {
+  const response = await api.get<ApiEnvelope<ProductListApiData>>('/products', {
     params: {
       outletId,
       page: params.page ?? 1,
@@ -759,11 +862,12 @@ export async function getPosProducts(
     headers: buildScopedHeaders(outletId),
   });
 
-  const rows = Array.isArray(response.data.data) ? response.data.data : [];
+  const rows = extractProductRows(response.data.data);
+  const meta = extractProductMeta(response.data.meta, response.data.data);
 
   return {
     items: rows.map(mapProduct),
-    meta: normalizeMeta(response.data.meta),
+    meta,
   };
 }
 
@@ -782,23 +886,24 @@ export async function getPosOutlets(): Promise<PosOutletListResponse> {
     };
   }
 
-  const response = await api.get<ApiEnvelope<OutletApiRow[]>>('/business/outlets', {
+  const response = await api.get<ApiEnvelope<ListApiData<OutletApiRow>>>('/business/outlets', {
     params: {
       businessId: getBusinessIdOrThrow(),
     },
     headers: buildScopedHeaders(),
   });
 
-  const rows = Array.isArray(response.data.data) ? response.data.data : [];
+  const rows = extractListRows(response.data.data);
+  const meta = extractListMeta(response.data.meta, response.data.data);
 
   return {
     items: rows.map(mapOutlet),
-    meta: normalizeMeta(response.data.meta),
+    meta,
   };
 }
 
 export async function getPosTables(outletId: string): Promise<PosTableListResponse> {
-  const response = await api.get<ApiEnvelope<TableApiRow[]>>(
+  const response = await api.get<ApiEnvelope<ListApiData<TableApiRow>>>(
     `/business/outlets-tables/${outletId}/tables`,
     {
       params: {
@@ -809,11 +914,12 @@ export async function getPosTables(outletId: string): Promise<PosTableListRespon
     },
   );
 
-  const rows = Array.isArray(response.data.data) ? response.data.data : [];
+  const rows = extractListRows(response.data.data);
+  const meta = extractListMeta(response.data.meta, response.data.data);
 
   return {
     items: rows.map(mapTable),
-    meta: normalizeMeta(response.data.meta),
+    meta,
   };
 }
 
@@ -921,7 +1027,7 @@ export async function getOrderDetail(
 export async function getOutletOrderHistory(
   params: OrderHistoryParams,
 ): Promise<PosHistoryResponse> {
-  const response = await api.get<ApiEnvelope<OrderApiRow[]>>('/orders', {
+  const response = await api.get<ApiEnvelope<ListApiData<OrderApiRow>>>('/orders', {
     params: {
       outletId: params.outletId,
       page: params.page ?? 1,
@@ -933,11 +1039,12 @@ export async function getOutletOrderHistory(
     headers: buildScopedHeaders(params.outletId),
   });
 
-  const rows = Array.isArray(response.data.data) ? response.data.data : [];
+  const rows = extractListRows(response.data.data);
+  const meta = extractListMeta(response.data.meta, response.data.data);
 
   return {
     items: rows.map(mapHistoryItem),
-    meta: normalizeMeta(response.data.meta),
+    meta,
   };
 }
 
@@ -979,7 +1086,7 @@ export async function getPayments(params: {
   items: PosPaymentResponse[];
   meta: PosListMeta;
 }> {
-  const response = await api.get<ApiEnvelope<PaymentApiRow[]>>('/payments', {
+  const response = await api.get<ApiEnvelope<ListApiData<PaymentApiRow>>>('/payments', {
     params: {
       outletId: params.outletId,
       page: params.page ?? 1,
@@ -990,11 +1097,12 @@ export async function getPayments(params: {
     headers: buildScopedHeaders(params.outletId),
   });
 
-  const rows = Array.isArray(response.data.data) ? response.data.data : [];
+  const rows = extractListRows(response.data.data);
+  const meta = extractListMeta(response.data.meta, response.data.data);
 
   return {
     items: rows.map(mapPayment),
-    meta: normalizeMeta(response.data.meta),
+    meta,
   };
 }
 

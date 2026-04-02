@@ -82,6 +82,11 @@ enum PromoDiscountType {
   FIXED_AMOUNT
 }
 
+enum PromoOutletScope {
+  ALL_OUTLETS
+  SELECTED_OUTLETS
+}
+
 enum OrderStatus {
   DRAFT
   SUBMITTED
@@ -94,7 +99,9 @@ enum OrderStatus {
 enum PaymentStatus {
   UNPAID
   PAID
+  PARTIAL
   CANCELLED
+  REFUNDED
 }
 
 enum OrderItemStatus {
@@ -175,10 +182,11 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
+  ownedBusinesses Business[]         @relation("BusinessOwner")
   platformRoles   UserPlatformRole[]
   businessUsers   BusinessUser[]
-  ownedBusinesses Business[]         @relation("BusinessOwner")
 
+  @@index([status])
   @@map("users")
 }
 
@@ -205,7 +213,21 @@ model UserPlatformRole {
   platformRole PlatformRole @relation(fields: [platformRoleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, platformRoleId])
+  @@index([platformRoleId])
   @@map("user_platform_roles")
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  businesses BusinessFeatureFlag[]
+
+  @@map("feature_flags")
 }
 
 model Business {
@@ -252,6 +274,7 @@ model Outlet {
   orders                Order[]
   payments              Payment[]
   receipts              Receipt[]
+  promoOutlets          PromoOutlet[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -338,19 +361,6 @@ model BusinessUserOutletAccess {
   @@map("business_user_outlet_accesses")
 }
 
-model FeatureFlag {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  businesses BusinessFeatureFlag[]
-
-  @@map("feature_flags")
-}
-
 model BusinessFeatureFlag {
   id            String   @id @default(cuid())
   businessId    String
@@ -363,6 +373,7 @@ model BusinessFeatureFlag {
   featureFlag FeatureFlag @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
 
   @@unique([businessId, featureFlagId])
+  @@index([featureFlagId])
   @@map("business_feature_flags")
 }
 
@@ -370,7 +381,7 @@ model Category {
   id          String         @id @default(cuid())
   businessId  String
   name        String
-  code        String?
+  code        String
   description String?
   sortOrder   Int            @default(0)
   status      CategoryStatus @default(ACTIVE)
@@ -393,7 +404,7 @@ model Product {
   businessId  String
   categoryId  String?
   name        String
-  code        String?
+  code        String
   sku         String?
   barcode     String?
   brand       String?
@@ -405,21 +416,22 @@ model Product {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  business       Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  category       Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  outletSettings ProductOutletSetting[]
-  promos         Promo[]
-  orderItems     OrderItem[]
+  business              Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category              Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  productOutletSettings ProductOutletSetting[]
+  promos                Promo[]
+  orderItems            OrderItem[]
 
+  @@unique([businessId, name])
   @@unique([businessId, code])
   @@unique([businessId, sku])
   @@unique([businessId, barcode])
   @@index([businessId, status])
   @@index([businessId, categoryId])
+  @@index([businessId, barcode])
   @@index([businessId, name])
   @@index([businessId, brand])
   @@index([businessId, unit])
-  @@index([businessId, barcode])
   @@map("products")
 }
 
@@ -427,9 +439,9 @@ model ProductOutletSetting {
   id            String              @id @default(cuid())
   productId     String
   outletId      String
-  status        ProductOutletStatus @default(ACTIVE)
   isAvailable   Boolean             @default(true)
   priceOverride Decimal?            @db.Decimal(14, 2)
+  status        ProductOutletStatus @default(ACTIVE)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
@@ -445,8 +457,8 @@ model ProductOutletSetting {
 model OutletTable {
   id        String            @id @default(cuid())
   outletId  String
-  name      String
   code      String
+  name      String
   capacity  Int?
   status    OutletTableStatus @default(ACTIVE)
   createdAt DateTime          @default(now())
@@ -597,17 +609,35 @@ model Promo {
   startTime       String
   endTime         String
   status          PromoStatus       @default(ACTIVE)
+  outletScope     PromoOutletScope  @default(ALL_OUTLETS)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  product  Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  promoOutlets PromoOutlet[]
 
   @@index([businessId, status])
   @@index([businessId, targetType])
   @@index([businessId, startDate, endDate])
+  @@index([businessId, outletScope])
   @@index([categoryId])
   @@index([productId])
   @@map("promos")
+}
+
+model PromoOutlet {
+  id        String   @id @default(cuid())
+  promoId   String
+  outletId  String
+  createdAt DateTime @default(now())
+
+  promo  Promo  @relation(fields: [promoId], references: [id], onDelete: Cascade)
+  outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([promoId, outletId])
+  @@index([promoId])
+  @@index([outletId])
+  @@map("promo_outlets")
 }

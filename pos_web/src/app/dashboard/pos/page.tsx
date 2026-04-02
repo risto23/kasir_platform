@@ -18,6 +18,7 @@ import {
   faPlus,
   faPrint,
   faReceipt,
+  faTag,
   faTrashCan,
   faUtensils,
   faWallet,
@@ -208,6 +209,10 @@ function getStorageKey(activeBusinessId: string | null): string {
 
 function getProductImageUrl(product: PosProductItem): string {
   return resolveImageUrl(product.imageUrl);
+}
+
+function getProductDisplayPrice(product: PosProductItem): number {
+  return product.effectivePrice > 0 ? product.effectivePrice : product.basePrice;
 }
 
 async function getManagedOutlets(businessId: string): Promise<PosOutletItem[]> {
@@ -875,6 +880,10 @@ export default function PosCashierPage() {
                 <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 sm:px-6 sm:py-5">
                   {filteredProducts.map((item) => {
                     const imageUrl = getProductImageUrl(item);
+                    const hasPromo =
+                      item.appliedPromo !== null &&
+                      item.promoDiscountAmount > 0 &&
+                      item.effectivePrice < item.basePrice;
 
                     return (
                       <div
@@ -900,6 +909,13 @@ export default function PosCashierPage() {
                               {item.category.name}
                             </div>
                           ) : null}
+
+                          {hasPromo ? (
+                            <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                              <FontAwesomeIcon icon={faTag} className="h-3 w-3" />
+                              Promo
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className="space-y-4 p-4">
@@ -914,10 +930,28 @@ export default function PosCashierPage() {
                           </div>
 
                           <div className="flex items-center justify-between gap-3">
-                            <p className="text-base font-semibold text-slate-900 sm:text-lg">
-                              {formatCurrency(item.basePrice)}
-                            </p>
+                            <div>
+                              {hasPromo ? (
+                                <>
+                                  <p className="text-base font-semibold text-rose-600 sm:text-lg">
+                                    {formatCurrency(getProductDisplayPrice(item))}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-400 line-through">
+                                    {formatCurrency(item.basePrice)}
+                                  </p>
+                                  <p className="mt-1 text-xs font-medium text-emerald-600">
+                                    Hemat {formatCurrency(item.promoDiscountAmount)}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-base font-semibold text-slate-900 sm:text-lg">
+                                  {formatCurrency(item.basePrice)}
+                                </p>
+                              )}
+                            </div>
                           </div>
+
+                         
 
                           <div className="flex items-center">
                             <button

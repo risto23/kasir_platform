@@ -9,6 +9,7 @@ import {
   formatPromoPeriod,
   formatPromoTargetValue,
   getPromoById,
+  getPromoOutletScopeLabel,
   getPromoTargetTypeLabel,
 } from '@/lib/promo';
 import type { PromoItem } from '@/types/promo';
@@ -116,7 +117,7 @@ export default function PromoDetailPage() {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Detail Promo</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Lihat detail lengkap promo tanpa mengubah contract backend aktif.
+              Lihat detail lengkap promo dan outlet yang terkena promo.
             </p>
           </div>
 
@@ -206,7 +207,46 @@ export default function PromoDetailPage() {
                   {formatPromoPeriod(promo)}
                 </p>
               </div>
+
+              <div className="md:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Scope Outlet
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-800">
+                  {getPromoOutletScopeLabel(promo.outletScope)}
+                </p>
+              </div>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">Outlet Berlaku</h2>
+
+            {promo.outletScope === 'ALL_OUTLETS' ? (
+              <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Promo ini berlaku untuk semua outlet aktif dalam business.
+              </div>
+            ) : promo.selectedOutlets.length === 0 ? (
+              <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Belum ada outlet terpilih.
+              </div>
+            ) : (
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {promo.selectedOutlets.map((outlet) => (
+                  <div
+                    key={outlet.id}
+                    className="rounded-xl border border-slate-200 px-4 py-3"
+                  >
+                    <div className="text-sm font-semibold text-slate-900">
+                      {outlet.outletName}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {outlet.outletCode}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -245,14 +285,18 @@ export default function PromoDetailPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Dibuat
                 </p>
-                <p className="mt-2 text-sm text-slate-800">{promo.createdAt}</p>
+                <p className="mt-2 text-sm text-slate-800">
+                  {new Date(promo.createdAt).toLocaleString('id-ID')}
+                </p>
               </div>
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Diupdate
                 </p>
-                <p className="mt-2 text-sm text-slate-800">{promo.updatedAt}</p>
+                <p className="mt-2 text-sm text-slate-800">
+                  {new Date(promo.updatedAt).toLocaleString('id-ID')}
+                </p>
               </div>
             </div>
           </div>

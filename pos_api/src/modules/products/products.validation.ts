@@ -20,6 +20,7 @@ const productListQuerySchema = z.object({
   search: z.string().trim().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
   categoryId: z.string().trim().optional(),
+  outletId: z.string().trim().optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(10),
 });
