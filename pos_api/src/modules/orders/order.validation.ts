@@ -3,6 +3,14 @@ import { z } from 'zod';
 
 const cuidSchema = z.string().cuid();
 
+export const orderListQueueSchema = z.enum([
+  'CASHIER_ACTIVE',
+  'CASHIER_UNPAID',
+  'GUEST_WAITING_PAYMENT',
+]);
+
+export const orderSourceFilterSchema = z.enum(['ALL', 'GUEST', 'STAFF']);
+
 export const listOrdersSchema = z.object({
   query: z.object({
     outletId: cuidSchema,
@@ -11,6 +19,8 @@ export const listOrdersSchema = z.object({
     search: z.string().trim().optional(),
     status: z.nativeEnum(OrderStatus).optional(),
     paymentStatus: z.nativeEnum(PaymentStatus).optional(),
+    queue: orderListQueueSchema.optional(),
+    source: orderSourceFilterSchema.optional(),
   }),
   body: z.object({}).optional(),
   params: z.object({}).optional(),

@@ -10,6 +10,8 @@ import type {
   PosHistoryItem,
   PosHistoryResponse,
   PosListMeta,
+  PosOrderQueue,
+  PosOrderSource,
   PosOrderItemResponse,
   PosOrderResponse,
   PosOutletItem,
@@ -140,6 +142,8 @@ type OrderApiRow = {
   cancelledAt?: string | null;
   itemCount?: number | null;
   items?: OrderItemApiRow[];
+  isGuestOrder?: boolean | null;
+  orderSource?: 'GUEST' | 'STAFF' | null;
 };
 
 type PaymentApiRow = {
@@ -245,6 +249,8 @@ type OrderHistoryParams = {
   search?: string;
   status?: PosOrderResponse['status'];
   paymentStatus?: PosOrderResponse['paymentStatus'];
+  queue?: PosOrderQueue;
+  source?: PosOrderSource;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -507,6 +513,8 @@ function mapOrder(row: OrderApiRow): PosOrderResponse {
     items: Array.isArray(row.items)
       ? row.items.map((item) => mapOrderItem(item, row.id))
       : undefined,
+    isGuestOrder: row.isGuestOrder === true || row.orderSource === 'GUEST',
+    orderSource: row.orderSource === 'GUEST' ? 'GUEST' : 'STAFF',
     orderNo: row.orderNumber,
     note: row.notes ?? null,
     total: totalAmount,
@@ -654,6 +662,8 @@ function mapHistoryItem(row: OrderApiRow): PosHistoryItem {
     total: mapped.total,
     itemCount: mapped.itemCount,
     createdAt: mapped.createdAt,
+    isGuestOrder: mapped.isGuestOrder,
+    orderSource: mapped.orderSource,
   };
 }
 
@@ -1035,6 +1045,8 @@ export async function getOutletOrderHistory(
       search: params.search,
       status: params.status,
       paymentStatus: params.paymentStatus,
+      queue: params.queue,
+      source: params.source,
     },
     headers: buildScopedHeaders(params.outletId),
   });

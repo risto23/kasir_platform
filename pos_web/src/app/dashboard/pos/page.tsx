@@ -37,14 +37,19 @@ import {
   createPayment,
   formatCurrency,
   formatDateTime,
+  getOrderDetail,
   getPosChargeSettings,
   getPosProducts,
   getPosTables,
+  getOutletOrderHistory,
   recalculateCart,
 } from '@/lib/pos';
 import type {
   PosBusinessType,
   PosCartItem,
+  PosHistoryItem,
+  PosOrderQueue,
+  PosOrderResponse,
   PosOutletItem,
   PosPaymentMethod,
   PosProductItem,
@@ -215,6 +220,26 @@ function getProductDisplayPrice(product: PosProductItem): number {
   return product.effectivePrice > 0 ? product.effectivePrice : product.basePrice;
 }
 
+function getOrderBadgeClass(status: string) {
+  if (status === 'DRAFT') {
+    return 'border border-amber-200 bg-amber-50 text-amber-700';
+  }
+
+  if (status === 'SUBMITTED' || status === 'IN_PROGRESS') {
+    return 'border border-sky-200 bg-sky-50 text-sky-700';
+  }
+
+  if (status === 'READY' || status === 'COMPLETED') {
+    return 'border border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+
+  if (status === 'CANCELLED') {
+    return 'border border-rose-200 bg-rose-50 text-rose-700';
+  }
+
+  return 'border border-slate-200 bg-slate-100 text-slate-700';
+}
+
 async function getManagedOutlets(businessId: string): Promise<PosOutletItem[]> {
   const response = await api.get<OutletListEnvelope>('/business/outlets', {
     params: {
@@ -281,6 +306,28 @@ async function getPosOutletsForCurrentUser(
   return buildFallbackOutletsFromMembership(businessId, membership);
 }
 
+const cashierQueueOptions: Array<{
+  value: PosOrderQueue;
+  label: string;
+  helper: string;
+}> = [
+  {
+    value: 'GUEST_WAITING_PAYMENT',
+    label: 'Guest Menunggu Bayar',
+    helper: 'Guest checkout masuk ke kasir dulu, belum ke kitchen.',
+  },
+  {
+    value: 'CASHIER_UNPAID',
+    label: 'Semua Unpaid',
+    helper: 'Semua order aktif yang belum dibayar.',
+  },
+  {
+    value: 'CASHIER_ACTIVE',
+    label: 'Order Aktif',
+    helper: 'Draft, submitted, in progress, dan ready.',
+  },
+];
+
 export default function PosCashierPage() {
   const router = useRouter();
   const businessType = useMemo(() => getBusinessType(), []);
@@ -308,6 +355,20 @@ export default function PosCashierPage() {
   const [cartMessage, setCartMessage] = useState('');
   const [pageMessage, setPageMessage] = useState('');
   const [receiptResult, setReceiptResult] = useState<PosReceiptResponse | null>(null);
+
+  const [cashierQueue, setCashierQueue] =
+    useState<PosOrderQueue>('GUEST_WAITING_PAYMENT');
+  const [queueOrders, setQueueOrders] = useState<PosHistoryItem[]>([]);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueMessage, setQueueMessage] = useState('');
+  const [selectedQueueOrderId, setSelectedQueueOrderId] = useState('');
+  const [selectedQueueOrder, setSelectedQueueOrder] =
+    useState<PosOrderResponse | null>(null);
+  const [queueDetailLoading, setQueueDetailLoading] = useState(false);
+  const [queueActionLoading, setQueueActionLoading] = useState(false);
+  const [queuePaymentMethod, setQueuePaymentMethod] =
+    useState<PosPaymentMethod>('CASH');
+  const [queuePaymentNote, setQueuePaymentNote] = useState('');
 
   const activeBusinessId =
     typeof window !== 'undefined' ? getActiveBusinessId() : null;
@@ -516,8 +577,70 @@ export default function PosCashierPage() {
     }
   }
 
+  async function loadQueueOrders(outletId: string, queue: PosOrderQueue) {
+    if (!outletId) {
+      setQueueOrders([]);
+      setSelectedQueueOrderId('');
+      setSelectedQueueOrder(null);
+      return;
+    }
+
+    try {
+      setQueueLoading(true);
+      setQueueMessage('');
+
+      const response = await getOutletOrderHistory({
+        outletId,
+        perPage: 50,
+        queue,
+      });
+
+      setQueueOrders(response.items);
+
+      setSelectedQueueOrderId((currentValue) => {
+        const nextValue =
+          currentValue && response.items.some((item) => item.id === currentValue)
+            ? currentValue
+            : response.items[0]?.id || '';
+
+        return nextValue;
+      });
+    } catch (error: unknown) {
+      setQueueMessage(getMessage(error, 'Gagal memuat antrian kasir'));
+      setQueueOrders([]);
+      setSelectedQueueOrderId('');
+      setSelectedQueueOrder(null);
+    } finally {
+      setQueueLoading(false);
+    }
+  }
+
+  async function loadQueueOrderDetail(orderId: string, outletId: string) {
+    if (!orderId || !outletId) {
+      setSelectedQueueOrder(null);
+      return;
+    }
+
+    try {
+      setQueueDetailLoading(true);
+      setQueueMessage('');
+
+      const detail = await getOrderDetail(orderId, outletId);
+      setSelectedQueueOrder(detail);
+    } catch (error: unknown) {
+      setQueueMessage(getMessage(error, 'Gagal memuat detail order'));
+      setSelectedQueueOrder(null);
+    } finally {
+      setQueueDetailLoading(false);
+    }
+  }
+
   async function refreshProducts() {
     await loadProducts(selectedOutletId);
+  }
+
+  async function refreshQueue() {
+    await loadQueueOrders(selectedOutletId, cashierQueue);
   }
 
   useEffect(() => {
@@ -531,7 +654,17 @@ export default function PosCashierPage() {
 
     void loadProducts(selectedOutletId);
     void loadTables(selectedOutletId);
-  }, [selectedOutletId, businessType]);
+    void loadQueueOrders(selectedOutletId, cashierQueue);
+  }, [selectedOutletId, businessType, cashierQueue]);
+
+  useEffect(() => {
+    if (!selectedQueueOrderId || !selectedOutletId) {
+      setSelectedQueueOrder(null);
+      return;
+    }
+
+    void loadQueueOrderDetail(selectedQueueOrderId, selectedOutletId);
+  }, [selectedQueueOrderId, selectedOutletId]);
 
   function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -660,12 +793,79 @@ export default function PosCashierPage() {
       clearCart();
       setPaymentMethod('CASH');
       setPaymentNote('');
+      await refreshQueue();
 
       router.push(`/dashboard/receipts/${receipt.id}`);
     } catch (error: unknown) {
       setCartMessage(getMessage(error, 'Gagal menyelesaikan checkout'));
     } finally {
       setCheckoutLoading(false);
+    }
+  }
+
+  async function handleQueuePayment() {
+    if (!selectedQueueOrder || !selectedOutletId) {
+      setQueueMessage('Pilih order aktif terlebih dahulu');
+      return;
+    }
+
+    if (selectedQueueOrder.paymentStatus === 'PAID') {
+      setQueueMessage('Order ini sudah dibayar');
+      return;
+    }
+
+    try {
+      setQueueActionLoading(true);
+      setQueueMessage('');
+
+      await createPayment({
+        orderId: selectedQueueOrder.id,
+        outletId: selectedOutletId,
+        amountPaid: selectedQueueOrder.totalAmount,
+        amountTendered: selectedQueueOrder.totalAmount,
+        method: queuePaymentMethod,
+        note: queuePaymentNote.trim() || undefined,
+      });
+
+      const receipt = await getReceiptByOrderId(
+        selectedQueueOrder.id,
+        selectedOutletId,
+      );
+
+      setReceiptResult(receipt);
+      setQueuePaymentMethod('CASH');
+      setQueuePaymentNote('');
+      await loadQueueOrders(selectedOutletId, cashierQueue);
+      await loadQueueOrderDetail(selectedQueueOrder.id, selectedOutletId);
+
+      router.push(`/dashboard/receipts/${receipt.id}`);
+    } catch (error: unknown) {
+      setQueueMessage(getMessage(error, 'Gagal memproses payment order aktif'));
+    } finally {
+      setQueueActionLoading(false);
+    }
+  }
+
+  async function handleOpenQueueReceipt() {
+    if (!selectedQueueOrder || !selectedOutletId) {
+      setQueueMessage('Pilih order aktif terlebih dahulu');
+      return;
+    }
+
+    try {
+      setQueueActionLoading(true);
+      setQueueMessage('');
+
+      const receipt = await getReceiptByOrderId(
+        selectedQueueOrder.id,
+        selectedOutletId,
+      );
+
+      router.push(`/dashboard/receipts/${receipt.id}`);
+    } catch (error: unknown) {
+      setQueueMessage(getMessage(error, 'Receipt untuk order ini belum tersedia'));
+    } finally {
+      setQueueActionLoading(false);
     }
   }
 
@@ -698,7 +898,7 @@ export default function PosCashierPage() {
             POS Kasir
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Pilih {productLabelLower}, atur cart, checkout, dan buka receipt final.
+            Kasir bisa input order langsung, melihat order aktif guest, lalu memproses payment sebelum order masuk ke kitchen.
           </p>
         </div>
 
@@ -742,6 +942,342 @@ export default function PosCashierPage() {
           {pageMessage}
         </section>
       ) : null}
+
+      <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-700">
+                <FontAwesomeIcon icon={faReceipt} className="h-3 w-3" />
+                Antrian Kasir
+              </div>
+              <h2 className="mt-2 text-base font-semibold text-slate-900">
+                Order aktif yang harus diproses kasir
+              </h2>
+              <p className="text-sm text-slate-500">
+                Guest checkout masuk ke sini dulu dan belum boleh diproses kitchen sebelum payment berhasil.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void refreshQueue()}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              disabled={queueLoading || !selectedOutletId}
+            >
+              <FontAwesomeIcon icon={faBoxesStacked} className="h-4 w-4" />
+              {queueLoading ? 'Memuat...' : 'Refresh Antrian'}
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {cashierQueueOptions.map((queueOption) => {
+              const isActive = cashierQueue === queueOption.value;
+
+              return (
+                <button
+                  key={queueOption.value}
+                  type="button"
+                  onClick={() => setCashierQueue(queueOption.value)}
+                  className={`rounded-2xl px-4 py-3 text-left transition ${
+                    isActive
+                      ? 'bg-slate-900 text-white'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="text-sm font-semibold">{queueOption.label}</div>
+                  <div
+                    className={`mt-1 text-xs ${
+                      isActive ? 'text-slate-200' : 'text-slate-500'
+                    }`}
+                  >
+                    {queueOption.helper}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {queueMessage ? (
+          <div className="border-b border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 sm:px-6">
+            {queueMessage}
+          </div>
+        ) : null}
+
+        <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.1fr)_420px] sm:px-6 sm:py-5">
+          <div className="space-y-3 xl:max-h-[520px] xl:overflow-y-auto xl:pr-1">
+            {queueLoading ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-28 animate-pulse rounded-[24px] bg-slate-100"
+                />
+              ))
+            ) : queueOrders.length === 0 ? (
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
+                Tidak ada order pada antrian ini.
+              </div>
+            ) : (
+              queueOrders.map((order) => {
+                const isSelected = selectedQueueOrderId === order.id;
+
+                return (
+                  <button
+                    key={order.id}
+                    type="button"
+                    onClick={() => setSelectedQueueOrderId(order.id)}
+                    className={`block w-full rounded-[24px] border px-4 py-4 text-left transition ${
+                      isSelected
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-200 bg-slate-50 text-slate-900 hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold">{order.orderNumber}</span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          isSelected
+                            ? 'bg-white/15 text-white'
+                            : order.orderSource === 'GUEST'
+                              ? 'border border-orange-200 bg-orange-50 text-orange-700'
+                              : 'border border-slate-200 bg-white text-slate-700'
+                        }`}
+                      >
+                        {order.orderSource}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          isSelected
+                            ? 'bg-white/15 text-white'
+                            : getOrderBadgeClass(order.status)
+                        }`}
+                      >
+                        {order.status}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          isSelected
+                            ? 'bg-white/15 text-white'
+                            : getOrderBadgeClass(order.paymentStatus)
+                        }`}
+                      >
+                        {order.paymentStatus}
+                      </span>
+                    </div>
+
+                    <div
+                      className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm ${
+                        isSelected ? 'text-slate-200' : 'text-slate-500'
+                      }`}
+                    >
+                      <span>{order.outletName || selectedOutlet?.name || '-'}</span>
+                      {order.tableName ? <span>• {order.tableName}</span> : null}
+                      <span>• {order.itemCount} item</span>
+                      <span>• {formatDateTime(order.createdAt)}</span>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between">
+                      <span
+                        className={`text-xs font-semibold uppercase tracking-[0.16em] ${
+                          isSelected ? 'text-slate-300' : 'text-slate-500'
+                        }`}
+                      >
+                        Total
+                      </span>
+                      <span className="text-sm font-semibold">
+                        {formatCurrency(order.totalAmount)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            {!selectedQueueOrderId ? (
+              <div className="flex h-full min-h-[260px] items-center justify-center text-center text-sm text-slate-500">
+                Pilih order dari antrian kasir untuk melihat detail dan memproses payment.
+              </div>
+            ) : queueDetailLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-20 animate-pulse rounded-2xl bg-slate-200"
+                  />
+                ))}
+              </div>
+            ) : !selectedQueueOrder ? (
+              <div className="flex h-full min-h-[260px] items-center justify-center text-center text-sm text-slate-500">
+                Detail order tidak tersedia.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-2xl bg-white px-4 py-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-semibold text-slate-900">
+                      {selectedQueueOrder.orderNumber}
+                    </h3>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getOrderBadgeClass(
+                        selectedQueueOrder.orderSource,
+                      )}`}
+                    >
+                      {selectedQueueOrder.orderSource}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 grid gap-2 text-sm text-slate-600">
+                    <div className="flex items-center justify-between">
+                      <span>Status Order</span>
+                      <span className="font-medium text-slate-900">
+                        {selectedQueueOrder.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Status Payment</span>
+                      <span className="font-medium text-slate-900">
+                        {selectedQueueOrder.paymentStatus}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Meja</span>
+                      <span className="font-medium text-slate-900">
+                        {selectedQueueOrder.tableName || '-'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Total</span>
+                      <span className="font-semibold text-slate-900">
+                        {formatCurrency(selectedQueueOrder.totalAmount)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {selectedQueueOrder.notes ? (
+                    <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      Catatan order: {selectedQueueOrder.notes}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-3 rounded-2xl bg-white px-4 py-4">
+                  <h4 className="text-sm font-semibold text-slate-900">
+                    Item Order
+                  </h4>
+
+                  {selectedQueueOrder.items?.length ? (
+                    selectedQueueOrder.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-2xl border border-slate-200 px-3 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {item.productName}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Qty {item.quantity} • {formatCurrency(item.lineTotal)}
+                            </p>
+                          </div>
+
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getOrderBadgeClass(
+                              item.status,
+                            )}`}
+                          >
+                            {item.status}
+                          </span>
+                        </div>
+
+                        {item.note ? (
+                          <p className="mt-2 text-sm text-slate-600">
+                            Catatan item: {item.note}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-slate-500">
+                      Item order belum tersedia.
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl bg-white px-4 py-4">
+                  <h4 className="text-sm font-semibold text-slate-900">
+                    Aksi Kasir
+                  </h4>
+
+                  {selectedQueueOrder.paymentStatus === 'PAID' ? (
+                    <div className="mt-3 space-y-3">
+                      <p className="text-sm text-slate-500">
+                        Order ini sudah dibayar dan boleh diproses kitchen.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenQueueReceipt()}
+                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={queueActionLoading}
+                      >
+                        <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
+                        {queueActionLoading ? 'Memuat...' : 'Buka Receipt'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        {getPaymentMethods().map((method) => (
+                          <button
+                            key={method}
+                            type="button"
+                            onClick={() => setQueuePaymentMethod(method)}
+                            className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition ${
+                              queuePaymentMethod === method
+                                ? 'border-slate-900 bg-slate-900 text-white'
+                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <FontAwesomeIcon
+                              icon={method === 'CASH' ? faWallet : faCreditCard}
+                              className="h-4 w-4"
+                            />
+                            {method}
+                          </button>
+                        ))}
+                      </div>
+
+                      <textarea
+                        value={queuePaymentNote}
+                        onChange={(event) => setQueuePaymentNote(event.target.value)}
+                        rows={3}
+                        placeholder="Catatan payment order aktif (opsional)"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => void handleQueuePayment()}
+                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={queueActionLoading}
+                      >
+                        <FontAwesomeIcon icon={faReceipt} className="h-4 w-4" />
+                        {queueActionLoading
+                          ? 'Memproses payment...'
+                          : 'Bayar & Lanjutkan ke Kitchen'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_380px] 2xl:grid-cols-[minmax(0,1.35fr)_420px] xl:items-start">
         <div className="space-y-5">
@@ -951,8 +1487,6 @@ export default function PosCashierPage() {
                             </div>
                           </div>
 
-                         
-
                           <div className="flex items-center">
                             <button
                               type="button"
@@ -983,7 +1517,7 @@ export default function PosCashierPage() {
                     Cart & Checkout
                   </div>
                   <p className="mt-2 text-sm text-slate-500">
-                    Checkout membuat order, payment, lalu receipt final dari backend.
+                    Checkout manual tetap membuat order, payment, lalu receipt final dari backend.
                   </p>
                 </div>
 
@@ -1194,7 +1728,7 @@ export default function PosCashierPage() {
                   Belum ada struk baru
                 </h3>
                 <p className="mt-2 text-sm text-slate-500">
-                  Selesaikan checkout untuk membuat struk.
+                  Selesaikan checkout atau payment order aktif untuk membuat struk.
                 </p>
               </div>
             ) : (

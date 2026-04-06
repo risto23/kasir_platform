@@ -6,6 +6,13 @@ export const validate =
   (schema: z.ZodTypeAny) =>
   (req: Request, res: Response, next: NextFunction) => {
     try {
+      console.log('[validate.middleware] hit', {
+        originalUrl: req.originalUrl,
+        method: req.method,
+        params: req.params,
+        query: req.query,
+      });
+
       schema.parse({
         body: req.body,
         query: req.query,

@@ -37,7 +37,7 @@ export function LoginForm() {
       const result = await login(form.email, form.password);
       const targetRoute = resolveRouteByRole(result.user);
 
-      router.push(targetRoute);
+      router.replace(targetRoute);
       router.refresh();
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -157,9 +157,10 @@ export function LoginForm() {
         </Button>
 
         <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-500">
-          Super Admin akan masuk ke dashboard platform. User business seperti
+          Super Admin akan masuk ke dashboard utama. User business seperti
           owner, admin, cashier, kitchen, dan inventory akan diarahkan ke
-          dashboard sesuai role masing-masing.
+          halaman sesuai role masing-masing, termasuk kitchen ke dashboard
+          kitchen.
         </div>
       </form>
     </div>

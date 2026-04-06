@@ -1,22 +1,29 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['192.168.1.3'],
   images: {
-    dangerouslyAllowLocalIP: true,
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'example.com',
-        port: '',
-        pathname: '/products/**',
-      },
       {
         protocol: 'http',
         hostname: 'localhost',
         port: '4000',
-        pathname: '/uploads/**',
+        pathname: '/**',
+      },
+      {
+        protocol: 'http',
+        hostname: '127.0.0.1',
+        port: '4000',
+        pathname: '/**',
+      },
+      {
+        protocol: 'http',
+        hostname: '192.168.1.3',
+        port: '4000',
+        pathname: '/**',
       },
     ],
+    dangerouslyAllowLocalIP: true,
   },
 };
 

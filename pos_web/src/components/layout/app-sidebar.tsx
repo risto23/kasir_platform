@@ -39,7 +39,8 @@ export function AppSidebar() {
         </div>
 
         <p className="mt-4 text-xs leading-6 text-slate-500">
-          POS management untuk master data, transaksi kasir, histori payment, dan receipt.
+          POS management untuk master data, transaksi kasir, promo, dan operasional
+          restaurant seperti kitchen, monitor meja, dan QR guest menu.
         </p>
       </div>
 
@@ -83,10 +84,10 @@ export function AppSidebar() {
                         className={`transition ${
                           active
                             ? 'text-white/80'
-                            : 'text-slate-300 group-hover:text-slate-500'
+                            : 'text-slate-400 group-hover:translate-x-0.5 group-hover:text-slate-500'
                         }`}
                       >
-                        <FontAwesomeIcon icon={faChevronRight} className="h-3 w-3" />
+                        <FontAwesomeIcon icon={faChevronRight} className="h-3.5 w-3.5" />
                       </span>
                     </Link>
                   );
@@ -97,20 +98,27 @@ export function AppSidebar() {
         </div>
       </nav>
 
-      <div className="border-t border-slate-200 px-4 py-4">
-        <div className="rounded-2xl bg-slate-50 px-4 py-3">
-          <p className="text-xs font-semibold text-slate-700">Current Scope</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            {businessType === 'RESTAURANT'
-              ? outletScopeAvailable
-                ? 'Business type restaurant aktif. Menu yang tampil sudah dibatasi sesuai role dan scope outlet.'
-                : 'Business type restaurant aktif, tetapi scope outlet belum tersedia.'
-              : businessType === 'RETAIL'
-                ? outletScopeAvailable
-                  ? 'Business type retail aktif. Menu yang tampil sudah dibatasi sesuai role dan scope outlet.'
-                  : 'Business type retail aktif. Scope outlet belum tersedia.'
-                : 'Pilih business aktif untuk menampilkan modul business-level dengan benar.'}
+      <div className="border-t border-slate-200 px-6 py-5">
+        <div className="rounded-3xl bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Current Context
           </p>
+
+          <div className="mt-3 space-y-2 text-sm text-slate-600">
+            <div className="flex items-center justify-between gap-3">
+              <span>Business Type</span>
+              <span className="font-medium text-slate-900">
+                {businessType ?? '-'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <span>Outlet Scope</span>
+              <span className="font-medium text-slate-900">
+                {outletScopeAvailable ? 'Available' : 'Not Ready'}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </aside>

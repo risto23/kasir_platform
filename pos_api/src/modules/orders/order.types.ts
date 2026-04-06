@@ -6,6 +6,13 @@ import {
   PaymentStatus,
 } from '@prisma/client';
 
+export type OrderListQueue =
+  | 'CASHIER_ACTIVE'
+  | 'CASHIER_UNPAID'
+  | 'GUEST_WAITING_PAYMENT';
+
+export type OrderSourceFilter = 'ALL' | 'GUEST' | 'STAFF';
+
 export type ListOrdersQuery = {
   outletId: string;
   page?: number;
@@ -13,6 +20,8 @@ export type ListOrdersQuery = {
   search?: string;
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
+  queue?: OrderListQueue;
+  source?: OrderSourceFilter;
 };
 
 export type ListOrdersInput = {
@@ -23,6 +32,8 @@ export type ListOrdersInput = {
   search?: string;
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
+  queue?: OrderListQueue;
+  source?: OrderSourceFilter;
 };
 
 export type GetOrderParams = {
@@ -124,6 +135,8 @@ export type OrderSummaryDto = {
   completedAt: string | null;
   cancelledAt: string | null;
   itemCount: number;
+  isGuestOrder: boolean;
+  orderSource: 'GUEST' | 'STAFF';
 };
 
 export type OrderItemDto = {

@@ -12,11 +12,28 @@ import { notFoundMiddleware } from './middlewares/not-found.middleware';
 
 const app = express();
 
+const allowedOrigins = env.appOrigin
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
 app.use(
   cors({
-    origin: env.appOrigin,
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
-  })
+  }),
 );
 
 app.use(helmet());
@@ -26,6 +43,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
+
+console.log('[app.ts] mounting /api routes');
 
 app.use('/api', routes);
 

@@ -168,6 +168,8 @@ export async function listOrdersHandler(
       search: query.search,
       status: query.status,
       paymentStatus: query.paymentStatus,
+      queue: query.queue,
+      source: query.source,
     });
 
     return res.status(200).json({

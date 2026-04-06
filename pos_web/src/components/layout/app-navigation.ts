@@ -1,4 +1,3 @@
-// src/components/layout/app-navigation.ts
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faBoxOpen,
@@ -8,12 +7,14 @@ import {
   faLayerGroup,
   faLocationDot,
   faPercent,
+  faQrcode,
   faReceipt,
   faShapes,
   faShop,
   faSliders,
   faTableCellsLarge,
   faUsers,
+  faUtensils,
 } from '@fortawesome/free-solid-svg-icons';
 
 import { getActiveBusinessId } from '@/lib/auth';
@@ -62,6 +63,9 @@ export function isMenuActive(pathname: string, href: string) {
     '/dashboard/pos',
     '/dashboard/pos/history',
     '/dashboard/payments',
+    '/dashboard/kitchen',
+    '/dashboard/tables/monitor',
+    '/dashboard/tables/qr',
   ];
 
   if (protectedExactRoutes.includes(href)) {
@@ -190,7 +194,10 @@ function hasOutletScope(user: CurrentUser | null): boolean {
     return true;
   }
 
-  return Array.isArray(membership.allowedOutletIds) && membership.allowedOutletIds.length > 0;
+  return (
+    Array.isArray(membership.allowedOutletIds) &&
+    membership.allowedOutletIds.length > 0
+  );
 }
 
 const menuGroups: AppNavGroup[] = [
@@ -316,6 +323,41 @@ const menuGroups: AppNavGroup[] = [
         businessOnly: true,
         requireOutletScope: true,
         allowedRoles: ['OWNER', 'ADMIN', 'CASHIER'],
+      },
+    ],
+  },
+  {
+    section: 'Restaurant Operation',
+    items: [
+      {
+        href: '/dashboard/kitchen',
+        label: 'Kitchen Display',
+        icon: faUtensils,
+        requiredPermissions: ['ORDER_VIEW'],
+        businessOnly: true,
+        restaurantOnly: true,
+        requireOutletScope: true,
+        allowedRoles: ['OWNER', 'ADMIN', 'KITCHEN'],
+      },
+      {
+        href: '/dashboard/tables/monitor',
+        label: 'Monitor Meja',
+        icon: faTableCellsLarge,
+        requiredPermissions: ['OUTLET_TABLE_VIEW'],
+        businessOnly: true,
+        restaurantOnly: true,
+        requireOutletScope: true,
+        allowedRoles: ['OWNER', 'ADMIN'],
+      },
+      {
+        href: '/dashboard/tables/qr',
+        label: 'QR Meja',
+        icon: faQrcode,
+        requiredPermissions: ['OUTLET_TABLE_VIEW'],
+        businessOnly: true,
+        restaurantOnly: true,
+        requireOutletScope: true,
+        allowedRoles: ['OWNER', 'ADMIN'],
       },
     ],
   },

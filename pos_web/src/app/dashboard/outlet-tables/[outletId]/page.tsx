@@ -10,11 +10,12 @@ import {
   faBan,
   faChair,
   faCircleCheck,
+  faDisplay,
   faFloppyDisk,
   faMagnifyingGlass,
   faPenToSquare,
   faPlus,
-  faRotateRight,
+  faQrcode,
   faTableCellsLarge,
   faUtensils,
   faXmark,
@@ -177,7 +178,7 @@ export default function OutletTablesDetailPage() {
       setMessage('');
       setMessageType('');
 
-      await api.post(`/business/outlets/${params.outletId}/tables`, {
+      await api.post(`/business/outlets-tables/${params.outletId}/tables`, {
         code: createForm.code.trim(),
         name: createForm.name.trim(),
         capacity:
@@ -215,7 +216,7 @@ export default function OutletTablesDetailPage() {
       setMessage('');
       setMessageType('');
 
-      await api.put(`/business/outlets/${params.outletId}/tables/${tableId}`, {
+      await api.put(`/business/outlets-tables/${params.outletId}/tables/${tableId}`, {
         code: form.code.trim(),
         name: form.name.trim(),
         capacity: form.capacity.trim() === '' ? null : Number(form.capacity),
@@ -316,6 +317,14 @@ export default function OutletTablesDetailPage() {
             Kembali
           </Link>
 
+          <Link
+            href={`/dashboard/tables/monitor?outletId=${encodeURIComponent(params.outletId)}`}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            <FontAwesomeIcon icon={faDisplay} className="h-4 w-4" />
+            Monitor Meja
+          </Link>
+
           <button
             type="button"
             onClick={() => setShowCreateForm((prev) => !prev)}
@@ -339,85 +348,18 @@ export default function OutletTablesDetailPage() {
         </div>
       ) : null}
 
-      {showCreateForm ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-base font-semibold text-slate-900">Tambah Meja Baru</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Buat meja baru untuk outlet ini.
-          </p>
-
-          <form onSubmit={handleCreate} className="mt-5 space-y-5">
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Code</label>
-                <input
-                  value={createForm.code}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({ ...prev, code: e.target.value }))
-                  }
-                  placeholder="Contoh: A01"
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Nama Meja</label>
-                <input
-                  value={createForm.name}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  placeholder="Contoh: Meja A1"
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Capacity</label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={createForm.capacity}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({ ...prev, capacity: e.target.value }))
-                  }
-                  placeholder="Contoh: 4"
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Status</label>
-                <select
-                  value={createForm.status}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({
-                      ...prev,
-                      status: e.target.value as OutletTableStatus,
-                    }))
-                  }
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500"
-                >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={savingCreate}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                <FontAwesomeIcon icon={faFloppyDisk} className="h-4 w-4" />
-                {savingCreate ? 'Menyimpan...' : 'Simpan Meja'}
-              </button>
-            </div>
-          </form>
-        </section>
-      ) : null}
+      <section id="qr-info" className="rounded-[28px] border border-indigo-200 bg-indigo-50 px-5 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              QR Meja
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              QR tidak dibuat per outlet global. Pilih salah satu meja di daftar bawah, lalu klik tombol QR.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
@@ -427,7 +369,7 @@ export default function OutletTablesDetailPage() {
                 Daftar Meja
               </h2>
               <p className="text-sm text-slate-500">
-                Cari, edit, dan ubah status meja outlet.
+                Cari, edit, ubah status meja, dan buka QR per meja.
               </p>
             </div>
 
@@ -437,10 +379,7 @@ export default function OutletTablesDetailPage() {
             >
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                  <FontAwesomeIcon
-                    icon={faMagnifyingGlass}
-                    className="h-4 w-4"
-                  />
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
                 </span>
                 <input
                   value={searchInput}
@@ -455,20 +394,8 @@ export default function OutletTablesDetailPage() {
                   type="submit"
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
-                  <FontAwesomeIcon
-                    icon={faMagnifyingGlass}
-                    className="h-4 w-4"
-                  />
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
                   Cari
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleResetFilter}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  <FontAwesomeIcon icon={faRotateRight} className="h-4 w-4" />
-                  Reset
                 </button>
               </div>
             </form>
@@ -478,10 +405,7 @@ export default function OutletTablesDetailPage() {
         {loading ? (
           <div className="grid gap-3 px-5 py-5 sm:px-6">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-24 animate-pulse rounded-2xl bg-slate-100"
-              />
+              <div key={index} className="h-24 animate-pulse rounded-2xl bg-slate-100" />
             ))}
           </div>
         ) : items.length === 0 ? (
@@ -492,9 +416,6 @@ export default function OutletTablesDetailPage() {
             <h3 className="mt-4 text-base font-semibold text-slate-900">
               Belum ada meja
             </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Tambahkan meja pertama untuk outlet ini.
-            </p>
           </div>
         ) : (
           <div className="grid gap-4 p-4">
@@ -524,20 +445,6 @@ export default function OutletTablesDetailPage() {
                         </p>
                       </div>
                     </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
-                          item.status
-                        )}`}
-                      >
-                        {item.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-                      </span>
-
-                      <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                        Capacity: {item.capacity ?? '-'}
-                      </span>
-                    </div>
                   </div>
 
                   {isEditing ? (
@@ -561,69 +468,6 @@ export default function OutletTablesDetailPage() {
                             className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                           />
                         </div>
-
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-slate-700">
-                            Nama Meja
-                          </label>
-                          <input
-                            value={editForm?.name || ''}
-                            onChange={(e) =>
-                              setEditFormMap((prev) => ({
-                                ...prev,
-                                [item.id]: {
-                                  ...(prev[item.id] || emptyForm),
-                                  name: e.target.value,
-                                },
-                              }))
-                            }
-                            className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-slate-700">
-                            Capacity
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={editForm?.capacity || ''}
-                            onChange={(e) =>
-                              setEditFormMap((prev) => ({
-                                ...prev,
-                                [item.id]: {
-                                  ...(prev[item.id] || emptyForm),
-                                  capacity: e.target.value,
-                                },
-                              }))
-                            }
-                            className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-slate-700">
-                            Status
-                          </label>
-                          <select
-                            value={editForm?.status || 'ACTIVE'}
-                            onChange={(e) =>
-                              setEditFormMap((prev) => ({
-                                ...prev,
-                                [item.id]: {
-                                  ...(prev[item.id] || emptyForm),
-                                  status: e.target.value as OutletTableStatus,
-                                },
-                              }))
-                            }
-                            className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                          >
-                            <option value="ACTIVE">ACTIVE</option>
-                            <option value="INACTIVE">INACTIVE</option>
-                          </select>
-                        </div>
                       </div>
 
                       <div className="flex flex-wrap justify-end gap-2">
@@ -631,18 +475,6 @@ export default function OutletTablesDetailPage() {
                           type="button"
                           onClick={() => {
                             setEditingId(null);
-                            setEditFormMap((prev) => ({
-                              ...prev,
-                              [item.id]: {
-                                code: item.code,
-                                name: item.name,
-                                capacity:
-                                  item.capacity !== null && item.capacity !== undefined
-                                    ? String(item.capacity)
-                                    : '',
-                                status: item.status,
-                              },
-                            }));
                           }}
                           className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                         >
@@ -679,6 +511,14 @@ export default function OutletTablesDetailPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/dashboard/tables/qr?outletId=${encodeURIComponent(params.outletId)}&tableId=${encodeURIComponent(item.id)}`}
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                        >
+                          <FontAwesomeIcon icon={faQrcode} className="h-4 w-4" />
+                          QR
+                        </Link>
+
                         <button
                           type="button"
                           onClick={() => setEditingId(item.id)}
@@ -716,35 +556,6 @@ export default function OutletTablesDetailPage() {
             })}
           </div>
         )}
-      </section>
-
-      <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
-        <div>
-          <h2 className="text-base font-semibold text-slate-900">
-            Catatan Meja Outlet
-          </h2>
-          <p className="text-sm text-slate-500">
-            Meja hanya berlaku untuk outlet restoran ini.
-          </p>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {[
-            'Setiap meja harus punya code unik per outlet.',
-            'Nama meja bisa dibuat fleksibel.',
-            'Capacity boleh dikosongkan bila belum dipakai.',
-            'Status meja bisa diubah tanpa hapus data.',
-            'Edit dan create dilakukan langsung di halaman outlet ini.',
-            'Validasi utama tetap dilakukan di backend.',
-          ].map((note) => (
-            <div
-              key={note}
-              className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600"
-            >
-              {note}
-            </div>
-          ))}
-        </div>
       </section>
     </div>
   );

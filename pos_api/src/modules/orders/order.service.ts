@@ -67,6 +67,10 @@ async function generateOrderNumber(tx: Prisma.TransactionClient): Promise<string
   return `${prefix}-${nextSequence}`;
 }
 
+function isGuestOrderNumber(orderNumber: string): boolean {
+  return orderNumber.startsWith('GUEST-');
+}
+
 async function ensureOutletBelongsToBusiness(
   tx: Prisma.TransactionClient,
   businessId: string,
@@ -455,6 +459,8 @@ function mapOrderSummary(order: {
   cancelledAt: Date | null;
   items: { id: string }[];
 }): OrderSummaryDto {
+  const isGuestOrder = isGuestOrderNumber(order.orderNumber);
+
   return {
     id: order.id,
     orderNumber: order.orderNumber,
@@ -476,6 +482,8 @@ function mapOrderSummary(order: {
     completedAt: order.completedAt ? order.completedAt.toISOString() : null,
     cancelledAt: order.cancelledAt ? order.cancelledAt.toISOString() : null,
     itemCount: order.items.length,
+    isGuestOrder,
+    orderSource: isGuestOrder ? 'GUEST' : 'STAFF',
   };
 }
 
@@ -554,8 +562,6 @@ export async function listOrders(params: ListOrdersInput) {
   const where: Prisma.OrderWhereInput = {
     businessId: params.businessId,
     outletId: params.outletId,
-    ...(params.status ? { status: params.status } : {}),
-    ...(params.paymentStatus ? { paymentStatus: params.paymentStatus } : {}),
     ...(params.search
       ? {
           OR: [
@@ -576,6 +582,57 @@ export async function listOrders(params: ListOrdersInput) {
       : {}),
   };
 
+  if (params.source === 'GUEST') {
+    where.orderNumber = {
+      startsWith: 'GUEST-',
+    };
+  } else if (params.source === 'STAFF') {
+    where.NOT = {
+      orderNumber: {
+        startsWith: 'GUEST-',
+      },
+    };
+  }
+
+  if (params.queue === 'CASHIER_ACTIVE') {
+    where.status = {
+      in: [
+        OrderStatus.DRAFT,
+        OrderStatus.SUBMITTED,
+        OrderStatus.IN_PROGRESS,
+        OrderStatus.READY,
+      ],
+    };
+  }
+
+  if (params.queue === 'CASHIER_UNPAID') {
+    where.status = {
+      in: [
+        OrderStatus.DRAFT,
+        OrderStatus.SUBMITTED,
+        OrderStatus.IN_PROGRESS,
+        OrderStatus.READY,
+      ],
+    };
+    where.paymentStatus = PaymentStatus.UNPAID;
+  }
+
+  if (params.queue === 'GUEST_WAITING_PAYMENT') {
+    where.orderNumber = {
+      startsWith: 'GUEST-',
+    };
+    where.status = OrderStatus.DRAFT;
+    where.paymentStatus = PaymentStatus.UNPAID;
+  }
+
+  if (params.status) {
+    where.status = params.status;
+  }
+
+  if (params.paymentStatus) {
+    where.paymentStatus = params.paymentStatus;
+  }
+
   const skip = (params.page - 1) * params.perPage;
 
   const [total, rows] = await Promise.all([
@@ -594,9 +651,14 @@ export async function listOrders(params: ListOrdersInput) {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        {
+          submittedAt: 'desc',
+        },
+        {
+          createdAt: 'desc',
+        },
+      ],
       skip,
       take: params.perPage,
     }),
@@ -908,18 +970,6 @@ export async function updateOrderStatus(input: UpdateOrderStatusInput) {
         },
         data: {
           status: 'CANCELLED',
-        },
-      });
-    }
-
-    if (input.status === OrderStatus.SUBMITTED) {
-      await tx.orderItem.updateMany({
-        where: {
-          orderId: order.id,
-          status: 'PENDING',
-        },
-        data: {
-          status: 'PROCESSING',
         },
       });
     }

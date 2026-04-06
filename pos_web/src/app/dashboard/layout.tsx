@@ -38,6 +38,8 @@ const DASHBOARD_ALLOWED_PERMISSIONS = [
   'PROMO_CREATE',
   'PROMO_UPDATE',
   'PROMO_STATUS_UPDATE',
+  'ORDER_VIEW',
+  'ORDER_UPDATE',
 ] as const;
 
 type PermissionLike = {
@@ -97,6 +99,11 @@ function getPermissionCodes(user: CurrentUser): string[] {
         normalizePermissionList(membership.permissions)
       )
     : [];
+  const fromUserMemberships = Array.isArray(user.businessMemberships)
+    ? user.businessMemberships.flatMap((membership) =>
+        normalizePermissionList(membership.permissions)
+      )
+    : [];
 
   return Array.from(
     new Set([
@@ -105,6 +112,7 @@ function getPermissionCodes(user: CurrentUser): string[] {
       ...fromPlatformPermissions,
       ...fromDefaultMembership,
       ...fromMemberships,
+      ...fromUserMemberships,
     ])
   );
 }

@@ -98,7 +98,6 @@ async function enableFeatureFlag(
   return featureFlag;
 }
 
-
 type UpsertPromoInput = {
   businessId: string;
   name: string;
@@ -567,6 +566,8 @@ async function main() {
     permissionProductOutletView.id,
     permissionPromoView.id,
     permissionOutletTableView.id,
+    permissionOrderView.id,
+    permissionOrderUpdate.id,
   ];
 
   const inventoryPermissionIds = [
@@ -1312,7 +1313,7 @@ async function main() {
       brand: 'Sosro',
       unit: 'Botol',
       description: 'Teh botol retail',
-      imageUrl: 'https://example.com/products/teh-botol.jpg',
+      imageUrl: '/products/teh-botol.jpg',
       basePrice: 5000,
       status: ProductStatus.ACTIVE,
     },
@@ -1326,7 +1327,7 @@ async function main() {
       brand: 'Sosro',
       unit: 'Botol',
       description: 'Teh botol retail',
-      imageUrl: 'https://example.com/products/teh-botol.jpg',
+      imageUrl: '/products/teh-botol.jpg',
       basePrice: 5000,
       status: ProductStatus.ACTIVE,
     },
@@ -1347,7 +1348,7 @@ async function main() {
       brand: 'Qtela',
       unit: 'Pcs',
       description: 'Keripik kentang retail',
-      imageUrl: 'https://example.com/products/keripik-kentang.jpg',
+      imageUrl: '/products/product-1775009872291-853994.jpg',
       basePrice: 12000,
       status: ProductStatus.ACTIVE,
     },
@@ -1361,7 +1362,7 @@ async function main() {
       brand: 'Qtela',
       unit: 'Pcs',
       description: 'Keripik kentang retail',
-      imageUrl: 'https://example.com/products/keripik-kentang.jpg',
+      imageUrl: '/products/product-1775009872291-853994.jpg',
       basePrice: 12000,
       status: ProductStatus.ACTIVE,
     },
@@ -1381,7 +1382,7 @@ async function main() {
       brand: 'Kitchen Internal',
       unit: 'Porsi',
       description: 'Menu nasi goreng special',
-      imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
+      imageUrl: '/products/product-1775009480141-183885.jpg',
       basePrice: 28000,
       status: ProductStatus.ACTIVE,
     },
@@ -1394,7 +1395,7 @@ async function main() {
       brand: 'Kitchen Internal',
       unit: 'Porsi',
       description: 'Menu nasi goreng special',
-      imageUrl: 'https://example.com/products/nasi-goreng-special.jpg',
+      imageUrl: '/products/product-1775009480141-183885.jpg',
       basePrice: 28000,
       status: ProductStatus.ACTIVE,
     },
@@ -1414,7 +1415,7 @@ async function main() {
       brand: 'Kitchen Internal',
       unit: 'Gelas',
       description: 'Menu es teh manis',
-      imageUrl: 'https://example.com/products/es-teh-manis.jpg',
+      imageUrl: '/products/product-1775009460549-729937.jpg',
       basePrice: 8000,
       status: ProductStatus.ACTIVE,
     },
@@ -1427,7 +1428,7 @@ async function main() {
       brand: 'Kitchen Internal',
       unit: 'Gelas',
       description: 'Menu es teh manis',
-      imageUrl: 'https://example.com/products/es-teh-manis.jpg',
+      imageUrl: '/products/product-1775009460549-729937.jpg',
       basePrice: 8000,
       status: ProductStatus.ACTIVE,
     },

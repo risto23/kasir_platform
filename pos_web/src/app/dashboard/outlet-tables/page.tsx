@@ -12,6 +12,8 @@ import {
   faStore,
   faTableCellsLarge,
   faUtensils,
+  faDisplay,
+  faQrcode,
 } from '@fortawesome/free-solid-svg-icons';
 
 import { api } from '@/lib/api';
@@ -129,7 +131,7 @@ export default function OutletTablesPage() {
           Pilih Outlet Restoran
         </h1>
         <p className="mt-1 text-sm leading-6 text-slate-500">
-          Kelola meja berdasarkan outlet restoran aktif.
+          Kelola meja, monitor meja, dan akses QR berdasarkan outlet restoran aktif.
         </p>
       </section>
 
@@ -141,7 +143,7 @@ export default function OutletTablesPage() {
                 Outlet Restoran
               </h2>
               <p className="text-sm text-slate-500">
-                Pilih outlet untuk mengatur meja.
+                Pilih outlet untuk mengatur meja, buka monitor meja, atau generate QR per meja.
               </p>
             </div>
 
@@ -151,10 +153,7 @@ export default function OutletTablesPage() {
             >
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                  <FontAwesomeIcon
-                    icon={faMagnifyingGlass}
-                    className="h-4 w-4"
-                  />
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
                 </span>
                 <input
                   value={searchInput}
@@ -169,10 +168,7 @@ export default function OutletTablesPage() {
                   type="submit"
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
-                  <FontAwesomeIcon
-                    icon={faMagnifyingGlass}
-                    className="h-4 w-4"
-                  />
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
                   Cari
                 </button>
 
@@ -200,10 +196,7 @@ export default function OutletTablesPage() {
         {loading ? (
           <div className="grid gap-3 px-5 py-5 sm:px-6">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-20 animate-pulse rounded-2xl bg-slate-100"
-              />
+              <div key={index} className="h-24 animate-pulse rounded-2xl bg-slate-100" />
             ))}
           </div>
         ) : items.length === 0 ? (
@@ -238,7 +231,7 @@ export default function OutletTablesPage() {
                   </div>
                 </div>
 
-                <div className="mt-5">
+                <div className="mt-5 grid gap-2">
                   <Link
                     href={`/dashboard/outlet-tables/${item.id}`}
                     className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
@@ -246,42 +239,28 @@ export default function OutletTablesPage() {
                     <FontAwesomeIcon icon={faChair} className="h-4 w-4" />
                     Kelola Meja
                   </Link>
+
+                  <Link
+                    href={`/dashboard/tables/monitor?outletId=${encodeURIComponent(item.id)}`}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <FontAwesomeIcon icon={faDisplay} className="h-4 w-4" />
+                    Buka Monitor Meja
+                  </Link>
+
+                  <Link
+                    href={`/dashboard/outlet-tables/${item.id}#qr-info`}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <FontAwesomeIcon icon={faQrcode} className="h-4 w-4" />
+                    Pilih Meja untuk QR
+                    <FontAwesomeIcon icon={faArrowRight} className="h-3.5 w-3.5" />
+                  </Link>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </section>
-
-      <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">
-              Catatan Outlet Tables
-            </h2>
-            <p className="text-sm text-slate-500">
-              Modul ini dipakai untuk restoran yang memiliki meja per outlet.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {[
-            'Meja dikelola per outlet restoran.',
-            'Setiap meja memiliki code dan nama sendiri.',
-            'Capacity bersifat opsional.',
-            'Status meja bisa ACTIVE / INACTIVE.',
-            'List outlet hanya menampilkan outlet aktif.',
-            'Validasi utama tetap dilakukan di backend.',
-          ].map((note) => (
-            <div
-              key={note}
-              className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600"
-            >
-              {note}
-            </div>
-          ))}
-        </div>
       </section>
     </div>
   );

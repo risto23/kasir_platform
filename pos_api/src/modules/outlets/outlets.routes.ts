@@ -1,3 +1,4 @@
+// pos_api/src/modules/outlets/outlets.routes.ts
 import { Router } from 'express';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { businessAccessMiddleware } from '../../middlewares/business-access.middleware';
@@ -16,6 +17,7 @@ import {
   validateUpdateOutlet,
   validateUpdateOutletStatus,
 } from './outlets.validation';
+
 
 const router = Router();
 
@@ -65,5 +67,7 @@ router.patch(
   validateUpdateOutletStatus,
   updateOutletStatusController,
 );
+
+
 
 export default router;

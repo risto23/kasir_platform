@@ -1,3 +1,4 @@
+// pos_api/src/modules/platform-outlet/platform-outlet.routes.ts
 import { Router } from 'express';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { requirePlatformRole } from '../../middlewares/role.middleware';

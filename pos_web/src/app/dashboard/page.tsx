@@ -1,87 +1,490 @@
+'use client';
+
+import { useMemo } from 'react';
+import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowTrendUp,
+  faBowlFood,
+  faCashRegister,
+  faClock,
   faLocationDot,
   faPercent,
-  faPlus,
+  faQrcode,
+  faReceipt,
   faShop,
   faStore,
+  faTableCellsLarge,
   faTags,
+  faUtensils,
 } from '@fortawesome/free-solid-svg-icons';
-import Link from 'next/link';
 
-const summaryCards = [
-  {
-    title: 'Total Businesses',
-    value: '12',
-    description: 'Semua business yang sudah terdaftar di platform.',
-    icon: faShop,
-  },
-  {
-    title: 'Total Outlets',
-    value: '28',
-    description: 'Jumlah outlet dari seluruh business aktif.',
-    icon: faLocationDot,
-  },
-  {
-    title: 'Business Active',
-    value: '10',
-    description: 'Business yang saat ini berstatus aktif.',
-    icon: faArrowTrendUp,
-  },
-  {
-    title: 'Promo Module',
-    value: 'Fase 3',
-    description: 'Promo kategori, produk/menu, nama, brand, dan satuan.',
-    icon: faPercent,
-  },
-];
+import { getActiveBusinessId, getCachedCurrentUser } from '@/lib/auth';
+import type { BusinessMembership, CurrentUser } from '@/types/auth';
 
-const quickActions = [
-  {
-    title: 'Lihat Businesses',
-    description: 'Cek daftar business yang sudah dibuat dan statusnya.',
-    href: '/dashboard/businesses',
-    icon: faShop,
-  },
-  {
-    title: 'Tambah Business',
-    description: 'Buat business baru dengan business type yang sesuai.',
-    href: '/dashboard/businesses/create',
-    icon: faPlus,
-  },
-  {
-    title: 'Lihat Outlets',
-    description: 'Kelola outlet berdasarkan business induknya.',
-    href: '/dashboard/outlets',
-    icon: faLocationDot,
-  },
-  {
-    title: 'Lihat Promo',
-    description: 'Kelola promo aktif, terjadwal, nonaktif, dan berakhir.',
-    href: '/dashboard/promos',
-    icon: faTags,
-  },
-];
+type DashboardCard = {
+  title: string;
+  value: string;
+  description: string;
+  icon: typeof faShop;
+};
+
+type DashboardAction = {
+  title: string;
+  description: string;
+  href: string;
+  icon: typeof faShop;
+};
+
+function getCurrentUser(): CurrentUser | null {
+  const user = getCachedCurrentUser();
+
+  if (!user) {
+    return null;
+  }
+
+  return user as CurrentUser;
+}
+
+function getActiveMembership(
+  user: CurrentUser | null,
+): BusinessMembership | null {
+  if (!user) {
+    return null;
+  }
+
+  const activeBusinessId = getActiveBusinessId();
+
+  const matchedMembership = Array.isArray(user.businessMemberships)
+    ? user.businessMemberships.find(
+        (item) =>
+          item.businessId === activeBusinessId && item.status === 'ACTIVE',
+      )
+    : null;
+
+  if (matchedMembership) {
+    return matchedMembership;
+  }
+
+  const defaultMembership = user.accessProfile?.defaultBusinessMembership;
+
+  if (defaultMembership?.status === 'ACTIVE') {
+    return defaultMembership;
+  }
+
+  const firstActiveMembership = Array.isArray(user.businessMemberships)
+    ? user.businessMemberships.find((item) => item.status === 'ACTIVE')
+    : null;
+
+  return firstActiveMembership ?? null;
+}
+
+function isSuperAdminUser(user: CurrentUser | null): boolean {
+  return Boolean(user?.accessProfile?.isSuperAdmin);
+}
+
+function getDashboardVariant(user: CurrentUser | null) {
+  const activeMembership = getActiveMembership(user);
+  const isSuperAdmin = isSuperAdminUser(user);
+
+  if (
+    activeMembership?.role === 'KITCHEN' &&
+    activeMembership.businessType === 'RESTAURANT'
+  ) {
+    return 'KITCHEN';
+  }
+
+  if (isSuperAdmin && activeMembership?.businessType === 'RESTAURANT') {
+    return 'SUPER_ADMIN_RESTAURANT';
+  }
+
+  if (isSuperAdmin) {
+    return 'SUPER_ADMIN_PLATFORM';
+  }
+
+  return 'DEFAULT';
+}
+
+function getKitchenSummaryCards(): DashboardCard[] {
+  return [
+    {
+      title: 'Kitchen Scope',
+      value: 'Restaurant',
+      description:
+        'Dashboard ini difokuskan untuk operasional kitchen per outlet.',
+      icon: faUtensils,
+    },
+    {
+      title: 'Queue Source',
+      value: 'Order',
+      description: 'Antrian kitchen diambil dari order aktif restaurant.',
+      icon: faReceipt,
+    },
+    {
+      title: 'Item Flow',
+      value: '3 Step',
+      description: 'PENDING → PROCESSING → DONE → SERVED.',
+      icon: faArrowTrendUp,
+    },
+    {
+      title: 'Outlet Scope',
+      value: 'Scoped',
+      description:
+        'Kitchen hanya melihat outlet yang memang menjadi hak aksesnya.',
+      icon: faLocationDot,
+    },
+  ];
+}
+
+function getKitchenQuickActions(isSuperAdmin: boolean): DashboardAction[] {
+  const actions: DashboardAction[] = [
+    {
+      title: 'Buka Kitchen Display',
+      description:
+        'Lihat antrian kitchen aktif dan update status item pesanan.',
+      href: '/dashboard/kitchen',
+      icon: faBowlFood,
+    },
+  ];
+
+  if (isSuperAdmin) {
+    actions.push(
+      {
+        title: 'Monitor Meja',
+        description:
+          'Masuk ke halaman monitor meja restaurant. Jika outlet belum dipilih, halaman akan memberi petunjuk.',
+        href: '/dashboard/tables/monitor',
+        icon: faTableCellsLarge,
+      },
+      {
+        title: 'QR Meja',
+        description:
+          'Masuk ke halaman QR meja. Jika meja belum dipilih, halaman akan mengarahkan ke daftar meja.',
+        href: '/dashboard/tables/qr',
+        icon: faQrcode,
+      },
+      {
+        title: 'Lihat Meja Outlet',
+        description: 'Cek data meja restaurant yang aktif di outlet terkait.',
+        href: '/dashboard/outlet-tables',
+        icon: faTableCellsLarge,
+      },
+    );
+  }
+
+  return actions;
+}
+
+function getKitchenArchitectureNotes(isSuperAdmin: boolean): string[] {
+  const notes = [
+    'kitchen hanya untuk business type restaurant',
+    'antrian kitchen berbasis order aktif per outlet',
+    'status item kitchen mengikuti flow transaksi yang sudah ada',
+    'backend tetap menjadi penjaga utama permission dan outlet scope',
+    'kitchen tidak diarahkan ke payment atau master data admin',
+    'super admin tetap bisa masuk kitchen selama business context aktif adalah restaurant',
+  ];
+
+  if (isSuperAdmin) {
+    notes.unshift(
+      'login saat ini adalah super admin dengan business context restaurant',
+    );
+  } else {
+    notes.unshift('login saat ini adalah role kitchen yang outlet-scoped');
+  }
+
+  return notes;
+}
+
+function getDefaultSummaryCards(isSuperAdmin: boolean): DashboardCard[] {
+  if (isSuperAdmin) {
+    return [
+      {
+        title: 'Total Businesses',
+        value: '12',
+        description: 'Semua business yang sudah terdaftar di platform.',
+        icon: faShop,
+      },
+      {
+        title: 'Total Outlets',
+        value: '28',
+        description: 'Jumlah outlet dari seluruh business aktif.',
+        icon: faLocationDot,
+      },
+      {
+        title: 'Business Active',
+        value: '10',
+        description: 'Business yang saat ini berstatus aktif.',
+        icon: faArrowTrendUp,
+      },
+      {
+        title: 'Promo Module',
+        value: 'Fase 3',
+        description:
+          'Promo kategori, produk/menu, nama, brand, dan satuan.',
+        icon: faPercent,
+      },
+    ];
+  }
+
+  return [
+    {
+      title: 'Business Scope',
+      value: 'Active',
+      description: 'Dashboard ini mengikuti business context yang sedang aktif.',
+      icon: faShop,
+    },
+    {
+      title: 'Outlet Scope',
+      value: 'Scoped',
+      description: 'Akses outlet tetap mengikuti role dan assignment user.',
+      icon: faLocationDot,
+    },
+    {
+      title: 'POS Module',
+      value: 'Ready',
+      description: 'Flow order, payment, dan receipt sudah tersedia.',
+      icon: faCashRegister,
+    },
+    {
+      title: 'Promo Module',
+      value: 'Ready',
+      description: 'Promo business tetap tersedia sesuai permission user.',
+      icon: faPercent,
+    },
+  ];
+}
+
+function getDefaultQuickActions(params: {
+  isSuperAdmin: boolean;
+  activeMembership: BusinessMembership | null;
+}): DashboardAction[] {
+  const { isSuperAdmin, activeMembership } = params;
+
+  if (isSuperAdmin) {
+    return [
+      {
+        title: 'Lihat Businesses',
+        description: 'Cek daftar business yang sudah dibuat dan statusnya.',
+        href: '/dashboard/businesses',
+        icon: faShop,
+      },
+      {
+        title: 'POS Kasir',
+        description: 'Masuk ke halaman POS untuk transaksi dan checkout.',
+        href: '/dashboard/pos',
+        icon: faCashRegister,
+      },
+      {
+        title: 'Lihat Outlets',
+        description: 'Kelola outlet berdasarkan business induknya.',
+        href: '/dashboard/outlets',
+        icon: faLocationDot,
+      },
+      {
+        title: 'Lihat Promo',
+        description:
+          'Kelola promo aktif, terjadwal, nonaktif, dan berakhir.',
+        href: '/dashboard/promos',
+        icon: faTags,
+      },
+    ];
+  }
+
+  const isRestaurantAdminArea =
+    activeMembership?.businessType === 'RESTAURANT' &&
+    (activeMembership.role === 'OWNER' || activeMembership.role === 'ADMIN');
+
+  if (isRestaurantAdminArea) {
+    return [
+      {
+        title: 'Kitchen Display',
+        description: 'Masuk ke antrian kitchen restaurant per outlet.',
+        href: '/dashboard/kitchen',
+        icon: faBowlFood,
+      },
+      {
+        title: 'Monitor Meja',
+        description:
+          'Buka monitor meja restaurant. Jika outlet belum dipilih, halaman akan memberi petunjuk.',
+        href: '/dashboard/tables/monitor',
+        icon: faTableCellsLarge,
+      },
+      {
+        title: 'QR Meja',
+        description:
+          'Buka halaman QR meja. Pilih meja dari daftar meja bila belum ada parameter.',
+        href: '/dashboard/tables/qr',
+        icon: faQrcode,
+      },
+      {
+        title: 'Outlet Tables',
+        description: 'Masuk ke master meja untuk memilih meja dan generate QR.',
+        href: '/dashboard/outlet-tables',
+        icon: faTableCellsLarge,
+      },
+    ];
+  }
+
+  return [
+    {
+      title: 'POS Kasir',
+      description: 'Masuk ke halaman POS untuk transaksi dan checkout.',
+      href: '/dashboard/pos',
+      icon: faCashRegister,
+    },
+    {
+      title: 'Histori Transaksi',
+      description: 'Lihat histori transaksi outlet yang bisa diakses.',
+      href: '/dashboard/pos/history',
+      icon: faReceipt,
+    },
+    {
+      title: 'Payment History',
+      description: 'Lihat histori pembayaran outlet yang bisa diakses.',
+      href: '/dashboard/payments',
+      icon: faReceipt,
+    },
+    {
+      title: 'Lihat Promo',
+      description: 'Cek promo yang aktif pada business yang sedang dipilih.',
+      href: '/dashboard/promos',
+      icon: faTags,
+    },
+  ];
+}
+
+function getDefaultArchitectureNotes(params: {
+  isSuperAdmin: boolean;
+  activeMembership: BusinessMembership | null;
+}): string[] {
+  const { isSuperAdmin, activeMembership } = params;
+
+  if (isSuperAdmin) {
+    return [
+      '1 business hanya punya 1 business type',
+      '1 business bisa punya banyak outlet',
+      'outlet mengikuti business induknya',
+      'retail dan restaurant tetap dibedakan',
+      'promo support category, product/menu, nama, brand, dan unit',
+      'outlet table hanya untuk restaurant',
+      'status efektif promo: ACTIVE / INACTIVE / SCHEDULED / EXPIRED',
+      'tanpa hard delete',
+    ];
+  }
+
+  if (activeMembership?.businessType === 'RESTAURANT') {
+    return [
+      'dashboard business user tetap mengikuti role, permission, dan outlet scope',
+      'restaurant operational tetap dipisahkan dari retail',
+      'kitchen, monitor meja, dan QR guest hanya muncul untuk context restaurant',
+      'entry point QR diarahkan dari dashboard dan master meja',
+      'guest flow tetap public tetapi tidak dibuka untuk retail',
+      'tanpa hard delete',
+    ];
+  }
+
+  return [
+    'dashboard business user tidak perlu tampil seperti dashboard platform',
+    'akses menu tetap mengikuti permission dan role aktif',
+    'outlet scope tetap dijaga oleh assignment outlet user',
+    'flow POS tetap fokus ke order, payment, dan receipt',
+    'master data hanya muncul di menu jika memang user punya haknya',
+    'tanpa hard delete',
+  ];
+}
 
 export default function DashboardPage() {
+  const currentUser = useMemo(() => getCurrentUser(), []);
+  const activeMembership = useMemo(
+    () => getActiveMembership(currentUser),
+    [currentUser],
+  );
+  const isSuperAdmin = useMemo(
+    () => isSuperAdminUser(currentUser),
+    [currentUser],
+  );
+  const variant = useMemo(
+    () => getDashboardVariant(currentUser),
+    [currentUser],
+  );
+
+  const isKitchenLikeDashboard =
+    variant === 'KITCHEN' || variant === 'SUPER_ADMIN_RESTAURANT';
+
+  const summaryCards = isKitchenLikeDashboard
+    ? getKitchenSummaryCards()
+    : getDefaultSummaryCards(isSuperAdmin);
+
+  const quickActions = isKitchenLikeDashboard
+    ? getKitchenQuickActions(isSuperAdmin)
+    : getDefaultQuickActions({
+        isSuperAdmin,
+        activeMembership,
+      });
+
+  const architectureNotes = isKitchenLikeDashboard
+    ? getKitchenArchitectureNotes(isSuperAdmin)
+    : getDefaultArchitectureNotes({
+        isSuperAdmin,
+        activeMembership,
+      });
+
+  const heroBadge = isKitchenLikeDashboard
+    ? 'Kitchen Dashboard'
+    : isSuperAdmin
+      ? 'POS Platform Dashboard'
+      : 'Business Dashboard';
+
+  const heroTitle = isKitchenLikeDashboard
+    ? 'Selamat datang di dashboard kitchen.'
+    : isSuperAdmin
+      ? 'Selamat datang di POS Platform.'
+      : 'Selamat datang di dashboard business.';
+
+  const heroDescription = isKitchenLikeDashboard
+    ? 'Dashboard ini difokuskan untuk operasional kitchen restaurant secara sederhana, cepat, dan aman. Fokus utamanya adalah melihat antrian order per outlet dan memproses status item pesanan.'
+    : isSuperAdmin
+      ? 'Dashboard ini difokuskan untuk pengelolaan master data dan operasional POS secara sederhana, rapi, dan konsisten, termasuk kategori, produk/menu, pricing outlet, promo, dan meja outlet restaurant.'
+      : activeMembership?.businessType === 'RESTAURANT'
+        ? 'Dashboard ini difokuskan untuk area kerja restaurant yang sedang aktif. Entry point kitchen, monitor meja, dan QR meja dirapikan agar bisa dipakai dari UI normal tanpa URL manual.'
+        : 'Dashboard ini difokuskan untuk area kerja business yang sedang aktif. Menu, outlet, dan fitur yang terlihat tetap mengikuti role, permission, dan scope outlet user.';
+
+  const businessTypeLabel = activeMembership?.businessType ?? 'UNKNOWN';
+
+  const currentScopeLabel = isKitchenLikeDashboard
+    ? 'Kitchen Operation'
+    : activeMembership?.businessType === 'RESTAURANT'
+      ? 'Restaurant Operation'
+      : isSuperAdmin
+        ? 'Master Data & POS'
+        : 'Business Operation';
+
+  const roleLabel = isSuperAdmin
+    ? 'SUPER_ADMIN'
+    : activeMembership?.role || 'UNKNOWN';
+
+  const accessModelLabel = isSuperAdmin
+    ? 'Super Admin Access'
+    : activeMembership?.hasAllOutletAccess
+      ? 'Business Wide Access'
+      : 'Outlet Scoped Access';
+
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_48%,#312e81_100%)] text-white shadow-sm">
         <div className="grid gap-6 px-6 py-7 sm:px-8 sm:py-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
           <div>
             <div className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-slate-100">
-              Fase 3 Dashboard
+              {heroBadge}
             </div>
 
             <h2 className="mt-4 max-w-2xl text-2xl font-semibold leading-tight sm:text-3xl">
-              Selamat datang di POS Platform.
+              {heroTitle}
             </h2>
 
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-200">
-              Dashboard ini difokuskan untuk pengelolaan master data fase 3 secara
-              sederhana, rapi, dan konsisten, termasuk kategori, produk/menu,
-              pricing outlet, promo, dan meja outlet restaurant.
+              {heroDescription}
             </p>
           </div>
 
@@ -91,7 +494,7 @@ export default function DashboardPage() {
                 Business Type
               </p>
               <p className="mt-2 text-base font-semibold text-white">
-                RESTAURANT & RETAIL
+                {businessTypeLabel}
               </p>
             </div>
 
@@ -100,7 +503,25 @@ export default function DashboardPage() {
                 Current Scope
               </p>
               <p className="mt-2 text-base font-semibold text-white">
-                Master Data Fase 3
+                {currentScopeLabel}
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+                Current Role
+              </p>
+              <p className="mt-2 text-base font-semibold text-white">
+                {roleLabel}
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+                Access Model
+              </p>
+              <p className="mt-2 text-base font-semibold text-white">
+                {accessModelLabel}
               </p>
             </div>
           </div>
@@ -144,7 +565,13 @@ export default function DashboardPage() {
                 Quick Actions
               </p>
               <p className="text-sm text-slate-500">
-                Akses cepat untuk aktivitas utama fase 3.
+                {isKitchenLikeDashboard
+                  ? 'Akses cepat untuk operasional kitchen.'
+                  : activeMembership?.businessType === 'RESTAURANT'
+                    ? 'Akses cepat untuk operasional restaurant yang sedang aktif.'
+                    : isSuperAdmin
+                      ? 'Akses cepat untuk aktivitas utama dashboard.'
+                      : 'Akses cepat untuk area kerja business yang aktif.'}
               </p>
             </div>
 
@@ -177,23 +604,22 @@ export default function DashboardPage() {
 
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-slate-900">
-            Ringkasan Arsitektur Fase 3
+            {isKitchenLikeDashboard
+              ? 'Ringkasan Operasional Kitchen'
+              : isSuperAdmin
+                ? 'Ringkasan Arsitektur Dashboard'
+                : 'Ringkasan Akses Dashboard'}
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            Batasan utama tetap dijaga agar implementasi tetap konsisten.
+            {isKitchenLikeDashboard
+              ? 'Batasan akses dan flow kitchen tetap dijaga agar konsisten.'
+              : isSuperAdmin
+                ? 'Batasan utama tetap dijaga agar implementasi tetap konsisten.'
+                : 'Dashboard business tetap dijaga agar tidak melebar seperti dashboard platform.'}
           </p>
 
           <div className="mt-5 space-y-3">
-            {[
-              '1 business hanya punya 1 business type',
-              '1 business bisa punya banyak outlet',
-              'outlet mengikuti business induknya',
-              'retail dan restaurant tetap dibedakan',
-              'promo support category, product/menu, nama, brand, dan unit',
-              'outlet table hanya untuk restaurant',
-              'status efektif promo: ACTIVE / INACTIVE / SCHEDULED / EXPIRED',
-              'tanpa hard delete',
-            ].map((item) => (
+            {architectureNotes.map((item) => (
               <div
                 key={item}
                 className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3"
@@ -203,6 +629,32 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
+
+          {isKitchenLikeDashboard ? (
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                <div className="flex items-center gap-2 text-slate-700">
+                  <FontAwesomeIcon icon={faClock} className="h-4 w-4" />
+                  <p className="text-sm font-semibold">Status Item</p>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Fokus utama kitchen adalah update status item pesanan, bukan
+                  payment atau receipt admin.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                <div className="flex items-center gap-2 text-slate-700">
+                  <FontAwesomeIcon icon={faStore} className="h-4 w-4" />
+                  <p className="text-sm font-semibold">Scope Outlet</p>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Data kitchen tetap mengikuti outlet access user, kecuali login
+                  sebagai super admin.
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
     </div>

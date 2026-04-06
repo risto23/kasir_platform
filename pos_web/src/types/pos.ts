@@ -22,6 +22,13 @@ export type PosPaymentMethod =
   | 'CARD'
   | 'OTHER';
 
+export type PosOrderQueue =
+  | 'CASHIER_ACTIVE'
+  | 'CASHIER_UNPAID'
+  | 'GUEST_WAITING_PAYMENT';
+
+export type PosOrderSource = 'ALL' | 'GUEST' | 'STAFF';
+
 export type PosProductStatus = 'ACTIVE' | 'INACTIVE';
 
 export type PosChargeType = 'PERCENTAGE' | 'FIXED_AMOUNT';
@@ -189,6 +196,8 @@ export type PosOrderResponse = {
   cancelledAt: string | null;
   itemCount: number;
   items?: PosOrderItemResponse[];
+  isGuestOrder: boolean;
+  orderSource: 'GUEST' | 'STAFF';
 
   orderNo: string;
   note: string | null;
@@ -311,6 +320,8 @@ export type PosHistoryItem = {
   total: number;
   itemCount: number;
   createdAt: string;
+  isGuestOrder: boolean;
+  orderSource: 'GUEST' | 'STAFF';
 };
 
 export type PosHistoryResponse = {

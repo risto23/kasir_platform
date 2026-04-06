@@ -1,4 +1,4 @@
-//  pos_api/src/routes/index.ts
+// pos_api/src/routes/index.ts
 import { Router } from 'express';
 import authRoutes from '../modules/auth/auth.routes';
 import businessRoutes from '../modules/platform-business/platform-business.routes';
@@ -11,12 +11,12 @@ import businessUserRoutes from '../modules/business-users/business-user.routes';
 import productRoutes from '../modules/products/products.routes';
 import productRouter from '../modules/business-product/product.routes';
 import promoRoutes from '../modules/promos/promo.routes';
-import orderRoutes from '../modules/orders/order.routes'
-import paymentRoutes from '../modules/payments/payment.routes'
-import receiptRoutes from '../modules/receipts/receipt.routes'
-
-
-
+import orderRoutes from '../modules/orders/order.routes';
+import paymentRoutes from '../modules/payments/payment.routes';
+import receiptRoutes from '../modules/receipts/receipt.routes';
+import kitchenRoutes from '../modules/kitchen/kitchen.routes';
+import guestRoutes from '../modules/guest/guest.routes';
+import restaurantOperationsRoutes from '../modules/restaurant-operations/restaurant-operations.routes';
 
 const router = Router();
 
@@ -35,6 +35,11 @@ router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/receipts', receiptRoutes);
 
+// public guest routes harus dipasang lebih dulu
+router.use('/', guestRoutes);
 
+// protected root routes
+router.use('/', kitchenRoutes);
+router.use('/', restaurantOperationsRoutes);
 
 export default router;
