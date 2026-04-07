@@ -139,17 +139,17 @@ const kitchenQueues: Array<{
   {
     value: 'WAITING',
     label: 'Menunggu Diproses',
-    helper: 'Order yang sudah lolos kasir dan siap mulai dikerjakan.',
+    helper: 'Hanya menampilkan item dengan status pending.',
   },
   {
     value: 'PROCESSING',
     label: 'Sedang Diproses',
-    helper: 'Item sudah mulai dikerjakan kitchen.',
+    helper: 'Hanya menampilkan item yang sedang dikerjakan kitchen.',
   },
   {
     value: 'READY',
     label: 'Siap Disajikan',
-    helper: 'Semua item selesai dan order siap keluar.',
+    helper: 'Hanya menampilkan item yang sudah done dan siap disajikan.',
   },
 ];
 
@@ -389,7 +389,7 @@ export default function KitchenDashboardPage() {
                 Antrian Kitchen
               </h2>
               <p className="text-sm text-slate-500">
-                Hanya untuk business type restaurant dan hanya order yang sudah lolos kasir.
+                Filter queue sekarang berdasarkan status item kitchen.
               </p>
             </div>
 
@@ -468,10 +468,10 @@ export default function KitchenDashboardPage() {
               <FontAwesomeIcon icon={faBowlFood} className="h-5 w-5" />
             </div>
             <h3 className="mt-4 text-base font-semibold text-slate-900">
-              Belum ada order kitchen
+              Belum ada item kitchen
             </h3>
             <p className="mt-2 text-sm text-slate-500">
-              Saat ada order yang sudah dibayar dan sesuai filter ini, antriannya akan tampil di sini.
+              Saat ada item yang sesuai dengan queue ini, datanya akan tampil di sini.
             </p>
           </div>
         ) : (

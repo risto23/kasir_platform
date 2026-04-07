@@ -189,7 +189,13 @@ function getActiveMembership(): ParsedMembership | null {
 
 function getMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
-    return error.response?.data?.message || fallback;
+    const apiMessage = error.response?.data?.message;
+
+    if (typeof apiMessage === 'string' && apiMessage.trim()) {
+      return apiMessage;
+    }
+
+    return fallback;
   }
 
   if (error instanceof Error) {
@@ -229,11 +235,11 @@ function getOrderBadgeClass(status: string) {
     return 'border border-sky-200 bg-sky-50 text-sky-700';
   }
 
-  if (status === 'READY' || status === 'COMPLETED') {
+  if (status === 'READY' || status === 'COMPLETED' || status === 'PAID') {
     return 'border border-emerald-200 bg-emerald-50 text-emerald-700';
   }
 
-  if (status === 'CANCELLED') {
+  if (status === 'CANCELLED' || status === 'REFUNDED') {
     return 'border border-rose-200 bg-rose-50 text-rose-700';
   }
 
@@ -404,7 +410,7 @@ export default function PosCashierPage() {
         return true;
       }
 
-      const haystacks = [item.name, item.category?.name, item.brand]
+      const haystacks = [item.name, item.category?.name, item.brand, item.code]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -471,7 +477,12 @@ export default function PosCashierPage() {
   }, [activeBusinessId, cart]);
 
   useEffect(() => {
-    if (!selectedOutletId || typeof window === 'undefined') {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!selectedOutletId) {
+      window.localStorage.removeItem('activeOutletId');
       return;
     }
 
@@ -487,6 +498,9 @@ export default function PosCashierPage() {
         setOutlets([]);
         setProducts([]);
         setTables([]);
+        setQueueOrders([]);
+        setSelectedQueueOrderId('');
+        setSelectedQueueOrder(null);
         setPageMessage('Business aktif belum dipilih');
         return;
       }
@@ -509,13 +523,32 @@ export default function PosCashierPage() {
           storedOutletId &&
           outletItems.some((item) => item.id === storedOutletId)
             ? storedOutletId
-            : outletItems[0].id;
+            : '';
 
-        setSelectedOutletId((prev) => prev || resolvedOutletId);
+        setSelectedOutletId((prev) => {
+          if (prev && outletItems.some((item) => item.id === prev)) {
+            return prev;
+          }
+
+          return resolvedOutletId;
+        });
+
+        if (!resolvedOutletId) {
+          setProducts([]);
+          setTables([]);
+          setQueueOrders([]);
+          setSelectedQueueOrderId('');
+          setSelectedQueueOrder(null);
+          setSelectedTableId('');
+        }
       } else {
         setSelectedOutletId('');
         setProducts([]);
         setTables([]);
+        setQueueOrders([]);
+        setSelectedQueueOrderId('');
+        setSelectedQueueOrder(null);
+        setSelectedTableId('');
       }
     } catch (error: unknown) {
       setPageMessage(getMessage(error, 'Gagal memuat data POS'));
@@ -523,6 +556,10 @@ export default function PosCashierPage() {
       setSelectedOutletId('');
       setProducts([]);
       setTables([]);
+      setQueueOrders([]);
+      setSelectedQueueOrderId('');
+      setSelectedQueueOrder(null);
+      setSelectedTableId('');
     } finally {
       setInitialLoading(false);
     }
@@ -649,6 +686,12 @@ export default function PosCashierPage() {
 
   useEffect(() => {
     if (!selectedOutletId) {
+      setProducts([]);
+      setTables([]);
+      setSelectedTableId('');
+      setQueueOrders([]);
+      setSelectedQueueOrderId('');
+      setSelectedQueueOrder(null);
       return;
     }
 
@@ -945,6 +988,461 @@ export default function PosCashierPage() {
 
       <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Outlet & Filter</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Pilih outlet dulu sebelum memakai POS.
+              </p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="min-w-[220px]">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Outlet
+                </label>
+                <select
+                  value={selectedOutletId}
+                  onChange={(event) => {
+                    setSelectedOutletId(event.target.value);
+                    setCartMessage('');
+                    setQueueMessage('');
+                    setReceiptResult(null);
+                  }}
+                  disabled={outlets.length === 0}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="">Pilih outlet</option>
+                  {outlets.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ({item.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {businessType === 'RESTAURANT' ? (
+                <div className="min-w-[200px]">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Meja
+                  </label>
+                  <select
+                    value={selectedTableId}
+                    onChange={(event) => setSelectedTableId(event.target.value)}
+                    disabled={!selectedOutletId || tables.length === 0}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">Pilih meja</option>
+                    {tables.map((table) => (
+                      <option key={table.id} value={table.id}>
+                        {table.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              <div className="min-w-[180px]">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Payment Method
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(event) =>
+                    setPaymentMethod(event.target.value as PosPaymentMethod)
+                  }
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                >
+                  {getPaymentMethods().map((method) => (
+                    <option key={method} value={method}>
+                      {method}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => void refreshProducts()}
+                  disabled={!selectedOutletId || productLoading}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FontAwesomeIcon icon={faArrowRotateLeft} className="h-4 w-4" />
+                  {productLoading ? 'Memuat...' : 'Refresh Produk'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <form
+              onSubmit={handleSearchSubmit}
+              className="flex w-full max-w-xl items-center gap-2"
+            >
+              <div className="relative flex-1">
+                <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
+                </span>
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder={`Cari ${productLabelLower}, kategori, brand, atau code`}
+                  disabled={!selectedOutletId}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={!selectedOutletId}
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                Cari
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetProductSearch}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Reset
+              </button>
+            </form>
+
+           
+          </div>
+        </div>
+
+        <div className="px-5 py-5 ">
+           <div className="flex flex-wrap gap-2">
+              {categoryOptions.map((category) => {
+                const isActive = selectedCategory === category;
+
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSelectedCategory(category)}
+                    disabled={!selectedOutletId}
+                    className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                      isActive
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    {category}
+                  </button>
+                );
+              })}
+            </div>
+        </div>
+
+      
+
+        {!selectedOutletId ? (
+          <div className="px-5 py-5 sm:px-6">
+            <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+              Pilih outlet dulu dari dropdown sebelum memakai POS.
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.25fr)_420px] sm:px-6 sm:py-5">
+            
+            <div className="space-y-4">
+              {productLoading ? (
+                <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-[260px] animate-pulse rounded-[24px] bg-slate-100"
+                    />
+                  ))}
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-12 text-center text-sm text-slate-500">
+                  {searchKeyword || selectedCategory !== 'ALL'
+                    ? `Tidak ada ${productLabelLower} yang cocok dengan filter.`
+                    : `${productLabel} belum tersedia di outlet ini.`}
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                  {filteredProducts.map((product) => {
+                    const imageUrl = getProductImageUrl(product);
+                    const displayPrice = getProductDisplayPrice(product);
+
+                    return (
+                      <article
+                        key={product.id}
+                        className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                      >
+                        <div className="relative h-44 w-full bg-slate-100">
+                          {imageUrl ? (
+                            <Image
+                              src={imageUrl}
+                              alt={product.name}
+                              fill
+                              sizes="(max-width: 768px) 100vw, 33vw"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-400">
+                              <FontAwesomeIcon icon={faImage} className="h-6 w-6" />
+                            </div>
+                          )}
+
+                          <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                            {product.category?.name ? (
+                              <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-700 backdrop-blur">
+                                {product.category.name}
+                              </span>
+                            ) : null}
+
+                            {product.effectivePrice > 0 &&
+                            product.effectivePrice < product.basePrice ? (
+                              <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                                Harga Outlet
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="line-clamp-2 text-base font-semibold text-slate-900">
+                                {product.name}
+                              </h3>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {product.code || '-'}
+                              </p>
+                              {product.brand ? (
+                                <p className="mt-2 line-clamp-1 text-sm text-slate-500">
+                                  {product.brand}
+                                </p>
+                              ) : null}
+                            </div>
+
+                            <div className="text-right">
+                              {product.effectivePrice > 0 &&
+                              product.effectivePrice < product.basePrice ? (
+                                <>
+                                  <p className="text-xs text-slate-400 line-through">
+                                    {formatCurrency(product.basePrice)}
+                                  </p>
+                                  <p className="text-base font-semibold text-emerald-600">
+                                    {formatCurrency(displayPrice)}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-base font-semibold text-slate-900">
+                                  {formatCurrency(displayPrice)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">
+                              <FontAwesomeIcon icon={faTag} className="h-3 w-3" />
+                              {product.unit || 'Unit'}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => addToCart(product)}
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                            >
+                              <FontAwesomeIcon icon={faPlus} className="h-3.5 w-3.5" />
+                              Tambah
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <aside className="xl:sticky xl:top-5">
+              <div className="rounded-[24px] border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">Cart Kasir</h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {selectedOutlet?.name || '-'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={clearCart}
+                      disabled={cart.length === 0}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <FontAwesomeIcon icon={faTrashCan} className="h-3.5 w-3.5" />
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {cartMessage ? (
+                  <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {cartMessage}
+                  </div>
+                ) : null}
+
+                <div className="max-h-[420px] space-y-3 overflow-y-auto px-4 py-4">
+                  {cart.length === 0 ? (
+                    <div className="rounded-[20px] border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                      Belum ada {productLabelLower} di cart.
+                    </div>
+                  ) : (
+                    cart.map((item) => (
+                      <div
+                        key={item.lineId}
+                        className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {item.productName}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {formatCurrency(item.price)} / item
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeCartItem(item.lineId)}
+                            className="text-slate-400 transition hover:text-rose-600"
+                          >
+                            <FontAwesomeIcon icon={faTrashCan} className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1">
+                            <button
+                              type="button"
+                              onClick={() => updateCartQty(item.lineId, item.qty - 1)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-50"
+                            >
+                              <FontAwesomeIcon icon={faMinus} className="h-3.5 w-3.5" />
+                            </button>
+
+                            <span className="min-w-8 text-center text-sm font-semibold text-slate-900">
+                              {item.qty}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => updateCartQty(item.lineId, item.qty + 1)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-50"
+                            >
+                              <FontAwesomeIcon icon={faPlus} className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          <span className="text-sm font-semibold text-slate-900">
+                            {formatCurrency(item.subtotal)}
+                          </span>
+                        </div>
+
+                        <textarea
+                          value={item.note}
+                          onChange={(event) =>
+                            updateCartNote(item.lineId, event.target.value)
+                          }
+                          rows={2}
+                          placeholder="Catatan item"
+                          className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="border-t border-slate-200 px-4 py-4">
+                  <div className="space-y-2 rounded-2xl bg-slate-50 px-4 py-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-500">Subtotal</span>
+                      <span className="font-semibold text-slate-900">
+                        {formatCurrency(subtotal)}
+                      </span>
+                    </div>
+
+                    {charges.map((chargeRule,index) => (
+                      <div
+                        key={`${chargeRule.type}-${index}`}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span className="text-slate-500">{chargeRule.type}</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(chargeRule.amount)}
+                        </span>
+                      </div>
+                    ))}
+
+                    <div className="border-t border-slate-200 pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-600">
+                          Grand Total
+                        </span>
+                        <span className="text-base font-semibold text-slate-900">
+                          {formatCurrency(grandTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Catatan Payment
+                      </label>
+                      <textarea
+                        value={paymentNote}
+                        onChange={(event) => setPaymentNote(event.target.value)}
+                        rows={2}
+                        placeholder="Catatan payment"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleCheckout()}
+                      disabled={!selectedOutletId || cart.length === 0 || checkoutLoading}
+                      className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      <FontAwesomeIcon icon={faWallet} className="h-4 w-4" />
+                      {checkoutLoading ? 'Memproses...' : 'Checkout & Bayar'}
+                    </button>
+
+                    {receiptResult ? (
+                      <Link
+                        href={`/dashboard/receipts/${receiptResult.id}`}
+                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
+                        Buka Receipt Terakhir
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-700">
@@ -962,7 +1460,7 @@ export default function PosCashierPage() {
             <button
               type="button"
               onClick={() => void refreshQueue()}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={queueLoading || !selectedOutletId}
             >
               <FontAwesomeIcon icon={faBoxesStacked} className="h-4 w-4" />
@@ -979,11 +1477,12 @@ export default function PosCashierPage() {
                   key={queueOption.value}
                   type="button"
                   onClick={() => setCashierQueue(queueOption.value)}
+                  disabled={!selectedOutletId}
                   className={`rounded-2xl px-4 py-3 text-left transition ${
                     isActive
                       ? 'bg-slate-900 text-white'
                       : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
                 >
                   <div className="text-sm font-semibold">{queueOption.label}</div>
                   <div
@@ -1005,796 +1504,313 @@ export default function PosCashierPage() {
           </div>
         ) : null}
 
-        <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.1fr)_420px] sm:px-6 sm:py-5">
-          <div className="space-y-3 xl:max-h-[520px] xl:overflow-y-auto xl:pr-1">
-            {queueLoading ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-28 animate-pulse rounded-[24px] bg-slate-100"
-                />
-              ))
-            ) : queueOrders.length === 0 ? (
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
-                Tidak ada order pada antrian ini.
-              </div>
-            ) : (
-              queueOrders.map((order) => {
-                const isSelected = selectedQueueOrderId === order.id;
-
-                return (
-                  <button
-                    key={order.id}
-                    type="button"
-                    onClick={() => setSelectedQueueOrderId(order.id)}
-                    className={`block w-full rounded-[24px] border px-4 py-4 text-left transition ${
-                      isSelected
-                        ? 'border-slate-900 bg-slate-900 text-white'
-                        : 'border-slate-200 bg-slate-50 text-slate-900 hover:bg-white'
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold">{order.orderNumber}</span>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          isSelected
-                            ? 'bg-white/15 text-white'
-                            : order.orderSource === 'GUEST'
-                              ? 'border border-orange-200 bg-orange-50 text-orange-700'
-                              : 'border border-slate-200 bg-white text-slate-700'
-                        }`}
-                      >
-                        {order.orderSource}
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          isSelected
-                            ? 'bg-white/15 text-white'
-                            : getOrderBadgeClass(order.status)
-                        }`}
-                      >
-                        {order.status}
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          isSelected
-                            ? 'bg-white/15 text-white'
-                            : getOrderBadgeClass(order.paymentStatus)
-                        }`}
-                      >
-                        {order.paymentStatus}
-                      </span>
-                    </div>
-
-                    <div
-                      className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm ${
-                        isSelected ? 'text-slate-200' : 'text-slate-500'
-                      }`}
-                    >
-                      <span>{order.outletName || selectedOutlet?.name || '-'}</span>
-                      {order.tableName ? <span>• {order.tableName}</span> : null}
-                      <span>• {order.itemCount} item</span>
-                      <span>• {formatDateTime(order.createdAt)}</span>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between">
-                      <span
-                        className={`text-xs font-semibold uppercase tracking-[0.16em] ${
-                          isSelected ? 'text-slate-300' : 'text-slate-500'
-                        }`}
-                      >
-                        Total
-                      </span>
-                      <span className="text-sm font-semibold">
-                        {formatCurrency(order.totalAmount)}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })
-            )}
+        {!selectedOutletId ? (
+          <div className="px-5 py-5 sm:px-6">
+            <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+              Pilih outlet dulu untuk melihat antrian kasir.
+            </div>
           </div>
-
-          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-            {!selectedQueueOrderId ? (
-              <div className="flex h-full min-h-[260px] items-center justify-center text-center text-sm text-slate-500">
-                Pilih order dari antrian kasir untuk melihat detail dan memproses payment.
-              </div>
-            ) : queueDetailLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, index) => (
+        ) : (
+          <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.1fr)_420px] sm:px-6 sm:py-5">
+            <div className="space-y-3 xl:max-h-[520px] xl:overflow-y-auto xl:pr-1">
+              {queueLoading ? (
+                Array.from({ length: 4 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-20 animate-pulse rounded-2xl bg-slate-200"
+                    className="h-28 animate-pulse rounded-[24px] bg-slate-100"
                   />
-                ))}
-              </div>
-            ) : !selectedQueueOrder ? (
-              <div className="flex h-full min-h-[260px] items-center justify-center text-center text-sm text-slate-500">
-                Detail order tidak tersedia.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-white px-4 py-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-semibold text-slate-900">
-                      {selectedQueueOrder.orderNumber}
-                    </h3>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getOrderBadgeClass(
-                        selectedQueueOrder.orderSource,
-                      )}`}
-                    >
-                      {selectedQueueOrder.orderSource}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 grid gap-2 text-sm text-slate-600">
-                    <div className="flex items-center justify-between">
-                      <span>Status Order</span>
-                      <span className="font-medium text-slate-900">
-                        {selectedQueueOrder.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Status Payment</span>
-                      <span className="font-medium text-slate-900">
-                        {selectedQueueOrder.paymentStatus}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Meja</span>
-                      <span className="font-medium text-slate-900">
-                        {selectedQueueOrder.tableName || '-'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Total</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatCurrency(selectedQueueOrder.totalAmount)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {selectedQueueOrder.notes ? (
-                    <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                      Catatan order: {selectedQueueOrder.notes}
-                    </p>
-                  ) : null}
+                ))
+              ) : queueOrders.length === 0 ? (
+                <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
+                  Tidak ada order pada antrian ini.
                 </div>
-
-                <div className="space-y-3 rounded-2xl bg-white px-4 py-4">
-                  <h4 className="text-sm font-semibold text-slate-900">
-                    Item Order
-                  </h4>
-
-                  {selectedQueueOrder.items?.length ? (
-                    selectedQueueOrder.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-2xl border border-slate-200 px-3 py-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">
-                              {item.productName}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              Qty {item.quantity} • {formatCurrency(item.lineTotal)}
-                            </p>
-                          </div>
-
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getOrderBadgeClass(
-                              item.status,
-                            )}`}
-                          >
-                            {item.status}
-                          </span>
-                        </div>
-
-                        {item.note ? (
-                          <p className="mt-2 text-sm text-slate-600">
-                            Catatan item: {item.note}
-                          </p>
-                        ) : null}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-slate-500">
-                      Item order belum tersedia.
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-2xl bg-white px-4 py-4">
-                  <h4 className="text-sm font-semibold text-slate-900">
-                    Aksi Kasir
-                  </h4>
-
-                  {selectedQueueOrder.paymentStatus === 'PAID' ? (
-                    <div className="mt-3 space-y-3">
-                      <p className="text-sm text-slate-500">
-                        Order ini sudah dibayar dan boleh diproses kitchen.
-                      </p>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleOpenQueueReceipt()}
-                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={queueActionLoading}
-                      >
-                        <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
-                        {queueActionLoading ? 'Memuat...' : 'Buka Receipt'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mt-3 space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        {getPaymentMethods().map((method) => (
-                          <button
-                            key={method}
-                            type="button"
-                            onClick={() => setQueuePaymentMethod(method)}
-                            className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition ${
-                              queuePaymentMethod === method
-                                ? 'border-slate-900 bg-slate-900 text-white'
-                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            <FontAwesomeIcon
-                              icon={method === 'CASH' ? faWallet : faCreditCard}
-                              className="h-4 w-4"
-                            />
-                            {method}
-                          </button>
-                        ))}
-                      </div>
-
-                      <textarea
-                        value={queuePaymentNote}
-                        onChange={(event) => setQueuePaymentNote(event.target.value)}
-                        rows={3}
-                        placeholder="Catatan payment order aktif (opsional)"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => void handleQueuePayment()}
-                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={queueActionLoading}
-                      >
-                        <FontAwesomeIcon icon={faReceipt} className="h-4 w-4" />
-                        {queueActionLoading
-                          ? 'Memproses payment...'
-                          : 'Bayar & Lanjutkan ke Kitchen'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_380px] 2xl:grid-cols-[minmax(0,1.35fr)_420px] xl:items-start">
-        <div className="space-y-5">
-          <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm xl:flex xl:flex-col xl:overflow-hidden">
-            <div className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6 xl:sticky xl:top-0 xl:z-10">
-              <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_auto_auto]">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Outlet
-                  </label>
-                  <select
-                    value={selectedOutletId}
-                    onChange={(event) => setSelectedOutletId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="">Pilih outlet</option>
-                    {outlets.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {businessType === 'RESTAURANT' ? (
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Meja
-                    </label>
-                    <select
-                      value={selectedTableId}
-                      onChange={(event) => setSelectedTableId(event.target.value)}
-                      className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                      disabled={!selectedOutletId}
-                    >
-                      <option value="">Pilih meja</option>
-                      {tables.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div />
-                )}
-
-                <form onSubmit={handleSearchSubmit} className="flex items-end gap-2">
-                  <div className="w-full">
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Cari {productLabelLower}
-                    </label>
-                    <div className="flex h-11 items-center rounded-2xl border border-slate-200 px-4">
-                      <FontAwesomeIcon
-                        icon={faMagnifyingGlass}
-                        className="mr-3 h-4 w-4 text-slate-400"
-                      />
-                      <input
-                        value={searchInput}
-                        onChange={(event) => setSearchInput(event.target.value)}
-                        placeholder={`Cari nama ${productLabelLower}`}
-                        className="h-full w-full bg-transparent text-sm text-slate-900 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
-                    Cari
-                  </button>
-                </form>
-
-                <div className="flex items-end gap-2">
-                  <button
-                    type="button"
-                    onClick={handleResetProductSearch}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    <FontAwesomeIcon icon={faArrowRotateLeft} className="h-4 w-4" />
-                    Reset
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void refreshProducts()}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    disabled={productLoading || !selectedOutletId}
-                  >
-                    <FontAwesomeIcon icon={faBoxesStacked} className="h-4 w-4" />
-                    {productLoading ? 'Memuat...' : 'Refresh'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {categoryOptions.map((category) => {
-                  const isActive = selectedCategory === category;
-                  const label = category === 'ALL' ? 'Semua' : category;
+              ) : (
+                queueOrders.map((order) => {
+                  const isSelected = selectedQueueOrderId === order.id;
 
                   return (
                     <button
-                      key={category}
+                      key={order.id}
                       type="button"
-                      onClick={() => setSelectedCategory(category)}
-                      className={`inline-flex h-10 items-center justify-center rounded-2xl px-4 text-sm font-semibold transition ${
-                        isActive
-                          ? 'bg-slate-900 text-white'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      onClick={() => setSelectedQueueOrderId(order.id)}
+                      className={`block w-full rounded-[24px] border px-4 py-4 text-left transition ${
+                        isSelected
+                          ? 'border-slate-900 bg-slate-900 text-white'
+                          : 'border-slate-200 bg-slate-50 text-slate-900 hover:bg-white'
                       }`}
                     >
-                      {label}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold">{order.orderNumber}</span>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            isSelected
+                              ? 'bg-white/15 text-white'
+                              : order.orderSource === 'GUEST'
+                                ? 'border border-orange-200 bg-orange-50 text-orange-700'
+                                : 'border border-slate-200 bg-white text-slate-700'
+                          }`}
+                        >
+                          {order.orderSource}
+                        </span>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            isSelected
+                              ? 'bg-white/15 text-white'
+                              : getOrderBadgeClass(order.status)
+                          }`}
+                        >
+                          {order.status}
+                        </span>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            isSelected
+                              ? 'bg-white/15 text-white'
+                              : getOrderBadgeClass(order.paymentStatus)
+                          }`}
+                        >
+                          {order.paymentStatus}
+                        </span>
+                      </div>
+
+                      <div
+                        className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm ${
+                          isSelected ? 'text-slate-200' : 'text-slate-500'
+                        }`}
+                      >
+                        <span>{order.outletName || selectedOutlet?.name || '-'}</span>
+                        {order.tableName ? <span>• {order.tableName}</span> : null}
+                        <span>• {order.itemCount} item</span>
+                        <span>• {formatDateTime(order.createdAt)}</span>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between">
+                        <span
+                          className={`text-xs font-semibold uppercase tracking-[0.16em] ${
+                            isSelected ? 'text-slate-300' : 'text-slate-500'
+                          }`}
+                        >
+                          Total
+                        </span>
+                        <span className="text-sm font-semibold">
+                          {formatCurrency(order.totalAmount)}
+                        </span>
+                      </div>
                     </button>
                   );
-                })}
-              </div>
+                })
+              )}
             </div>
 
-            <div className="xl:max-h-[620px] xl:overflow-y-auto">
-              {productLoading ? (
-                <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-2 sm:px-6 sm:py-5">
-                  {Array.from({ length: 6 }).map((_, index) => (
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+              {!selectedQueueOrderId ? (
+                <div className="flex h-full min-h-[260px] items-center justify-center text-center text-sm text-slate-500">
+                  Pilih order dari antrian kasir untuk melihat detail dan memproses payment.
+                </div>
+              ) : queueDetailLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, index) => (
                     <div
                       key={index}
-                      className="h-[280px] animate-pulse rounded-[24px] bg-slate-100"
+                      className="h-20 animate-pulse rounded-2xl bg-slate-200"
                     />
                   ))}
                 </div>
-              ) : filteredProducts.length === 0 ? (
-                <div className="px-5 py-10 text-center text-sm text-slate-500 sm:px-6">
-                  Belum ada {productLabelLower} aktif untuk outlet ini.
+              ) : !selectedQueueOrder ? (
+                <div className="flex h-full min-h-[260px] items-center justify-center text-center text-sm text-slate-500">
+                  Detail order tidak tersedia.
                 </div>
               ) : (
-                <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 sm:px-6 sm:py-5">
-                  {filteredProducts.map((item) => {
-                    const imageUrl = getProductImageUrl(item);
-                    const hasPromo =
-                      item.appliedPromo !== null &&
-                      item.promoDiscountAmount > 0 &&
-                      item.effectivePrice < item.basePrice;
-
-                    return (
-                      <div
-                        key={item.id}
-                        className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-white px-4 py-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold text-slate-900">
+                        {selectedQueueOrder.orderNumber}
+                      </h3>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getOrderBadgeClass(
+                          selectedQueueOrder.orderSource,
+                        )}`}
                       >
-                        <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
-                          {imageUrl ? (
-                            <Image
-                              src={imageUrl}
-                              alt={item.name}
-                              fill
-                              className="object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-slate-400">
-                              <FontAwesomeIcon icon={faImage} className="h-10 w-10" />
-                            </div>
-                          )}
+                        {selectedQueueOrder.orderSource}
+                      </span>
+                    </div>
 
-                          {item.category?.name ? (
-                            <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur">
-                              {item.category.name}
-                            </div>
-                          ) : null}
-
-                          {hasPromo ? (
-                            <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                              <FontAwesomeIcon icon={faTag} className="h-3 w-3" />
-                              Promo
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="space-y-4 p-4">
-                          <div>
-                            <h3 className="line-clamp-2 text-base font-semibold text-slate-900 sm:text-lg">
-                              {item.name}
-                            </h3>
-
-                            {item.brand ? (
-                              <p className="mt-1 text-sm text-slate-500">{item.brand}</p>
-                            ) : null}
-                          </div>
-
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              {hasPromo ? (
-                                <>
-                                  <p className="text-base font-semibold text-rose-600 sm:text-lg">
-                                    {formatCurrency(getProductDisplayPrice(item))}
-                                  </p>
-                                  <p className="mt-1 text-xs text-slate-400 line-through">
-                                    {formatCurrency(item.basePrice)}
-                                  </p>
-                                  <p className="mt-1 text-xs font-medium text-emerald-600">
-                                    Hemat {formatCurrency(item.promoDiscountAmount)}
-                                  </p>
-                                </>
-                              ) : (
-                                <p className="text-base font-semibold text-slate-900 sm:text-lg">
-                                  {formatCurrency(item.basePrice)}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center">
-                            <button
-                              type="button"
-                              onClick={() => addToCart(item)}
-                              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-                            >
-                              <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
-                              Tambah
-                            </button>
-                          </div>
-                        </div>
+                    <div className="mt-2 grid gap-2 text-sm text-slate-600">
+                      <div className="flex items-center justify-between">
+                        <span>Status Order</span>
+                        <span className="font-medium text-slate-900">
+                          {selectedQueueOrder.status}
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+                      <div className="flex items-center justify-between">
+                        <span>Status Payment</span>
+                        <span className="font-medium text-slate-900">
+                          {selectedQueueOrder.paymentStatus}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Meja</span>
+                        <span className="font-medium text-slate-900">
+                          {selectedQueueOrder.tableName || '-'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Total</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(selectedQueueOrder.totalAmount)}
+                        </span>
+                      </div>
+                    </div>
 
-        <div className="space-y-5 xl:sticky xl:top-5">
-          <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm xl:flex xl:flex-col">
-            <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
-                    <FontAwesomeIcon icon={faBasketShopping} className="h-3 w-3" />
-                    Cart & Checkout
+                    {selectedQueueOrder.notes ? (
+                      <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                        Catatan order: {selectedQueueOrder.notes}
+                      </p>
+                    ) : null}
                   </div>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Checkout manual tetap membuat order, payment, lalu receipt final dari backend.
-                  </p>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={clearCart}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
-                  disabled={cart.length === 0}
-                >
-                  <FontAwesomeIcon icon={faTrashCan} className="h-4 w-4" />
-                  Kosongkan
-                </button>
-              </div>
-            </div>
+                  <div className="space-y-3 rounded-2xl bg-white px-4 py-4">
+                    <h4 className="text-sm font-semibold text-slate-900">Item Order</h4>
 
-            {cartMessage ? (
-              <div className="border-b border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 sm:px-6">
-                {cartMessage}
-              </div>
-            ) : null}
+                    {selectedQueueOrder.items?.length ? (
+                      selectedQueueOrder.items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-2xl border border-slate-200 px-3 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {item.productName}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Qty {item.quantity} • {formatCurrency(item.lineTotal)}
+                              </p>
+                            </div>
 
-            {cart.length === 0 ? (
-              <div className="px-5 py-10 text-center sm:px-6">
-                <div>
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-                    <FontAwesomeIcon icon={faBasketShopping} className="h-5 w-5" />
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold text-slate-900">
-                    Cart masih kosong
-                  </h3>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Tambahkan {productLabelLower} dari daftar sebelah kiri.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="p-5 sm:px-6 sm:py-5 xl:flex xl:flex-col">
-                <div className="space-y-4 xl:max-h-[360px] xl:overflow-y-auto xl:pr-1">
-                  {cart.map((item) => (
-                    <div
-                      key={item.lineId}
-                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {item.productName}
-                          </p>
-                          {item.unit ? (
-                            <div className="mt-1 text-xs text-slate-500">{item.unit}</div>
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getOrderBadgeClass(
+                                item.status,
+                              )}`}
+                            >
+                              {item.status}
+                            </span>
+                          </div>
+
+                          {item.note ? (
+                            <p className="mt-2 text-sm text-slate-600">
+                              Catatan item: {item.note}
+                            </p>
                           ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-slate-500">
+                        Item order belum tersedia.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl bg-white px-4 py-4">
+                    <h4 className="text-sm font-semibold text-slate-900">Aksi Kasir</h4>
+
+                    {selectedQueueOrder.paymentStatus === 'PAID' ? (
+                      <div className="mt-3 space-y-3">
+                        <p className="text-sm text-slate-500">
+                          Order ini sudah dibayar dan boleh diproses kitchen.
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenQueueReceipt()}
+                          disabled={queueActionLoading}
+                          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
+                          {queueActionLoading ? 'Memuat...' : 'Buka Receipt'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-3 space-y-3">
+                        <div>
+                          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            Metode Payment
+                          </label>
+                          <select
+                            value={queuePaymentMethod}
+                            onChange={(event) =>
+                              setQueuePaymentMethod(
+                                event.target.value as PosPaymentMethod,
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                          >
+                            {getPaymentMethods().map((method) => (
+                              <option key={method} value={method}>
+                                {method}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            Catatan Payment
+                          </label>
+                          <textarea
+                            value={queuePaymentNote}
+                            onChange={(event) => setQueuePaymentNote(event.target.value)}
+                            rows={2}
+                            placeholder="Catatan payment order aktif"
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                          />
                         </div>
 
                         <button
                           type="button"
-                          onClick={() => removeCartItem(item.lineId)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100"
+                          onClick={() => void handleQueuePayment()}
+                          disabled={queueActionLoading}
+                          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                         >
-                          <FontAwesomeIcon icon={faTrashCan} className="h-4 w-4" />
+                          <FontAwesomeIcon icon={faCreditCard} className="h-4 w-4" />
+                          {queueActionLoading ? 'Memproses...' : 'Proses Payment'}
                         </button>
                       </div>
-
-                      <div className="mt-4 flex items-center justify-between gap-3">
-                        <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1">
-                          <button
-                            type="button"
-                            onClick={() => updateCartQty(item.lineId, item.qty - 1)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100"
-                          >
-                            <FontAwesomeIcon icon={faMinus} className="h-4 w-4" />
-                          </button>
-                          <span className="min-w-10 text-center text-sm font-semibold text-slate-900">
-                            {item.qty}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => updateCartQty(item.lineId, item.qty + 1)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100"
-                          >
-                            <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
-                          </button>
-                        </div>
-
-                        <div className="text-right">
-                          <p className="text-xs text-slate-500">
-                            {formatCurrency(item.price)} x {item.qty}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {formatCurrency(item.subtotal)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <textarea
-                        value={item.note}
-                        onChange={(event) => updateCartNote(item.lineId, event.target.value)}
-                        rows={2}
-                        placeholder="Catatan item (opsional)"
-                        className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="grid gap-3">
-                    <div className="flex items-center justify-between text-sm text-slate-600">
-                      <span>Subtotal</span>
-                      <span className="font-medium text-slate-900">
-                        {formatCurrency(subtotal)}
-                      </span>
-                    </div>
-
-                    {charges.map((charge) => (
-                      <div
-                        key={charge.key}
-                        className="flex items-center justify-between text-sm text-slate-600"
-                      >
-                        <span>{charge.label}</span>
-                        <span className="font-medium text-slate-900">
-                          {formatCurrency(charge.amount)}
-                        </span>
-                      </div>
-                    ))}
-
-                    <div className="flex items-center justify-between border-t border-slate-200 pt-3">
-                      <span className="text-sm font-semibold text-slate-900">
-                        Grand Total
-                      </span>
-                      <span className="text-base font-semibold text-slate-900">
-                        {formatCurrency(grandTotal)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid gap-3">
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700">
-                        Metode Payment
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {getPaymentMethods().map((method) => (
-                          <button
-                            key={method}
-                            type="button"
-                            onClick={() => setPaymentMethod(method)}
-                            className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition ${
-                              paymentMethod === method
-                                ? 'border-slate-900 bg-slate-900 text-white'
-                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            <FontAwesomeIcon
-                              icon={method === 'CASH' ? faWallet : faCreditCard}
-                              className="h-4 w-4"
-                            />
-                            {method}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700">
-                        Catatan Payment
-                      </label>
-                      <textarea
-                        value={paymentNote}
-                        onChange={(event) => setPaymentNote(event.target.value)}
-                        rows={3}
-                        placeholder="Catatan payment (opsional)"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => void handleCheckout()}
-                      className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={checkoutLoading || !selectedOutletId}
-                    >
-                      <FontAwesomeIcon icon={faReceipt} className="h-4 w-4" />
-                      {checkoutLoading ? 'Memproses checkout...' : 'Checkout & Buat Receipt'}
-                    </button>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
-          </section>
-
-          <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
-                <FontAwesomeIcon icon={faReceipt} className="h-3 w-3" />
-                Receipt Final
-              </div>
-              <p className="mt-2 text-sm text-slate-500">
-                Receipt final dibuka setelah payment sukses dan bisa print ulang kapan saja.
-              </p>
+              )}
             </div>
+          </div>
+        )}
+      </section>
 
-            {!receiptResult ? (
-              <div className="px-5 py-10 text-center sm:px-6">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-                  <FontAwesomeIcon icon={faReceipt} className="h-5 w-5" />
-                </div>
-                <h3 className="mt-4 text-base font-semibold text-slate-900">
-                  Belum ada struk baru
-                </h3>
-                <p className="mt-2 text-sm text-slate-500">
-                  Selesaikan checkout atau payment order aktif untuk membuat struk.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4 p-5 sm:px-6 sm:py-5">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-base font-semibold text-slate-900">
-                      {receiptResult.businessName || 'Nama Business'}
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      {receiptResult.outletName || selectedOutlet?.name || '-'}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {receiptResult.outletAddress || selectedOutlet?.address || '-'}
-                    </p>
-                  </div>
+      <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-4 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Shortcut</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Akses cepat ke riwayat dan receipt.
+            </p>
+          </div>
 
-                  <div className="mt-4 grid gap-2 text-sm text-slate-600">
-                    <div className="flex items-center justify-between">
-                      <span>Receipt</span>
-                      <span className="font-medium text-slate-900">
-                        {receiptResult.receiptNo || receiptResult.receiptNumber || receiptResult.id}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Order ID</span>
-                      <span className="font-medium text-slate-900">
-                        {receiptResult.orderId}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Waktu</span>
-                      <span className="font-medium text-slate-900">
-                        {formatDateTime(receiptResult.createdAt)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Total</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatCurrency(receiptResult.total ?? grandTotal)}
-                      </span>
-                    </div>
-                  </div>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/dashboard/pos/history"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <FontAwesomeIcon icon={faReceipt} className="h-4 w-4" />
+              History POS
+            </Link>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <Link
-                      href={`/dashboard/receipts/${receiptResult.id}`}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
-                      Lihat Detail Struk
-                    </Link>
-
-                    <Link
-                      href={`/dashboard/receipts/${receiptResult.id}`}
-                      target="_blank"
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
-                      Buka & Print
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
+            <Link
+              href="/dashboard/payments/history"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
+              History Payment
+            </Link>
+          </div>
         </div>
       </section>
     </div>

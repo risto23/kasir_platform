@@ -81,13 +81,19 @@ export type BusinessUserCreatePayload = {
   fullName: string;
   email: string;
   password: string;
-  businessRoleId: string;
+  businessRoleCode: BusinessRoleCode;
+  hasAllOutletAccess: boolean;
+  outletIds: string[];
+  status?: BusinessUserStatus;
 };
 
 export type BusinessUserUpdatePayload = {
   fullName: string;
   email: string;
-  businessRoleId: string;
+  businessRoleCode: BusinessRoleCode;
+  hasAllOutletAccess: boolean;
+  outletIds: string[];
+  status?: BusinessUserStatus;
 };
 
 export type BusinessUserStatusPayload = {

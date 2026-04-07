@@ -28,6 +28,7 @@ import {
 } from '@/lib/business-user-client';
 import type {
   AuthUserContext,
+  BusinessRoleCode,
   BusinessRoleItem,
   BusinessUserListItem,
   BusinessUserStatus,
@@ -40,7 +41,9 @@ type UserFormState = {
   fullName: string;
   email: string;
   password: string;
-  businessRoleId: string;
+  businessRoleCode: BusinessRoleCode | '';
+  hasAllOutletAccess: boolean;
+  outletIds: string[];
 };
 
 type OutletAccessFormState = {
@@ -53,7 +56,9 @@ const INITIAL_USER_FORM: UserFormState = {
   fullName: '',
   email: '',
   password: '',
-  businessRoleId: '',
+  businessRoleCode: '',
+  hasAllOutletAccess: false,
+  outletIds: [],
 };
 
 const INITIAL_OUTLET_ACCESS_FORM: OutletAccessFormState = {
@@ -109,6 +114,18 @@ function getOutletNames(user: BusinessUserListItem) {
   return names || '-';
 }
 
+function isOutletScopedRole(roleCode: BusinessRoleCode | '') {
+  return roleCode === 'CASHIER' || roleCode === 'KITCHEN' || roleCode === 'INVENTORY';
+}
+
+function isOwnerRole(roleCode: BusinessRoleCode | '') {
+  return roleCode === 'OWNER';
+}
+
+function isAdminRole(roleCode: BusinessRoleCode | '') {
+  return roleCode === 'ADMIN';
+}
+
 export default function BusinessUsersPage() {
   const [authContext, setAuthContext] = useState<AuthUserContext | null>(null);
   const [roles, setRoles] = useState<BusinessRoleItem[]>([]);
@@ -130,8 +147,10 @@ export default function BusinessUsersPage() {
   const canView = hasPermission(authContext, 'BUSINESS_USER_VIEW') || isSuperAdmin(authContext);
   const canCreate = hasPermission(authContext, 'BUSINESS_USER_CREATE') || isSuperAdmin(authContext);
   const canUpdate = hasPermission(authContext, 'BUSINESS_USER_UPDATE') || isSuperAdmin(authContext);
-  const canUpdateStatus = hasPermission(authContext, 'BUSINESS_USER_STATUS_UPDATE') || isSuperAdmin(authContext);
-  const canAssignOutlet = hasPermission(authContext, 'BUSINESS_USER_ASSIGN_OUTLET') || isSuperAdmin(authContext);
+  const canUpdateStatus =
+    hasPermission(authContext, 'BUSINESS_USER_STATUS_UPDATE') || isSuperAdmin(authContext);
+  const canAssignOutlet =
+    hasPermission(authContext, 'BUSINESS_USER_ASSIGN_OUTLET') || isSuperAdmin(authContext);
 
   const activeBusinessId = authContext?.activeBusinessId ?? null;
 
@@ -211,10 +230,13 @@ export default function BusinessUsersPage() {
   }, []);
 
   function openCreateModal() {
+    const defaultRoleCode = roles[0]?.code ?? '';
+
     setSelectedUser(null);
     setUserForm({
       ...INITIAL_USER_FORM,
-      businessRoleId: roles[0]?.id ?? '',
+      businessRoleCode: defaultRoleCode,
+      hasAllOutletAccess: defaultRoleCode === 'OWNER' || defaultRoleCode === 'ADMIN',
     });
     setModalMode('create');
   }
@@ -232,7 +254,11 @@ export default function BusinessUsersPage() {
         fullName: detail.user.fullName,
         email: detail.user.email,
         password: '',
-        businessRoleId: detail.businessRoleId,
+        businessRoleCode: detail.businessRole.code,
+        hasAllOutletAccess: detail.hasAllOutletAccess,
+        outletIds: (detail.outletAccesses ?? [])
+          .map((item) => item.outletId)
+          .filter((item) => Boolean(item)),
       });
       setModalMode('edit');
     } catch (err) {
@@ -248,19 +274,82 @@ export default function BusinessUsersPage() {
     setUserForm(INITIAL_USER_FORM);
   }
 
+  function handleChangeRole(roleCode: BusinessRoleCode | '') {
+    if (isOwnerRole(roleCode)) {
+      setUserForm((prev) => ({
+        ...prev,
+        businessRoleCode: roleCode,
+        hasAllOutletAccess: true,
+        outletIds: [],
+      }));
+      return;
+    }
+
+    if (isOutletScopedRole(roleCode)) {
+      setUserForm((prev) => ({
+        ...prev,
+        businessRoleCode: roleCode,
+        hasAllOutletAccess: false,
+      }));
+      return;
+    }
+
+    if (isAdminRole(roleCode)) {
+      setUserForm((prev) => ({
+        ...prev,
+        businessRoleCode: roleCode,
+        hasAllOutletAccess: true,
+        outletIds: [],
+      }));
+      return;
+    }
+
+    setUserForm((prev) => ({
+      ...prev,
+      businessRoleCode: roleCode,
+    }));
+  }
+
+  function toggleUserOutlet(outletId: string) {
+    setUserForm((prev) => {
+      const exists = prev.outletIds.includes(outletId);
+
+      return {
+        ...prev,
+        outletIds: exists
+          ? prev.outletIds.filter((item) => item !== outletId)
+          : [...prev.outletIds, outletId],
+      };
+    });
+  }
+
   async function handleSubmitUser() {
     if (!activeBusinessId) {
       setError('Business aktif belum dipilih');
       return;
     }
 
-    if (!userForm.fullName.trim() || !userForm.email.trim() || !userForm.businessRoleId) {
+    if (!userForm.fullName.trim() || !userForm.email.trim() || !userForm.businessRoleCode) {
       setError('Nama, email, dan role wajib diisi');
       return;
     }
 
     if (modalMode === 'create' && !userForm.password.trim()) {
       setError('Password wajib diisi');
+      return;
+    }
+
+    if (isOutletScopedRole(userForm.businessRoleCode) && userForm.outletIds.length === 0) {
+      setError('Role outlet-scoped wajib memiliki minimal 1 outlet access');
+      return;
+    }
+
+    if (
+      isAdminRole(userForm.businessRoleCode) &&
+      !userForm.hasAllOutletAccess &&
+      userForm.outletIds.length === 0
+    ) {
+      setError('ADMIN limited wajib memiliki minimal 1 outlet access');
       return;
     }
 
@@ -275,7 +364,14 @@ export default function BusinessUsersPage() {
             fullName: userForm.fullName.trim(),
             email: userForm.email.trim(),
             password: userForm.password,
-            businessRoleId: userForm.businessRoleId,
+            businessRoleCode: userForm.businessRoleCode,
+            hasAllOutletAccess: isOwnerRole(userForm.businessRoleCode)
+              ? true
+              : userForm.hasAllOutletAccess,
+            outletIds:
+              isOwnerRole(userForm.businessRoleCode) || userForm.hasAllOutletAccess
+                ? []
+                : userForm.outletIds,
           },
           activeBusinessId,
         );
@@ -288,7 +384,14 @@ export default function BusinessUsersPage() {
           {
             fullName: userForm.fullName.trim(),
             email: userForm.email.trim(),
-            businessRoleId: userForm.businessRoleId,
+            businessRoleCode: userForm.businessRoleCode,
+            hasAllOutletAccess: isOwnerRole(userForm.businessRoleCode)
+              ? true
+              : userForm.hasAllOutletAccess,
+            outletIds:
+              isOwnerRole(userForm.businessRoleCode) || userForm.hasAllOutletAccess
+                ? []
+                : userForm.outletIds,
           },
           activeBusinessId,
         );
@@ -518,29 +621,19 @@ export default function BusinessUsersPage() {
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-md">
-            <label htmlFor="search" className="mb-2 block text-sm font-medium text-slate-700">
-              Cari user
-            </label>
+            <label className="mb-2 block text-sm font-medium text-slate-700">Cari user</label>
             <input
-              id="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari nama, email, role, outlet..."
+              placeholder="Cari nama, email, role, outlet, status"
               className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900"
             />
           </div>
-
-          <div className="text-sm text-slate-500">
-            Business aktif:
-            <span className="ml-2 rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
-              {activeBusinessId}
-            </span>
-          </div>
         </div>
 
-        <div className="mt-6 overflow-x-auto">
-          <table className="min-w-full border-separate border-spacing-0">
-            <thead>
+        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
               <tr>
                 <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   User
@@ -657,7 +750,7 @@ export default function BusinessUsersPage() {
 
       {modalMode ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">
@@ -732,22 +825,98 @@ export default function BusinessUsersPage() {
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-slate-700">Role</label>
                 <select
-                  value={userForm.businessRoleId}
+                  value={userForm.businessRoleCode}
                   onChange={(event) =>
-                    setUserForm((prev) => ({
-                      ...prev,
-                      businessRoleId: event.target.value,
-                    }))
+                    handleChangeRole(event.target.value as BusinessRoleCode | '')
                   }
                   className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900"
                 >
                   <option value="">Pilih role</option>
                   {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
+                    <option key={role.id} value={role.code}>
                       {role.name} ({role.code})
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={userForm.hasAllOutletAccess}
+                    onChange={(event) =>
+                      setUserForm((prev) => ({
+                        ...prev,
+                        hasAllOutletAccess: isOwnerRole(prev.businessRoleCode)
+                          ? true
+                          : isOutletScopedRole(prev.businessRoleCode)
+                            ? false
+                            : event.target.checked,
+                        outletIds:
+                          event.target.checked || isOwnerRole(prev.businessRoleCode)
+                            ? []
+                            : prev.outletIds,
+                      }))
+                    }
+                    disabled={
+                      isOwnerRole(userForm.businessRoleCode) ||
+                      isOutletScopedRole(userForm.businessRoleCode)
+                    }
+                    className="mt-1 h-4 w-4 rounded border-slate-300"
+                  />
+                  <div>
+                    <div className="font-medium text-slate-900">Berikan akses ke semua outlet</div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      OWNER selalu all outlet. CASHIER, KITCHEN, dan INVENTORY wajib outlet-scoped.
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="md:col-span-2">
+                <div className="mb-3 text-sm font-medium text-slate-700">Pilih outlet access</div>
+
+                <div className="grid max-h-[260px] gap-3 overflow-y-auto md:grid-cols-2">
+                  {outlets.map((outlet) => {
+                    const checked = userForm.outletIds.includes(outlet.id);
+                    const disabled =
+                      userForm.hasAllOutletAccess || isOwnerRole(userForm.businessRoleCode);
+
+                    return (
+                      <label
+                        key={outlet.id}
+                        className={clsxm(
+                          'flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition',
+                          checked
+                            ? 'border-slate-900 bg-slate-900 text-white'
+                            : 'border-slate-200 bg-white text-slate-900 hover:bg-slate-50',
+                          disabled && 'pointer-events-none opacity-50',
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleUserOutlet(outlet.id)}
+                          disabled={disabled}
+                          className="mt-1 h-4 w-4 rounded"
+                        />
+
+                        <div>
+                          <div className="font-medium">{outlet.name}</div>
+                          <div className={clsxm('mt-1 text-sm', checked ? 'text-slate-200' : 'text-slate-500')}>
+                            {outlet.code}
+                          </div>
+                          {outlet.address ? (
+                            <div className={clsxm('mt-1 text-xs', checked ? 'text-slate-300' : 'text-slate-400')}>
+                              {outlet.address}
+                            </div>
+                          ) : null}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -766,7 +935,10 @@ export default function BusinessUsersPage() {
                 disabled={submitLoading}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <FontAwesomeIcon icon={submitLoading ? faCircleNotch : faCheck} className={clsxm(submitLoading && 'animate-spin')} />
+                <FontAwesomeIcon
+                  icon={submitLoading ? faCircleNotch : faCheck}
+                  className={clsxm(submitLoading && 'animate-spin')}
+                />
                 {modalMode === 'create' ? 'Simpan User' : 'Update User'}
               </button>
             </div>

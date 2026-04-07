@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -16,6 +17,9 @@ import type {
   GuestMenuItem,
   GuestMenuResponse,
 } from '@/types/guest';
+import { resolveImageUrl } from '@/lib/resolve-image-url';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTrashCan } from '@fortawesome/free-solid-svg-icons';
 
 type LoadState = 'idle' | 'loading' | 'success' | 'error';
 
@@ -178,141 +182,100 @@ function MenuItemCard(props: {
   const { item, quantity, note, onIncrease, onDecrease, onNoteChange } = props;
 
   return (
-    <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-      <div className="flex gap-4">
-        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
-          {item.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={item.imageUrl}
-              alt={item.name}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span className="text-xs font-medium text-slate-400">No Image</span>
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900">{item.name}</h3>
-              <p className="mt-1 text-xs text-slate-500">{item.code}</p>
-              {item.description ? (
-                <p className="mt-2 line-clamp-2 text-sm text-slate-600">
-                  {item.description}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="text-right">
-              {item.discountAmount > 0 ? (
-                <>
-                  <p className="text-xs text-slate-400 line-through">
-                    {formatCurrency(item.outletPrice)}
-                  </p>
-                  <p className="text-base font-bold text-emerald-600">
-                    {formatCurrency(item.finalPrice)}
-                  </p>
-                </>
-              ) : (
-                <p className="text-base font-bold text-slate-900">
-                  {formatCurrency(item.finalPrice)}
-                </p>
-              )}
-            </div>
+    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="relative h-44 w-full overflow-hidden bg-slate-100">
+        {item.imageUrl ? (
+          <Image
+            fill
+            src={resolveImageUrl(item.imageUrl)}
+            alt={item.name}
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm font-medium text-slate-400">
+            No Image
           </div>
+        )}
 
-          {item.promo ? (
-            <div className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
-              Promo: {item.promo.name}
-            </div>
+        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+          {item.categoryName ? (
+            <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-700 backdrop-blur">
+              {item.categoryName}
+            </span>
           ) : null}
 
-          <div className="mt-4">
-            <label className="mb-1 block text-xs font-medium text-slate-500">
-              Catatan
-            </label>
-            <input
-              type="text"
-              value={note}
-              maxLength={MAX_NOTE_LENGTH}
-              onChange={(event) => onNoteChange(item.id, event.target.value)}
-              placeholder="contoh: pedas, tanpa es, dll"
-              className="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500"
-            />
-          </div>
-
-          <div className="mt-4 flex items-center justify-between">
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 p-1">
-              <button
-                type="button"
-                onClick={() => onDecrease(item.id)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-lg font-semibold text-slate-700 transition hover:bg-slate-100"
-              >
-                -
-              </button>
-
-              <span className="min-w-8 text-center text-sm font-semibold text-slate-900">
-                {quantity}
-              </span>
-
-              <button
-                type="button"
-                onClick={() => onIncrease(item)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-lg font-semibold text-slate-700 transition hover:bg-slate-100"
-              >
-                +
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => onIncrease(item)}
-              className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-            >
-              Tambah
-            </button>
-          </div>
+          {item.promo ? (
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-700">
+              Promo
+            </span>
+          ) : null}
         </div>
       </div>
-    </div>
-  );
-}
 
-function CategorySection(props: {
-  group: GuestMenuCategoryGroup;
-  quantities: Record<string, number>;
-  notes: Record<string, string>;
-  onIncrease: (item: GuestMenuItem) => void;
-  onDecrease: (productId: string) => void;
-  onNoteChange: (productId: string, note: string) => void;
-}) {
-  const { group, quantities, notes, onIncrease, onDecrease, onNoteChange } = props;
+      <div className="space-y-4 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="line-clamp-2 text-base font-semibold text-slate-900">
+              {item.name}
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">{item.code}</p>
+            {item.description ? (
+              <p className="mt-2 line-clamp-2 text-sm text-slate-500">
+                {item.description}
+              </p>
+            ) : null}
+          </div>
 
-  return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-slate-900">
-          {group.categoryName ?? 'Lainnya'}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">{group.items.length} menu</p>
-      </div>
+          <div className="text-right">
+            {item.discountAmount > 0 ? (
+              <>
+                <p className="text-xs text-slate-400 line-through">
+                  {formatCurrency(item.outletPrice)}
+                </p>
+                <p className="text-base font-semibold text-emerald-600">
+                  {formatCurrency(item.finalPrice)}
+                </p>
+              </>
+            ) : (
+              <p className="text-base font-semibold text-slate-900">
+                {formatCurrency(item.finalPrice)}
+              </p>
+            )}
+          </div>
+        </div>
 
-      <div className="grid gap-4">
-        {group.items.map((item) => (
-          <MenuItemCard
-            key={item.id}
-            item={item}
-            quantity={quantities[item.id] ?? 0}
-            note={notes[item.id] ?? ''}
-            onIncrease={onIncrease}
-            onDecrease={onDecrease}
-            onNoteChange={onNoteChange}
+        <div className="flex items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">
+            {item.unit || 'Unit'}
+          </div>
+
+          
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Catatan
+          </label>
+          <input
+            type="text"
+            value={note}
+            maxLength={MAX_NOTE_LENGTH}
+            onChange={(event) => onNoteChange(item.id, event.target.value)}
+            placeholder="contoh: pedas, tanpa es, dll"
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-slate-400"
           />
-        ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onIncrease(item)}
+          className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          Tambah
+        </button>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -342,6 +305,8 @@ export default function GuestMenuPage() {
   const [data, setData] = useState<GuestMenuResponse | null>(null);
   const [cart, setCart] = useState<GuestCartStorage | null>(null);
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('ALL');
 
   useEffect(() => {
     hasLoadedRef.current = false;
@@ -404,6 +369,7 @@ export default function GuestMenuPage() {
         setData(result);
         setCart(sanitizedCart);
         setNotesMap(getInitialNoteMap(sanitizedCart.items));
+        setSelectedCategoryId('ALL');
         setState('success');
       } catch (error: unknown) {
         if (controller.signal.aborted) {
@@ -582,23 +548,69 @@ export default function GuestMenuPage() {
     return cart.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [cart]);
 
+  const categoryOptions = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    return data.categories.map((group, index) => ({
+      id: group.categoryId ?? `uncategorized-${index}`,
+      label: group.categoryName ?? 'Lainnya',
+      count: group.items.length,
+    }));
+  }, [data]);
+
+  const filteredItems = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    const normalizedKeyword = searchKeyword.trim().toLowerCase();
+
+    return flattenMenuItems(data.categories).filter((item) => {
+      const matchesCategory =
+        selectedCategoryId === 'ALL' ? true : item.categoryId === selectedCategoryId;
+
+      if (!matchesCategory) {
+        return false;
+      }
+
+      if (!normalizedKeyword) {
+        return true;
+      }
+
+      const haystack = [
+        item.name,
+        item.code,
+        item.description ?? '',
+        item.categoryName ?? '',
+        item.brand ?? '',
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedKeyword);
+    });
+  }, [data, searchKeyword, selectedCategoryId]);
+
+  const totalVisibleItems = filteredItems.length;
+
   if (!hasValidParams) {
     return (
       <div className="min-h-screen bg-slate-50 px-4 py-6">
-        <div className="mx-auto max-w-6xl space-y-6">
-          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <h1 className="text-2xl font-bold text-slate-900">Guest Menu</h1>
-            <p className="mt-1 text-sm text-slate-600">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Guest Menu
+            </h1>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
               Pilih menu untuk meja Anda lalu lanjut ke checkout.
             </p>
-          </div>
+          </section>
 
-          <div className="rounded-3xl border border-red-200 bg-red-50 p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-red-700">
-              Guest menu tidak bisa dibuka
-            </h2>
-            <p className="mt-2 text-sm text-red-600">{invalidParamsMessage}</p>
-          </div>
+          <section className="rounded-[28px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 shadow-sm sm:px-6">
+            {invalidParamsMessage}
+          </section>
         </div>
       </div>
     );
@@ -607,7 +619,7 @@ export default function GuestMenuPage() {
   if (state === 'loading' || state === 'idle') {
     return (
       <div className="min-h-screen bg-slate-50 px-4 py-6">
-        <div className="mx-auto max-w-6xl rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+        <div className="mx-auto max-w-7xl rounded-[28px] border border-slate-200 bg-white px-5 py-10 text-center shadow-sm sm:px-6">
           <p className="text-sm text-slate-600">Memuat guest menu...</p>
         </div>
       </div>
@@ -617,20 +629,19 @@ export default function GuestMenuPage() {
   if (state === 'error') {
     return (
       <div className="min-h-screen bg-slate-50 px-4 py-6">
-        <div className="mx-auto max-w-6xl space-y-6">
-          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <h1 className="text-2xl font-bold text-slate-900">Guest Menu</h1>
-            <p className="mt-1 text-sm text-slate-600">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Guest Menu
+            </h1>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
               Pilih menu untuk meja Anda lalu lanjut ke checkout.
             </p>
-          </div>
+          </section>
 
-          <div className="rounded-3xl border border-red-200 bg-red-50 p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-red-700">
-              Guest menu tidak bisa dibuka
-            </h2>
-            <p className="mt-2 text-sm text-red-600">{errorMessage}</p>
-          </div>
+          <section className="rounded-[28px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 shadow-sm sm:px-6">
+            {errorMessage}
+          </section>
         </div>
       </div>
     );
@@ -638,157 +649,308 @@ export default function GuestMenuPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-4 py-6 lg:flex-row lg:items-start">
-        <div className="min-w-0 flex-1 space-y-6">
-          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <h1 className="text-2xl font-bold text-slate-900">Guest Menu</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Pilih menu untuk meja Anda lalu lanjut ke checkout.
-            </p>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1 space-y-6">
+            <section className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-700">
+                  Guest Order
+                </div>
 
-            {data ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Outlet</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {data.outlet.name}
+                <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
+                  Guest Menu
+                </h1>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Pilih menu, atur catatan, lalu lanjut ke checkout untuk dikirim ke kasir.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Outlet
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {data?.outlet.name ?? '-'}
                   </p>
                 </div>
 
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Meja</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {data.table.name}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Meja
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {data?.table.name ?? '-'}
                   </p>
                 </div>
 
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">
-                    Total Item
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Total Item Cart
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {totalItems}
-                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{totalItems}</p>
                 </div>
 
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Total</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Grand Total
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
                     {formatCurrency(totalAmount)}
                   </p>
                 </div>
               </div>
-            ) : null}
-          </div>
+            </section>
 
-          {data?.categories.map((group) => (
-            <CategorySection
-              key={group.categoryId ?? group.categoryName ?? 'uncategorized'}
-              group={group}
-              quantities={quantities}
-              notes={notesMap}
-              onIncrease={handleIncrease}
-              onDecrease={handleDecrease}
-              onNoteChange={handleNoteChange}
-            />
-          ))}
-        </div>
+            <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-900">Daftar Menu</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Semua menu tampil langsung seperti POS. Kategori hanya untuk filter.
+                    </p>
+                  </div>
 
-        <aside className="w-full lg:sticky lg:top-6 lg:w-[360px]">
-          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Cart</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Periksa item yang akan dikirim ke checkout.
-                </p>
+                  <div className="w-full lg:max-w-md">
+                    <input
+                      type="text"
+                      value={searchKeyword}
+                      onChange={(event) => setSearchKeyword(event.target.value)}
+                      placeholder="Cari menu, kode, atau kategori..."
+                      className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleClearCart}
-                disabled={!cart || cart.items.length === 0}
-                className="inline-flex items-center justify-center rounded-2xl border border-red-300 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Clear Cart
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {cart && cart.items.length > 0 ? (
-                cart.items.map((item) => (
-                  <div
-                    key={item.productId}
-                    className="rounded-2xl border border-slate-200 p-4"
+              <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategoryId('ALL')}
+                    className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                      selectedCategoryId === 'ALL'
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-900">
-                          {item.productName}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">{item.productCode}</p>
-                        {item.note ? (
-                          <p className="mt-2 text-xs text-slate-600">
-                            Catatan: {item.note}
-                          </p>
-                        ) : null}
-                      </div>
+                    Semua ({data?.categories.reduce((sum, group) => sum + group.items.length, 0) ?? 0})
+                  </button>
 
-                      <p className="text-sm font-semibold text-slate-900">
-                        x{item.quantity}
-                      </p>
+                  {categoryOptions.map((category) => {
+                    const isActive = selectedCategoryId === category.id;
+
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => setSelectedCategoryId(category.id)}
+                        className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                          isActive
+                            ? 'bg-slate-900 text-white'
+                            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {category.label} ({category.count})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="px-5 py-5 sm:px-6">
+                {filteredItems.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="text-sm text-slate-500">
+                      Menampilkan{' '}
+                      <span className="font-semibold text-slate-900">{totalVisibleItems}</span>{' '}
+                      menu.
                     </div>
 
-                    <div className="mt-3 flex items-center justify-between">
-                      <p className="text-sm text-slate-500">
-                        {formatCurrency(item.unitPrice)}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-900">
-                        {formatCurrency(item.unitPrice * item.quantity)}
-                      </p>
+                    <div className="xl:max-h-[calc(100vh-290px)] xl:overflow-y-auto xl:pr-2">
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {filteredItems.map((item) => (
+                          <MenuItemCard
+                            key={item.id}
+                            item={item}
+                            quantity={quantities[item.id] ?? 0}
+                            note={notesMap[item.id] ?? ''}
+                            onIncrease={handleIncrease}
+                            onDecrease={handleDecrease}
+                            onNoteChange={handleNoteChange}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
-                  Cart masih kosong. Tambahkan menu terlebih dahulu.
-                </div>
-              )}
-            </div>
-
-            <div className="mt-5 border-t border-slate-200 pt-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-500">Total Item</p>
-                <p className="text-sm font-semibold text-slate-900">{totalItems}</p>
+                ) : (
+                  <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
+                    Tidak ada menu yang cocok dengan filter saat ini.
+                  </div>
+                )}
               </div>
-
-              <div className="mt-2 flex items-center justify-between">
-                <p className="text-sm text-slate-500">Subtotal</p>
-                <p className="text-sm font-semibold text-slate-900">
-                  {formatCurrency(totalAmount)}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5">
-              <Link
-                href={buildGuestCheckoutUrl({
-                  outletId,
-                  tableId,
-                  token,
-                })}
-                className={`inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                  cart && cart.items.length > 0
-                    ? 'bg-slate-900 text-white hover:bg-slate-800'
-                    : 'pointer-events-none bg-slate-200 text-slate-400'
-                }`}
-              >
-                Lanjut ke Checkout
-              </Link>
-            </div>
+            </section>
           </div>
-        </aside>
+
+          <aside className="w-full lg:sticky lg:top-6 lg:w-[380px] lg:self-start">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Cart & Checkout</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Pesanan guest akan masuk ke kasir untuk diproses pembayaran.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleClearCart}
+                  disabled={!cart || cart.items.length === 0}
+                  className="inline-flex h-10 items-center justify-center rounded-2xl border border-rose-200 px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FontAwesomeIcon icon={faTrashCan} className="h-3.5 w-3.5" />
+                  Clear
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-3 lg:max-h-[300px] lg:overflow-y-auto lg:pr-1">
+                {cart && cart.items.length > 0 ? (
+                  cart.items.map((item) => (
+                    <div
+                      key={item.productId}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {item.productName}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">{item.productCode}</p>
+                          {item.note ? (
+                            <p className="mt-2 text-xs leading-5 text-slate-600">
+                              Catatan: {item.note}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFromCart(item.productId)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+                        >
+                          <FontAwesomeIcon icon={faTrashCan} className="h-3.5 w-3.5" />
+                          
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1">
+                          <button
+                            type="button"
+                            onClick={() => handleDecrease(item.productId)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-50"
+                          >
+                            -
+                          </button>
+
+                          <span className="min-w-8 text-center text-sm font-semibold text-slate-900">
+                            {item.quantity}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const sourceItem = filteredItems.find(
+                                (menuItem) => menuItem.id === item.productId,
+                              );
+
+                              if (sourceItem) {
+                                handleIncrease(sourceItem);
+                              }
+                            }}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-50"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <div className="text-right text-sm">
+                          <p className="text-slate-500">{formatCurrency(item.unitPrice)}</p>
+                          <p className="font-semibold text-slate-900">
+                            {formatCurrency(item.unitPrice * item.quantity)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+                    Cart masih kosong. Tambahkan menu terlebih dahulu.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex items-center justify-between text-sm">
+                  <p className="text-slate-500">Total Item</p>
+                  <p className="font-semibold text-slate-900">{totalItems}</p>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <p className="text-slate-500">Subtotal</p>
+                  <p className="font-semibold text-slate-900">
+                    {formatCurrency(totalAmount)}
+                  </p>
+                </div>
+
+                <div className="mt-3 border-t border-slate-200 pt-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-slate-600">Grand Total</p>
+                    <p className="text-base font-semibold text-slate-900">
+                      {formatCurrency(totalAmount)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <Link
+                  href={buildGuestCheckoutUrl({
+                    outletId,
+                    tableId,
+                    token,
+                  })}
+                  className={`inline-flex h-12 w-full items-center justify-center rounded-2xl px-4 text-sm font-semibold transition ${
+                    cart && cart.items.length > 0
+                      ? 'bg-slate-900 text-white hover:bg-slate-800'
+                      : 'pointer-events-none bg-slate-200 text-slate-400'
+                  }`}
+                >
+                  Lanjut ke Checkout
+                </Link>
+              </div>
+
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Checkout guest tetap membawa parameter outlet, meja, dan token supaya flow
+                public guest tetap aman dan tidak nyasar.
+              </p>
+            </div>
+          </aside>
+        </div>
       </div>
     </div>
   );
+
+  function handleRemoveFromCart(productId: string): void {
+    if (!cart) {
+      return;
+    }
+
+    persistCart({
+      ...cart,
+      items: cart.items.filter((cartItem) => cartItem.productId !== productId),
+    });
+  }
 }

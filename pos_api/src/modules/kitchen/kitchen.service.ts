@@ -182,6 +182,28 @@ function resolveOrderStatusAfterKitchenUpdate(
   return currentOrderStatus;
 }
 
+function resolveKitchenQueueItemStatuses(
+  queue?: KitchenQueueFilter,
+): OrderItemStatus[] {
+  if (queue === 'WAITING') {
+    return [OrderItemStatus.PENDING];
+  }
+
+  if (queue === 'PROCESSING') {
+    return [OrderItemStatus.PROCESSING];
+  }
+
+  if (queue === 'READY') {
+    return [OrderItemStatus.DONE];
+  }
+
+  return [
+    OrderItemStatus.PENDING,
+    OrderItemStatus.PROCESSING,
+    OrderItemStatus.DONE,
+  ];
+}
+
 function mapKitchenOrder(
   order: {
     id: string;
@@ -256,6 +278,7 @@ export async function listKitchenOrders(args: ListKitchenOrdersArgs) {
   await ensureActiveRestaurantOutlet(businessAccess.businessId, outletId);
 
   const skip = (page - 1) * perPage;
+  const visibleItemStatuses = resolveKitchenQueueItemStatuses(queue);
 
   const where: Prisma.OrderWhereInput = {
     businessId: businessAccess.businessId,
@@ -270,27 +293,11 @@ export async function listKitchenOrders(args: ListKitchenOrdersArgs) {
     items: {
       some: {
         status: {
-          in: [
-            OrderItemStatus.PENDING,
-            OrderItemStatus.PROCESSING,
-            OrderItemStatus.DONE,
-          ],
+          in: visibleItemStatuses,
         },
       },
     },
   };
-
-  if (queue === 'WAITING') {
-    where.status = OrderStatus.SUBMITTED;
-  }
-
-  if (queue === 'PROCESSING') {
-    where.status = OrderStatus.IN_PROGRESS;
-  }
-
-  if (queue === 'READY') {
-    where.status = OrderStatus.READY;
-  }
 
   const [total, orders] = await prisma.$transaction([
     prisma.order.count({ where }),
@@ -327,11 +334,7 @@ export async function listKitchenOrders(args: ListKitchenOrdersArgs) {
         items: {
           where: {
             status: {
-              in: [
-                OrderItemStatus.PENDING,
-                OrderItemStatus.PROCESSING,
-                OrderItemStatus.DONE,
-              ],
+              in: visibleItemStatuses,
             },
           },
           orderBy: [
@@ -518,18 +521,18 @@ export async function updateKitchenOrderItemStatus(
   return result;
 }
 
+export function getKitchenServiceErrorMessage(error: unknown) {
+  if (error instanceof KitchenServiceError) {
+    return error.message;
+  }
+
+  return 'Terjadi kesalahan pada modul kitchen';
+}
+
 export function getKitchenServiceErrorStatus(error: unknown) {
   if (error instanceof KitchenServiceError) {
     return error.statusCode;
   }
 
   return 500;
-}
-
-export function getKitchenServiceErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return 'Terjadi kesalahan pada modul kitchen';
 }

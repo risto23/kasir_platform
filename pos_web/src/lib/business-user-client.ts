@@ -43,9 +43,7 @@ function extractPermissionsFromMemberships(memberships: unknown): string[] {
       return [];
     }
 
-    return normalizeStringArray(
-      (membership as Record<string, unknown>).permissions
-    );
+    return normalizeStringArray((membership as Record<string, unknown>).permissions);
   });
 
   return Array.from(new Set(permissions));
@@ -128,7 +126,7 @@ function buildAuthContextFromData(data: unknown): AuthUserContext {
       ...extractPermissionsFromMemberships(businessMemberships),
       ...normalizeStringArray(accessProfile?.permissions),
       ...normalizeStringArray(defaultBusinessMembership?.permissions),
-    ])
+    ]),
   );
 
   return {
@@ -171,9 +169,7 @@ function normalizeBusinessRoleCode(value: unknown): BusinessRoleCode {
 
   const normalized = value.trim().toUpperCase();
 
-  if (
-    VALID_BUSINESS_ROLE_CODES.includes(normalized as BusinessRoleCode)
-  ) {
+  if (VALID_BUSINESS_ROLE_CODES.includes(normalized as BusinessRoleCode)) {
     return normalized as BusinessRoleCode;
   }
 
@@ -202,7 +198,7 @@ function normalizeRole(raw: unknown, fallbackId?: string): BusinessRoleItem {
             ? record.role
             : typeof record.name === 'string'
               ? record.name.toUpperCase().replace(/\s+/g, '_')
-              : 'ADMIN'
+              : 'ADMIN',
   );
 
   const name =
@@ -257,7 +253,42 @@ function normalizeUserSummary(raw: unknown): BusinessUserListItem['user'] {
   };
 }
 
-function normalizeOutletAccesses(raw: unknown) {
+function buildFallbackOutlet(record: Record<string, unknown>): OutletItem {
+  const fallbackStatus =
+    record.outletStatus === 'ACTIVE' || record.outletStatus === 'INACTIVE'
+      ? record.outletStatus
+      : record.status === 'ACTIVE' || record.status === 'INACTIVE'
+        ? record.status
+        : undefined;
+
+  return {
+    id:
+      typeof record.outletId === 'string'
+        ? record.outletId
+        : typeof record.id === 'string'
+          ? record.id
+          : '',
+    name:
+      typeof record.outletName === 'string'
+        ? record.outletName
+        : typeof record.name === 'string'
+          ? record.name
+          : '-',
+    code:
+      typeof record.outletCode === 'string'
+        ? record.outletCode
+        : typeof record.code === 'string'
+          ? record.code
+          : '-',
+    address: typeof record.address === 'string' ? record.address : null,
+    phone: typeof record.phone === 'string' ? record.phone : null,
+    status: fallbackStatus,
+  };
+}
+
+function normalizeOutletAccesses(
+  raw: unknown,
+): BusinessUserListItem['outletAccesses'] {
   if (!Array.isArray(raw)) {
     return [];
   }
@@ -266,20 +297,18 @@ function normalizeOutletAccesses(raw: unknown) {
     const record =
       item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
 
+    const outlet: OutletItem =
+      record.outlet && typeof record.outlet === 'object'
+        ? normalizeOutlet(record.outlet)
+        : buildFallbackOutlet(record);
+
     return {
       id: typeof record.id === 'string' ? record.id : '',
       outletId:
         typeof record.outletId === 'string'
           ? record.outletId
-          : record.outlet &&
-              typeof record.outlet === 'object' &&
-              typeof (record.outlet as Record<string, unknown>).id === 'string'
-            ? ((record.outlet as Record<string, unknown>).id as string)
-            : '',
-      outlet:
-        record.outlet && typeof record.outlet === 'object'
-          ? normalizeOutlet(record.outlet)
-          : undefined,
+          : outlet.id,
+      outlet,
     };
   });
 }
@@ -289,34 +318,42 @@ function normalizeBusinessUser(raw: unknown): BusinessUserListItem {
     raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
 
   const businessRoleId =
-    typeof record.businessRoleId === 'string' ? record.businessRoleId : '';
+    typeof record.businessRoleId === 'string'
+      ? record.businessRoleId
+      : record.role && typeof record.role === 'object'
+        ? typeof (record.role as Record<string, unknown>).id === 'string'
+          ? ((record.role as Record<string, unknown>).id as string)
+          : ''
+        : '';
 
   const nestedBusinessRole =
     record.businessRole && typeof record.businessRole === 'object'
       ? record.businessRole
-      : {
-          id: businessRoleId,
-          code:
-            typeof record.businessRoleCode === 'string'
-              ? record.businessRoleCode
-              : typeof record.roleCode === 'string'
-                ? record.roleCode
-                : typeof record.role === 'string'
-                  ? record.role
-                  : 'ADMIN',
-          name:
-            typeof record.businessRoleName === 'string'
-              ? record.businessRoleName
-              : typeof record.roleName === 'string'
-                ? record.roleName
-                : typeof record.role === 'string'
-                  ? record.role
-                  : 'Admin',
-          description:
-            typeof record.businessRoleDescription === 'string'
-              ? record.businessRoleDescription
-              : null,
-        };
+      : record.role && typeof record.role === 'object'
+        ? record.role
+        : {
+            id: businessRoleId,
+            code:
+              typeof record.businessRoleCode === 'string'
+                ? record.businessRoleCode
+                : typeof record.roleCode === 'string'
+                  ? record.roleCode
+                  : typeof record.role === 'string'
+                    ? record.role
+                    : 'ADMIN',
+            name:
+              typeof record.businessRoleName === 'string'
+                ? record.businessRoleName
+                : typeof record.roleName === 'string'
+                  ? record.roleName
+                  : typeof record.role === 'string'
+                    ? record.role
+                    : 'Admin',
+            description:
+              typeof record.businessRoleDescription === 'string'
+                ? record.businessRoleDescription
+                : null,
+          };
 
   return {
     id: typeof record.id === 'string' ? record.id : '',
@@ -353,14 +390,12 @@ function normalizeArrayData<T>(payload: unknown): T[] {
 }
 
 function normalizeBusinessUsersArray(payload: unknown): BusinessUserListItem[] {
-  return normalizeArrayData<unknown>(payload).map((item) =>
-    normalizeBusinessUser(item)
-  );
+  return normalizeArrayData<unknown>(payload).map((item) => normalizeBusinessUser(item));
 }
 
 function normalizeOutletAccessDetail(
   raw: unknown,
-  fallbackOutlets: OutletItem[]
+  fallbackOutlets: OutletItem[],
 ): BusinessUserOutletAccessDetail {
   const record =
     raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
@@ -368,11 +403,11 @@ function normalizeOutletAccessDetail(
   const selectedOutletIds =
     Array.isArray(record.selectedOutletIds)
       ? record.selectedOutletIds.filter(
-          (item): item is string => typeof item === 'string'
+          (item): item is string => typeof item === 'string',
         )
       : Array.isArray(record.outletIds)
         ? record.outletIds.filter(
-            (item): item is string => typeof item === 'string'
+            (item): item is string => typeof item === 'string',
           )
         : Array.isArray(record.outlets)
           ? record.outlets
@@ -397,8 +432,7 @@ function normalizeOutletAccessDetail(
                   typeof (outletRecord.outlet as Record<string, unknown>).id ===
                     'string'
                 ) {
-                  return (outletRecord.outlet as Record<string, unknown>)
-                    .id as string;
+                  return (outletRecord.outlet as Record<string, unknown>).id as string;
                 }
 
                 return null;
@@ -414,7 +448,7 @@ function normalizeOutletAccessDetail(
           'outlet' in (item as Record<string, unknown>) &&
           (item as Record<string, unknown>).outlet
             ? normalizeOutlet((item as Record<string, unknown>).outlet)
-            : normalizeOutlet(item)
+            : normalizeOutlet(item),
         )
       : fallbackOutlets;
 
@@ -439,32 +473,28 @@ export async function getAuthContext(): Promise<AuthUserContext> {
 }
 
 export async function getBusinessRoles(
-  businessId?: string | null
+  businessId?: string | null,
 ): Promise<BusinessRoleItem[]> {
   const response = await api.get('/business/roles', {
     headers: getHeaders(businessId),
   });
 
-  return normalizeArrayData<unknown>(response.data).map((item) =>
-    normalizeRole(item)
-  );
+  return normalizeArrayData<unknown>(response.data).map((item) => normalizeRole(item));
 }
 
 export async function getOutlets(
-  businessId?: string | null
+  businessId?: string | null,
 ): Promise<OutletItem[]> {
   const response = await api.get('/business/outlets', {
     params: { status: 'ACTIVE' },
     headers: getHeaders(businessId),
   });
 
-  return normalizeArrayData<unknown>(response.data).map((item) =>
-    normalizeOutlet(item)
-  );
+  return normalizeArrayData<unknown>(response.data).map((item) => normalizeOutlet(item));
 }
 
 export async function getBusinessUsers(
-  businessId?: string | null
+  businessId?: string | null,
 ): Promise<BusinessUserListItem[]> {
   const response = await api.get('/business-users', {
     headers: getHeaders(businessId),
@@ -475,95 +505,84 @@ export async function getBusinessUsers(
 
 export async function getBusinessUserDetail(
   businessUserId: string,
-  businessId?: string | null
+  businessId?: string | null,
 ): Promise<BusinessUserDetail> {
   const response = await api.get(`/business-users/${businessUserId}`, {
     headers: getHeaders(businessId),
   });
 
-  return normalizeBusinessUser(
-    normalizeEnvelopeData<unknown>(response.data)
-  ) as BusinessUserDetail;
+  return normalizeBusinessUser(normalizeEnvelopeData<unknown>(response.data)) as BusinessUserDetail;
 }
 
 export async function createBusinessUser(
   payload: BusinessUserCreatePayload,
-  businessId?: string | null
+  businessId?: string | null,
 ): Promise<BusinessUserDetail> {
   const response = await api.post('/business-users', payload, {
     headers: getHeaders(businessId),
   });
 
-  return normalizeBusinessUser(
-    normalizeEnvelopeData<unknown>(response.data)
-  ) as BusinessUserDetail;
+  return normalizeBusinessUser(normalizeEnvelopeData<unknown>(response.data)) as BusinessUserDetail;
 }
 
 export async function updateBusinessUser(
   businessUserId: string,
   payload: BusinessUserUpdatePayload,
-  businessId?: string | null
+  businessId?: string | null,
 ): Promise<BusinessUserDetail> {
   const response = await api.put(`/business-users/${businessUserId}`, payload, {
     headers: getHeaders(businessId),
   });
 
-  return normalizeBusinessUser(
-    normalizeEnvelopeData<unknown>(response.data)
-  ) as BusinessUserDetail;
+  return normalizeBusinessUser(normalizeEnvelopeData<unknown>(response.data)) as BusinessUserDetail;
 }
 
 export async function updateBusinessUserStatus(
   businessUserId: string,
   payload: BusinessUserStatusPayload,
-  businessId?: string | null
+  businessId?: string | null,
 ): Promise<BusinessUserDetail> {
   const response = await api.patch(
     `/business-users/${businessUserId}/status`,
     payload,
     {
       headers: getHeaders(businessId),
-    }
+    },
   );
 
-  return normalizeBusinessUser(
-    normalizeEnvelopeData<unknown>(response.data)
-  ) as BusinessUserDetail;
+  return normalizeBusinessUser(normalizeEnvelopeData<unknown>(response.data)) as BusinessUserDetail;
 }
 
 export async function getBusinessUserOutletAccess(
   businessUserId: string,
   outlets: OutletItem[],
-  businessId?: string | null
+  businessId?: string | null,
 ): Promise<BusinessUserOutletAccessDetail> {
-  const response = await api.get(
-    `/business-users/${businessUserId}/outlet-access`,
-    {
-      headers: getHeaders(businessId),
-    }
-  );
+  const response = await api.get(`/business-users/${businessUserId}/outlet-access`, {
+    headers: getHeaders(businessId),
+  });
 
   return normalizeOutletAccessDetail(
     normalizeEnvelopeData<unknown>(response.data),
-    outlets
+    outlets,
   );
 }
 
 export async function updateBusinessUserOutletAccess(
   businessUserId: string,
   payload: BusinessUserOutletAccessPayload,
-  businessId?: string | null
+  businessId?: string | null,
 ): Promise<BusinessUserOutletAccessDetail> {
   const response = await api.put(
     `/business-users/${businessUserId}/outlet-access`,
     payload,
     {
       headers: getHeaders(businessId),
-    }
+    },
   );
 
   return normalizeOutletAccessDetail(
     normalizeEnvelopeData<unknown>(response.data),
-    []
+    [],
   );
 }
