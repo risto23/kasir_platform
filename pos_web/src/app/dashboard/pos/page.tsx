@@ -1033,6 +1033,45 @@ export default function PosCashierPage() {
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <option value="">Pilih meja</option>
+                    </select>
+                  </div>
+
+                  <div className=\"min-w-[180px]\">
+                    <label className=\"mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500\">
+                      No Meja (ketik kode)
+                    </label>
+                    <div className=\"flex gap-2\">
+                      <input
+                        type=\"text\"
+                        placeholder=\"Misal: T01\"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const target = e.target as HTMLInputElement;
+                            const code = target.value.trim().toLowerCase();
+                            const found = tables.find(t => t.code?.toLowerCase() === code || t.name?.toLowerCase() === code);
+                            if (found) {
+                              setSelectedTableId(found.id);
+                            }
+                          }
+                        }}
+                        className=\"h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500\"
+                      />
+                      <button
+                        type=\"button\"
+                        onClick={() => {
+                          const input = (document.activeElement as HTMLInputElement);
+                          const code = (input?.value || '').trim().toLowerCase();
+                          const found = tables.find(t => t.code?.toLowerCase() === code || t.name?.toLowerCase() === code);
+                          if (found) {
+                            setSelectedTableId(found.id);
+                          }
+                        }}
+                        className=\"inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50\"
+                      >
+                        Pilih
+                      </button>
+                    </div>
+                  </div>
                     {tables.map((table) => (
                       <option key={table.id} value={table.id}>
                         {table.name}

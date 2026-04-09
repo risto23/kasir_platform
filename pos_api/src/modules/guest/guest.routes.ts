@@ -9,10 +9,13 @@ import {
   guestMenuValidationSchema,
 } from './guest.validation';
 
+import { requireFeatureFlagForOutletParam } from '../../middlewares/require-feature-flag.middleware';
+
 const router = Router();
 
 router.get(
   '/outlets/:outletId/guest/menu',
+  requireFeatureFlagForOutletParam('GUEST_QR', (req) => (typeof req.params.outletId === 'string' ? req.params.outletId : null)),
   (req, _res, next) => {
     console.log('[guest.routes] GET guest menu hit', {
       params: req.params,
@@ -27,6 +30,7 @@ router.get(
 
 router.post(
   '/outlets/:outletId/guest/orders',
+  requireFeatureFlagForOutletParam('GUEST_QR', (req) => (typeof req.params.outletId === 'string' ? req.params.outletId : null)),
   (req, _res, next) => {
     console.log('[guest.routes] POST guest order hit', {
       params: req.params,

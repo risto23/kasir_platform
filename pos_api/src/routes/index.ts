@@ -17,6 +17,7 @@ import receiptRoutes from '../modules/receipts/receipt.routes';
 import kitchenRoutes from '../modules/kitchen/kitchen.routes';
 import guestRoutes from '../modules/guest/guest.routes';
 import restaurantOperationsRoutes from '../modules/restaurant-operations/restaurant-operations.routes';
+import businessFeatureFlagRoutes from '../modules/business-feature-flag/business-feature-flag.routes';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.use('/platform/outlets', outletRoutes);
 router.use('/platform/feature-flags', platformFeatureFlagRoutes);
 router.use('/platform', platformBusinessTypeRoutes);
 router.use('/business', businessReferenceRoutes);
+router.use('/business', businessFeatureFlagRoutes);
 router.use('/business-users', businessUserRoutes);
 router.use('/products', productRoutes);
 router.use('/business/products', productRouter);

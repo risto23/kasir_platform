@@ -14,6 +14,8 @@ import {
   getTableQrValidationSchema,
 } from './restaurant-operations.validation';
 
+import { requireFeatureFlag } from '../../middlewares/require-feature-flag.middleware';
+
 const router = Router();
 
 function resolveOutletId(req: Request): string | null {
@@ -31,6 +33,8 @@ router.use(businessAccessMiddleware);
 
 router.get(
   '/outlets/:outletId/qr/tables/:tableId',
+  requireFeatureFlag('TABLE_MANAGEMENT'),
+  requireFeatureFlag('GUEST_QR'),
   requireBusinessPermission(BusinessPermissionCode.OUTLET_TABLE_VIEW),
   requireOutletAccess(resolveOutletId),
   validate(getTableQrValidationSchema),
@@ -39,6 +43,7 @@ router.get(
 
 router.get(
   '/outlets/:outletId/tables/monitor',
+  requireFeatureFlag('TABLE_MANAGEMENT'),
   requireBusinessPermission(BusinessPermissionCode.OUTLET_TABLE_VIEW),
   requireOutletAccess(resolveOutletId),
   validate(getOutletTableMonitorValidationSchema),

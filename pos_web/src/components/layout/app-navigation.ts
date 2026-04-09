@@ -43,7 +43,7 @@ export type AppNavItem = {
   restaurantOnly?: boolean;
   requireOutletScope?: boolean;
   allowedRoles?: Array<'OWNER' | 'ADMIN' | 'CASHIER' | 'KITCHEN' | 'INVENTORY'>;
-};
+  requiredFeatureKeys?: string[]; };
 
 export type AppNavGroup = {
   section: string;
@@ -278,14 +278,7 @@ const menuGroups: AppNavGroup[] = [
         allowedRoles: ['OWNER', 'ADMIN', 'INVENTORY'],
       },
       {
-        href: '/dashboard/outlet-tables',
-        label: 'Outlet Tables',
-        icon: faTableCellsLarge,
-        requiredPermissions: ['OUTLET_TABLE_VIEW'],
-        businessOnly: true,
-        restaurantOnly: true,
-        requireOutletScope: true,
-        allowedRoles: ['OWNER', 'ADMIN'],
+        href: '/dashboard/outlet-tables', requiredFeatureKeys: ['TABLE_MANAGEMENT'],
       },
       {
         href: '/dashboard/promos',
@@ -338,6 +331,7 @@ const menuGroups: AppNavGroup[] = [
         restaurantOnly: true,
         requireOutletScope: true,
         allowedRoles: ['OWNER', 'ADMIN', 'KITCHEN'],
+        requiredFeatureKeys: ['KITCHEN_DISPLAY'],
       },
       {
         href: '/dashboard/tables/monitor',
@@ -348,6 +342,7 @@ const menuGroups: AppNavGroup[] = [
         restaurantOnly: true,
         requireOutletScope: true,
         allowedRoles: ['OWNER', 'ADMIN'],
+        requiredFeatureKeys: ['TABLE_MANAGEMENT'],
       },
       {
         href: '/dashboard/tables/qr',
@@ -358,12 +353,13 @@ const menuGroups: AppNavGroup[] = [
         restaurantOnly: true,
         requireOutletScope: true,
         allowedRoles: ['OWNER', 'ADMIN'],
+        requiredFeatureKeys: ['TABLE_MANAGEMENT','GUEST_QR'],
       },
     ],
   },
 ];
 
-export function getFilteredNavigation(user: CurrentUser | null): AppNavGroup[] {
+export function getFilteredNavigation(user: CurrentUser | null, featureKeys?: string[]): AppNavGroup[] {
   const accessProfile = (user?.accessProfile || {}) as AccessProfileLike;
   const activeMembership = getActiveMembership(user);
   const isSuperAdmin = Boolean(accessProfile.isSuperAdmin);
@@ -376,6 +372,17 @@ export function getFilteredNavigation(user: CurrentUser | null): AppNavGroup[] {
   return menuGroups
     .map((group) => {
       const items = group.items.filter((item) => {
+        const enabledFeatureKeys = Array.isArray(featureKeys) ? new Set(featureKeys) : null;
+        if (item.requiredFeatureKeys && item.requiredFeatureKeys.length > 0 && !isSuperAdmin) {
+          if (!enabledFeatureKeys) {
+            return false;
+          }
+          for (const k of item.requiredFeatureKeys) {
+            if (!enabledFeatureKeys.has(k)) {
+              return false;
+            }
+          }
+        }
         if (item.platformOnly && !isSuperAdmin) {
           return false;
         }
@@ -439,3 +446,4 @@ export function getNavigationContext(user: CurrentUser | null) {
     outletScopeAvailable,
   };
 }
+
