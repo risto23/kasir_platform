@@ -561,7 +561,7 @@ export default function DashboardPage() {
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-900">
+              <p data-testid="dashboard-quick-actions" className="text-sm font-semibold text-slate-900">
                 Quick Actions
               </p>
               <p className="text-sm text-slate-500">
@@ -603,7 +603,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">
+          <p data-testid="dashboard-quick-actions" className="text-sm font-semibold text-slate-900">
             {isKitchenLikeDashboard
               ? 'Ringkasan Operasional Kitchen'
               : isSuperAdmin

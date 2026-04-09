@@ -26,6 +26,8 @@ import reportsRoutes from '../modules/reports/reports.routes';
 import restaurantOperationsRoutes from '../modules/restaurant-operations/restaurant-operations.routes';
 import businessFeatureFlagRoutes from '../modules/business-feature-flag/business-feature-flag.routes';
 
+import reportsRoutes from '../modules/reports/reports.routes';
+
 const router = Router();
 
 router.use('/health', healthRoutes);
@@ -46,6 +48,8 @@ router.use('/payments', paymentRoutes);
 router.use('/reports', reportsRoutes);
 router.use('/settings', posSettingsRoutes);
 router.use('/receipts', receiptRoutes);
+
+router.use('/reports', reportsRoutes);
 
 // public guest routes harus dipasang lebih dulu
 router.use('/', guestRoutes);

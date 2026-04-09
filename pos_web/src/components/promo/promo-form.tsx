@@ -324,14 +324,14 @@ export function PromoForm({
   if (loadingMeta) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm text-slate-500">Memuat form promo...</p>
+        <p data-testid="promo-form-loading" className="text-sm text-slate-500">Memuat form promo...</p>
       </div>
     );
   }
 
   return (
     <form
-      onSubmit={handleSubmit}
+      data-testid="promo-form" onSubmit={handleSubmit}
       className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <div className="mb-6">
@@ -344,7 +344,7 @@ export function PromoForm({
       </div>
 
       {error ? (
-        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div data-testid="promo-error" className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
@@ -359,7 +359,7 @@ export function PromoForm({
             value={form.name}
             onChange={(event) => setField('name', event.target.value)}
             className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500"
-            placeholder="Contoh: Promo Weekend"
+            placeholder="Contoh: Promo Weekend" id="promo-name" data-testid="promo-name"
           />
         </div>
 
@@ -381,7 +381,7 @@ export function PromoForm({
             Tipe Target
           </label>
           <select
-            value={form.targetType}
+            id="promo-target-type" data-testid="promo-target-type" value={form.targetType}
             onChange={(event) =>
               setField('targetType', event.target.value as PromoTargetType)
             }
@@ -420,7 +420,7 @@ export function PromoForm({
               Kategori Target
             </label>
             <select
-              value={form.categoryId}
+              id="promo-category" data-testid="promo-category" value={form.categoryId}
               onChange={(event) => setField('categoryId', event.target.value)}
               className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500"
             >
@@ -482,7 +482,7 @@ export function PromoForm({
             Tipe Diskon
           </label>
           <select
-            value={form.discountType}
+            id="promo-discount-type" data-testid="promo-discount-type" value={form.discountType}
             onChange={(event) =>
               setField('discountType', event.target.value as PromoDiscountType)
             }
@@ -504,7 +504,7 @@ export function PromoForm({
             type="number"
             min="0"
             step="0.01"
-            value={form.discountValue}
+            id="promo-discount-value" data-testid="promo-discount-value" value={form.discountValue}
             onChange={(event) => setField('discountValue', event.target.value)}
             className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500"
             placeholder={form.discountType === 'PERCENTAGE' ? '10' : '5000'}
@@ -625,7 +625,7 @@ export function PromoForm({
 
       <div className="mt-8 flex flex-wrap gap-3">
         <button
-          type="submit"
+          type="submit" data-testid="promo-submit"
           disabled={submitting}
           className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
         >

@@ -462,6 +462,33 @@ async function main() {
     'Melihat dan mencetak struk transaksi',
   );
 
+    const permissionInventoryView = await upsertBusinessPermission(
+    BusinessPermissionCode.INVENTORY_VIEW,
+    'Inventory View',
+    'Melihat stok dan riwayat inventory',
+  );
+  const permissionInventoryStockIn = await upsertBusinessPermission(
+    BusinessPermissionCode.INVENTORY_STOCK_IN,
+    'Inventory Stock In',
+    'Menambah stok manual (IN)',
+  );
+  const permissionInventoryStockOut = await upsertBusinessPermission(
+    BusinessPermissionCode.INVENTORY_STOCK_OUT,
+    'Inventory Stock Out',
+    'Mengurangi stok manual (OUT)',
+  );
+  const permissionInventoryAdjust = await upsertBusinessPermission(
+    BusinessPermissionCode.INVENTORY_ADJUST,
+    'Inventory Adjust',
+    'Penyesuaian stok (ADJUSTMENT)',
+   );
+
+  const permissionReportView = await upsertBusinessPermission(
+    BusinessPermissionCode.REPORT_VIEW,
+    'Report View',
+    'Mengakses halaman laporan & dashboard',
+  );
+
   const ownerPermissionIds = [
     permissionBusinessRoleView.id,
     permissionBusinessPermissionView.id,
@@ -501,6 +528,12 @@ async function main() {
     permissionOutletTableCreate.id,
     permissionOutletTableUpdate.id,
     permissionOutletTableStatusUpdate.id,
+    permissionInventoryView.id,
+    permissionInventoryStockIn.id,
+    permissionInventoryStockOut.id,
+    permissionInventoryAdjust.id,
+  
+    permissionReportView.id,
   ];
 
   const adminPermissionIds = [
@@ -542,6 +575,8 @@ async function main() {
     permissionOutletTableCreate.id,
     permissionOutletTableUpdate.id,
     permissionOutletTableStatusUpdate.id,
+  
+    permissionReportView.id,
   ];
 
   const cashierPermissionIds = [
@@ -570,12 +605,16 @@ async function main() {
     permissionOrderUpdate.id,
   ];
 
-  const inventoryPermissionIds = [
+    const inventoryPermissionIds = [
     permissionOutletScopeView.id,
     permissionCategoryView.id,
     permissionProductView.id,
     permissionProductOutletView.id,
     permissionPromoView.id,
+    permissionInventoryView.id,
+    permissionInventoryStockIn.id,
+    permissionInventoryStockOut.id,
+    permissionInventoryAdjust.id,
   ];
 
   await assignRolePermissions(ownerRole.id, ownerPermissionIds);
