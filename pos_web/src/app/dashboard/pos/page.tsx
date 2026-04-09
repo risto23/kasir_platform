@@ -44,6 +44,7 @@ import {
   getOutletOrderHistory,
   recalculateCart,
 } from '@/lib/pos';
+
 import type {
   PosBusinessType,
   PosCartItem,
@@ -56,6 +57,7 @@ import type {
   PosReceiptResponse,
   PosSettingsChargeRule,
   PosTableItem,
+  PosRoundingSetting
 } from '@/types/pos';
 
 type OutletListEnvelope = {
@@ -346,7 +348,10 @@ export default function PosCashierPage() {
   const [selectedTableId, setSelectedTableId] = useState('');
   const [products, setProducts] = useState<PosProductItem[]>([]);
   const [cart, setCart] = useState<PosCartItem[]>([]);
+  
+  
   const [chargeRules, setChargeRules] = useState<PosSettingsChargeRule[]>([]);
+  const [roundingSetting, setRoundingSetting] = useState<PosRoundingSetting | null>(null);
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [productLoading, setProductLoading] = useState(false);
@@ -433,6 +438,21 @@ export default function PosCashierPage() {
     () => calculateGrandTotal(subtotal, charges),
     [subtotal, charges],
   );
+  const roundingCalc = useMemo(() => {
+    const base = grandTotal;
+    const r = roundingSetting;
+    if (!r || !r.enabled || !r.unit || r.method === 'NONE') {
+      return { roundedTotal: base, roundingAmount: 0 };
+    }
+    const unit = Math.max(1, Math.floor(r.unit));
+    const q = base / unit;
+    let rounded = base;
+    if (r.method === 'NEAREST') rounded = Math.round(q) * unit;
+    else if (r.method === 'CEIL') rounded = Math.ceil(q) * unit;
+    else if (r.method === 'FLOOR') rounded = Math.floor(q) * unit;
+    const roundingAmount = rounded - base;
+    return { roundedTotal: rounded, roundingAmount };
+  }, [grandTotal, roundingSetting]);
 
   const selectedOutlet = useMemo(
     () => outlets.find((item) => item.id === selectedOutletId) || null,
@@ -512,8 +532,7 @@ export default function PosCashierPage() {
 
       setOutlets(outletItems);
       setChargeRules(chargeSettingsResponse.charges);
-
-      if (outletItems.length > 0) {
+      setRoundingSetting(chargeSettingsResponse.rounding ?? null);if (outletItems.length > 0) {
         const storedOutletId =
           typeof window !== 'undefined'
             ? window.localStorage.getItem('activeOutletId')
@@ -699,6 +718,21 @@ export default function PosCashierPage() {
     void loadTables(selectedOutletId);
     void loadQueueOrders(selectedOutletId, cashierQueue);
   }, [selectedOutletId, businessType, cashierQueue]);
+  useEffect(() => {
+    if (!selectedOutletId) {
+      setChargeRules([]);
+      return;
+    }
+    (async () => {
+      try {
+        const resp = await getPosChargeSettings(selectedOutletId);
+        setChargeRules(resp.charges);
+        setRoundingSetting(resp.rounding ?? null);
+      } catch {
+        setChargeRules([]);
+      }
+    })();
+  }, [selectedOutletId]);
 
   useEffect(() => {
     if (!selectedQueueOrderId || !selectedOutletId) {
@@ -824,8 +858,8 @@ export default function PosCashierPage() {
       await createPayment({
         orderId: order.id,
         outletId: selectedOutletId,
-        amountPaid: grandTotal,
-        amountTendered: grandTotal,
+        amountPaid: roundingCalc.roundedTotal,
+        amountTendered: roundingCalc.roundedTotal,
         method: paymentMethod,
         note: paymentNote.trim() || undefined,
       });
@@ -860,12 +894,11 @@ export default function PosCashierPage() {
     try {
       setQueueActionLoading(true);
       setQueueMessage('');
-
-      await createPayment({
-        orderId: selectedQueueOrder.id,
-        outletId: selectedOutletId,
-        amountPaid: selectedQueueOrder.totalAmount,
-        amountTendered: selectedQueueOrder.totalAmount,
+            await createPayment({
+              orderId: selectedQueueOrder.id,
+              outletId: selectedOutletId,
+              amountPaid: selectedQueueOrder.totalAmount,
+              amountTendered: selectedQueueOrder.totalAmount,
         method: queuePaymentMethod,
         note: queuePaymentNote.trim() || undefined,
       });
@@ -974,7 +1007,7 @@ export default function PosCashierPage() {
               Grand Total
             </p>
             <p className="mt-2 text-sm font-semibold text-slate-900">
-              {formatCurrency(grandTotal)}
+              {formatCurrency(roundingCalc.roundedTotal)}
             </p>
           </div>
         </div>
@@ -1022,64 +1055,64 @@ export default function PosCashierPage() {
               </div>
 
               {businessType === 'RESTAURANT' ? (
-                <div className="min-w-[200px]">
-                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Meja
-                  </label>
-                  <select
-                    value={selectedTableId}
-                    onChange={(event) => setSelectedTableId(event.target.value)}
-                    disabled={!selectedOutletId || tables.length === 0}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <option value="">Pilih meja</option>
-                    </select>
-                  </div>
+  <>
+    <div className="min-w-[200px]">
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        Meja
+      </label>
+      <select
+        value={selectedTableId}
+        onChange={(event) => setSelectedTableId(event.target.value)}
+        disabled={!selectedOutletId || tables.length === 0}
+        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <option value="">Pilih meja</option>
+        {tables.map((table) => (
+          <option key={table.id} value={table.id}>
+            {table.name}
+          </option>
+        ))}
+      </select>
+    </div>
 
-                  <div className=\"min-w-[180px]\">
-                    <label className=\"mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500\">
-                      No Meja (ketik kode)
-                    </label>
-                    <div className=\"flex gap-2\">
-                      <input
-                        type=\"text\"
-                        placeholder=\"Misal: T01\"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            const target = e.target as HTMLInputElement;
-                            const code = target.value.trim().toLowerCase();
-                            const found = tables.find(t => t.code?.toLowerCase() === code || t.name?.toLowerCase() === code);
-                            if (found) {
-                              setSelectedTableId(found.id);
-                            }
-                          }
-                        }}
-                        className=\"h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500\"
-                      />
-                      <button
-                        type=\"button\"
-                        onClick={() => {
-                          const input = (document.activeElement as HTMLInputElement);
-                          const code = (input?.value || '').trim().toLowerCase();
-                          const found = tables.find(t => t.code?.toLowerCase() === code || t.name?.toLowerCase() === code);
-                          if (found) {
-                            setSelectedTableId(found.id);
-                          }
-                        }}
-                        className=\"inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50\"
-                      >
-                        Pilih
-                      </button>
-                    </div>
-                  </div>
-                    {tables.map((table) => (
-                      <option key={table.id} value={table.id}>
-                        {table.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : null}
+    <div className="min-w-[180px]">
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        No Meja (ketik kode)
+      </label>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="Misal: T01"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const target = e.target as HTMLInputElement;
+              const code = target.value.trim().toLowerCase();
+              const found = tables.find(t => t.code?.toLowerCase() === code || t.name?.toLowerCase() === code);
+              if (found) {
+                setSelectedTableId(found.id);
+              }
+            }
+          }}
+          className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const input = (document.activeElement as HTMLInputElement);
+            const code = (input?.value || '').trim().toLowerCase();
+            const found = tables.find(t => t.code?.toLowerCase() === code || t.name?.toLowerCase() === code);
+            if (found) {
+              setSelectedTableId(found.id);
+            }
+          }}
+          className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          Pilih
+        </button>
+      </div>
+    </div>
+  </>
+) : null}
 
               <div className="min-w-[180px]">
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -1417,23 +1450,32 @@ export default function PosCashierPage() {
 
                     {charges.map((chargeRule,index) => (
                       <div
-                        key={`${chargeRule.type}-${index}`}
+                        key={`${chargeRule.label}-${index}`}
                         className="flex items-center justify-between text-sm"
                       >
-                        <span className="text-slate-500">{chargeRule.type}</span>
+                        <span className="text-slate-500">{chargeRule.label}</span>
                         <span className="font-semibold text-slate-900">
                           {formatCurrency(chargeRule.amount)}
                         </span>
                       </div>
                     ))}
 
+                    
+                    {roundingSetting?.enabled ? (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-500">Pembulatan</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(roundingCalc.roundingAmount)}
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="border-t border-slate-200 pt-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-slate-600">
                           Grand Total
                         </span>
                         <span className="text-base font-semibold text-slate-900">
-                          {formatCurrency(grandTotal)}
+                          {formatCurrency(roundingCalc.roundedTotal)}
                         </span>
                       </div>
                     </div>
@@ -1855,3 +1897,31 @@ export default function PosCashierPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

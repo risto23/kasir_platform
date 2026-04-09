@@ -64,7 +64,7 @@ export default function BusinessFeaturesPage() {
       setMessage('');
       setMessageType('');
 
-      const response = await api.get(`/platform/businesses/${params.id}/feature-flags`);
+      const response = await api.get(`/platform/feature-flags/businesses/${params.id}/feature-flags`);
       const result = response.data.data as BusinessFeatureFlagsResponse;
 
       setData(result);
@@ -97,7 +97,7 @@ export default function BusinessFeaturesPage() {
     try {
       setSaving(true);
 
-      await api.put(`/platform/businesses/${params.id}/feature-flags`, {
+      await api.put(`/platform/feature-flags/businesses/${params.id}/feature-flags`, {
         featureFlagKeys: selectedKeys,
       });
 

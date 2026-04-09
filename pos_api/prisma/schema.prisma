@@ -9,6 +9,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ===== Enums =====
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -101,8 +103,8 @@ enum OrderStatus {
 enum PaymentStatus {
   UNPAID
   PAID
-  PARTIAL
   CANCELLED
+  PARTIAL
   REFUNDED
 }
 
@@ -132,61 +134,64 @@ enum InventoryMovementType {
 enum BusinessPermissionCode {
   BUSINESS_ROLE_VIEW
   BUSINESS_PERMISSION_VIEW
-
   BUSINESS_USER_VIEW
   BUSINESS_USER_CREATE
   BUSINESS_USER_UPDATE
   BUSINESS_USER_STATUS_UPDATE
   BUSINESS_USER_ASSIGN_OUTLET
-
   OUTLET_SCOPE_VIEW
-
   OUTLET_VIEW
   OUTLET_CREATE
   OUTLET_UPDATE
   OUTLET_STATUS_UPDATE
-
   CATEGORY_VIEW
   CATEGORY_CREATE
   CATEGORY_UPDATE
   CATEGORY_STATUS_UPDATE
-
   PRODUCT_VIEW
   PRODUCT_CREATE
   PRODUCT_UPDATE
   PRODUCT_STATUS_UPDATE
-
   PRODUCT_OUTLET_VIEW
   PRODUCT_OUTLET_UPDATE
-
-  PROMO_VIEW
-  PROMO_CREATE
-  PROMO_UPDATE
-  PROMO_STATUS_UPDATE
-
-  ORDER_VIEW
-  ORDER_CREATE
-  ORDER_UPDATE
-  ORDER_STATUS_UPDATE
-
-  PAYMENT_VIEW
-  PAYMENT_CREATE
-  PAYMENT_STATUS_UPDATE
-
-  RECEIPT_VIEW
-
   OUTLET_TABLE_VIEW
   OUTLET_TABLE_CREATE
   OUTLET_TABLE_UPDATE
   OUTLET_TABLE_STATUS_UPDATE
-
+  PROMO_VIEW
+  PROMO_CREATE
+  PROMO_UPDATE
+  PROMO_STATUS_UPDATE
+  ORDER_VIEW
+  ORDER_CREATE
+  ORDER_UPDATE
+  ORDER_STATUS_UPDATE
+  PAYMENT_VIEW
+  PAYMENT_CREATE
+  PAYMENT_STATUS_UPDATE
+  RECEIPT_VIEW
   INVENTORY_VIEW
   INVENTORY_STOCK_IN
   INVENTORY_STOCK_OUT
   INVENTORY_ADJUST
-
   REPORT_VIEW
-}model User {
+}
+
+enum PosChargeType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum RoundingMethod {
+  NONE
+  NEAREST
+  CEIL
+  FLOOR
+}
+
+// ===== Core Models =====
+
+model User {
   id           String     @id @default(cuid())
   fullName     String
   email        String     @unique
@@ -196,9 +201,9 @@ enum BusinessPermissionCode {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  ownedBusinesses Business[] @relation("BusinessOwner")
-  platformRoles   UserPlatformRole[]
   businessUsers   BusinessUser[]
+  ownedBusinesses Business[]         @relation("BusinessOwner")
+  platformRoles   UserPlatformRole[]
 
   @@index([status])
   @@map("users")
@@ -223,8 +228,8 @@ model UserPlatformRole {
   platformRoleId String
   createdAt      DateTime @default(now())
 
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   platformRole PlatformRole @relation(fields: [platformRoleId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, platformRoleId])
   @@index([platformRoleId])
@@ -254,18 +259,19 @@ model Business {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
-  ownerUser        User?                 @relation("BusinessOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
-  outlets          Outlet[]
-  businessUsers    BusinessUser[]
-  businessFeatures BusinessFeatureFlag[]
-  categories       Category[]
-  products         Product[]
-  promos           Promo[]
-  orders           Order[]
-  payments         Payment[]
-  receipts         Receipt[]
-  inventoryItems   InventoryItem[]
-  inventoryMovements InventoryMovement[]
+  ownerUser            User?                 @relation("BusinessOwner", fields: [ownerUserId], references: [id])
+  outlets              Outlet[]
+  businessUsers        BusinessUser[]
+  businessFeatures     BusinessFeatureFlag[]
+  categories           Category[]
+  products             Product[]
+  promos               Promo[]
+  orders               Order[]
+  payments             Payment[]
+  receipts             Receipt[]
+  inventoryItems       InventoryItem[]
+  inventoryMovements   InventoryMovement[]
+  outletPosChargeRules OutletPosChargeRule[]
 
   @@index([businessType])
   @@index([status])
@@ -293,6 +299,8 @@ model Outlet {
   promoOutlets          PromoOutlet[]
   inventoryItems        InventoryItem[]
   inventoryMovements    InventoryMovement[]
+  roundingSetting       OutletRoundingSetting?
+  outletPosChargeRules  OutletPosChargeRule[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -332,8 +340,8 @@ model BusinessRolePermission {
   businessPermissionId String
   createdAt            DateTime @default(now())
 
-  businessRole       BusinessRole       @relation(fields: [businessRoleId], references: [id], onDelete: Cascade)
   businessPermission BusinessPermission @relation(fields: [businessPermissionId], references: [id], onDelete: Cascade)
+  businessRole       BusinessRole       @relation(fields: [businessRoleId], references: [id], onDelete: Cascade)
 
   @@unique([businessRoleId, businessPermissionId])
   @@index([businessPermissionId])
@@ -345,19 +353,19 @@ model BusinessUser {
   businessId         String
   userId             String
   businessRoleId     String
-  status             BusinessUserStatus @default(ACTIVE)
   isPrimary          Boolean            @default(false)
-  hasAllOutletAccess Boolean            @default(false)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
+  hasAllOutletAccess Boolean            @default(false)
+  status             BusinessUserStatus @default(ACTIVE)
 
-  business         Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user             User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  businessRole     BusinessRole               @relation(fields: [businessRoleId], references: [id], onDelete: Restrict)
-  outletAccesses   BusinessUserOutletAccess[]
-  createdOrders    Order[]                    @relation("OrderCreatedByBusinessUser")
-  receivedPayments Payment[]                  @relation("PaymentReceivedByBusinessUser")
-  createdInventoryMovements InventoryMovement[] @relation("InventoryMovementCreatedByBusinessUser")
+  outletAccesses            BusinessUserOutletAccess[]
+  business                  Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessRole              BusinessRole               @relation(fields: [businessRoleId], references: [id])
+  user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdOrders             Order[]                    @relation("OrderCreatedByBusinessUser")
+  receivedPayments          Payment[]                  @relation("PaymentReceivedByBusinessUser")
+  createdInventoryMovements InventoryMovement[]        @relation("InventoryMovementCreatedByBusinessUser")
 
   @@unique([businessId, userId])
   @@index([userId])
@@ -425,21 +433,21 @@ model Product {
   name        String
   code        String
   sku         String?
-  barcode     String?
-  brand       String?
-  unit        String?
   description String?
   imageUrl    String?
   basePrice   Decimal       @db.Decimal(14, 2)
   status      ProductStatus @default(ACTIVE)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  brand       String?
+  unit        String?
+  barcode     String?
 
   business              Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  category              Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  productOutletSettings ProductOutletSetting[]
+  category              Category?              @relation(fields: [categoryId], references: [id])
   promos                Promo[]
   orderItems            OrderItem[]
+  productOutletSettings ProductOutletSetting[]
   inventoryItems        InventoryItem[]
   inventoryMovements    InventoryMovement[]
 
@@ -460,14 +468,14 @@ model ProductOutletSetting {
   id            String              @id @default(cuid())
   productId     String
   outletId      String
+  status        ProductOutletStatus @default(ACTIVE)
   isAvailable   Boolean             @default(true)
   priceOverride Decimal?            @db.Decimal(14, 2)
-  status        ProductOutletStatus @default(ACTIVE)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   outlet  Outlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, outletId])
   @@index([outletId, status])
@@ -478,15 +486,15 @@ model ProductOutletSetting {
 model OutletTable {
   id        String            @id @default(cuid())
   outletId  String
-  code      String
   name      String
+  code      String
   capacity  Int?
   status    OutletTableStatus @default(ACTIVE)
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
-  outlet Outlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
   orders Order[]
+  outlet Outlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
 
   @@unique([outletId, code])
   @@unique([outletId, name])
@@ -526,8 +534,8 @@ model Order {
   @@index([businessId, outletId, status])
   @@index([businessId, outletId, paymentStatus])
   @@index([outletId, createdAt])
-  @@index([businessId, createdAt])
-  @@index([businessId, outletId, createdAt])
+  @@index([businessId, createdAt], map: "orders_business_createdAt_idx")
+  @@index([businessId, outletId, createdAt], map: "orders_business_outlet_createdAt_idx")
   @@index([createdByBusinessUserId])
   @@index([tableId])
   @@map("orders")
@@ -552,7 +560,7 @@ model OrderItem {
   updatedAt          DateTime        @updatedAt
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product Product @relation(fields: [productId], references: [id])
 
   @@index([orderId, status])
   @@index([productId])
@@ -606,10 +614,10 @@ model Receipt {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  payment  Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   outlet   Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  payment  Payment? @relation(fields: [paymentId], references: [id])
 
   @@index([businessId, outletId, issuedAt])
   @@index([outletId, issuedAt])
@@ -632,14 +640,14 @@ model Promo {
   startTime       String
   endTime         String
   status          PromoStatus       @default(ACTIVE)
-  outletScope     PromoOutletScope  @default(ALL_OUTLETS)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  outletScope     PromoOutletScope  @default(ALL_OUTLETS)
 
-  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
   promoOutlets PromoOutlet[]
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category     Category?     @relation(fields: [categoryId], references: [id])
+  product      Product?      @relation(fields: [productId], references: [id])
 
   @@index([businessId, status])
   @@index([businessId, targetType])
@@ -656,13 +664,49 @@ model PromoOutlet {
   outletId  String
   createdAt DateTime @default(now())
 
-  promo  Promo  @relation(fields: [promoId], references: [id], onDelete: Cascade)
   outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  promo  Promo  @relation(fields: [promoId], references: [id], onDelete: Cascade)
 
   @@unique([promoId, outletId])
   @@index([promoId])
   @@index([outletId])
   @@map("promo_outlets")
+}
+
+model OutletPosChargeRule {
+  id         String        @id @default(cuid())
+  businessId String
+  outletId   String
+  key        String
+  label      String
+  type       PosChargeType
+  value      Decimal       @db.Decimal(14, 2)
+  enabled    Boolean       @default(true)
+  sortOrder  Int           @default(0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet   Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, key])
+  @@index([businessId, outletId])
+  @@map("outlet_pos_charge_rules")
+}
+
+model OutletRoundingSetting {
+  id        String         @id @default(cuid())
+  outletId  String         @unique
+  method    RoundingMethod @default(CEIL)
+  unit      Int            @default(100)
+  enabled   Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@index([outletId])
+  @@map("outlet_rounding_settings")
 }
 
 model InventoryItem {
@@ -676,9 +720,9 @@ model InventoryItem {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  business  Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  outlet    Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  business  Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet    Outlet              @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  product   Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   movements InventoryMovement[]
 
   @@unique([productId, outletId])
@@ -688,18 +732,18 @@ model InventoryItem {
 }
 
 model InventoryMovement {
-  id                      String                 @id @default(cuid())
+  id                      String                @id @default(cuid())
   businessId              String
   outletId                String
   productId               String
   inventoryItemId         String
   type                    InventoryMovementType
-  quantity                Decimal                @db.Decimal(14, 3)
+  quantity                Decimal               @db.Decimal(14, 3)
   note                    String?
   referenceType           String?
   referenceId             String?
   createdByBusinessUserId String?
-  createdAt               DateTime               @default(now())
+  createdAt               DateTime              @default(now())
 
   business  Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   outlet    Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
@@ -712,4 +756,3 @@ model InventoryMovement {
   @@index([createdAt])
   @@map("inventory_movements")
 }
-

@@ -1188,7 +1188,13 @@ async function main() {
     'Kelola product/menu',
   );
   
-  await enableFeatureFlag(\r\n    retailBusiness.id,\r\n    'GUEST_QR',\r\n    'Guest QR',\r\n    'Aktifkan modul QR tamu untuk pemesanan tanpa login',\r\n    false,\r\n  );
+  await enableFeatureFlag(
+    retailBusiness.id,
+    'GUEST_QR',
+    'Guest QR',
+    'Aktifkan modul QR tamu untuk pemesanan tanpa login',
+    false,
+  );
   await enableFeatureFlag(
     retailBusiness.id,
     'TABLE_MANAGEMENT',
@@ -1222,9 +1228,21 @@ async function main() {
     'Kelola kategori',
   );
   
-  await enableFeatureFlag(\r\n    restaurantBusiness.id,\r\n    'KITCHEN_DISPLAY',\r\n    'Kitchen Display',\r\n    'Aktifkan modul Kitchen untuk RESTAURANT',\r\n    true,\r\n  );
+  await enableFeatureFlag(
+    restaurantBusiness.id,
+    'KITCHEN_DISPLAY',
+    'Kitchen Display',
+    'Aktifkan modul Kitchen untuk RESTAURANT',
+    true,
+  );
   
-  await enableFeatureFlag(\r\n    restaurantBusiness.id,\r\n    'GUEST_QR',\r\n    'Guest QR',\r\n    'Aktifkan modul QR tamu untuk pemesanan tanpa login',\r\n    false,\r\n  );
+  await enableFeatureFlag(
+    restaurantBusiness.id,
+    'GUEST_QR',
+    'Guest QR',
+    'Aktifkan modul QR tamu untuk pemesanan tanpa login',
+    false,
+  );
   await enableFeatureFlag(
     restaurantBusiness.id,
     'TABLE_MANAGEMENT',

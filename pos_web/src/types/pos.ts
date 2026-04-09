@@ -140,9 +140,7 @@ export type PosSettingsChargeRule = {
   enabled: boolean;
 };
 
-export type PosSettingsChargesResponse = {
-  charges: PosSettingsChargeRule[];
-};
+export type PosSettingsChargesResponse = { charges: PosSettingsChargeRule[]; rounding?: PosRoundingSetting; };
 
 export type PosListMeta = {
   page: number;
@@ -375,3 +373,6 @@ export type PosReceiptPayload = {
   paymentId?: string;
   outletId: string;
 };
+
+
+export type PosRoundingSetting = { enabled: boolean; method: 'NONE' | 'NEAREST' | 'CEIL' | 'FLOOR'; unit: number; };

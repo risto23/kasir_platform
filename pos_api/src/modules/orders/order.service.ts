@@ -1,3 +1,4 @@
+import { applyChargesAndRounding, getOutletPosChargeSettings } from '../pos-settings/pos-settings.service';
 import {
   BusinessType,
   OrderStatus,
@@ -401,6 +402,15 @@ async function recalculateOrderTotals(
   tx: Prisma.TransactionClient,
   orderId: string,
 ) {
+  const orderRow = await tx.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, outletId: true },
+  });
+
+  if (!orderRow) {
+    throw new Error('Order tidak ditemukan');
+  }
+
   const orderItems = await tx.orderItem.findMany({
     where: { orderId },
     select: {
@@ -420,19 +430,23 @@ async function recalculateOrderTotals(
     new Prisma.Decimal(0),
   );
 
-  const totalAmount = orderItems.reduce(
+  const baseTotal = orderItems.reduce(
     (acc, item) => acc.plus(item.lineTotal),
     new Prisma.Decimal(0),
   );
+
+  // Load outlet charges + rounding (with defaults if empty)
+  const { charges, rounding } = await getOutletPosChargeSettings(orderRow.outletId);
+  const applied = applyChargesAndRounding(baseTotal, charges, rounding);
 
   return tx.order.update({
     where: { id: orderId },
     data: {
       subtotal,
       discountAmount,
-      taxAmount: new Prisma.Decimal(0),
-      serviceChargeAmount: new Prisma.Decimal(0),
-      totalAmount,
+      taxAmount: applied.taxAmount,
+      serviceChargeAmount: applied.serviceChargeAmount,
+      totalAmount: applied.grandTotal,
     },
   });
 }

@@ -4,7 +4,7 @@ import { fetchOrdersReport } from '@/lib/reports';
 import { toBackendDate } from '@/lib/date-format';
 
 export default function OrdersReportPage() {
-  const today = useMemo(() => { const d = new Date(); const dd=String(d.getDate()).padStart(2,'0'); const mm=String(d.getMonth()+1).padStart(2,'0'); const yyyy=String(d.getFullYear()); return ${dd}--; }, []);
+  const today = useMemo(() => { const d = new Date(); const dd=String(d.getDate()).padStart(2,'0'); const mm=String(d.getMonth()+1).padStart(2,'0'); const yyyy=String(d.getFullYear()); return `${dd}-${mm}-${yyyy}`; }, []);
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [scope, setScope] = useState<'business'|'outlet'>('outlet');
@@ -55,4 +55,6 @@ export default function OrdersReportPage() {
     </div>
   );
 }
+
+
 
