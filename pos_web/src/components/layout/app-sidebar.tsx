@@ -1,22 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
-import { usePathname } from 'next/navigation';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronRight, faStore } from '@fortawesome/free-solid-svg-icons';
-
-import { getCachedCurrentUser } from '@/lib/auth';
-import {
-  getFilteredNavigation,
-  getNavigationContext,
-  isMenuActive,
-} from '@/components/layout/app-navigation';
+import {, getFilteredNavigation} from '@/components/layout/app-navigation';
 
 export function AppSidebar() {
   const pathname = usePathname();
   const currentUser = useMemo(() => getCachedCurrentUser(), []);
-  const filteredMenus = useMemo(() => getFilteredNavigation(currentUser), [currentUser]);
+  const [featureKeys, setFeatureKeys] = useState<string[] | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const keys = await getBusinessFeatureFlags();
+        if (mounted) setFeatureKeys(keys);
+      } catch {
+        if (mounted) setFeatureKeys([]);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+  const filteredMenus = useMemo(() => getFilteredNavigation(currentUser, featureKeys || undefined), [currentUser, featureKeys]);
   const { businessType, outletScopeAvailable } = useMemo(
     () => getNavigationContext(currentUser),
     [currentUser],

@@ -1,29 +1,37 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 
-export const outletSalesQuerySchema = z.object({
-  query: z.object({
-    outletId: z.string().min(1),
-    dateFrom: z.string().optional(), // YYYY-MM-DD or ISO
-    dateTo: z.string().optional(),
-    timezone: z.string().optional(),
-  }),
+export const scopeSchema = z.enum(['business','outlet']).default('outlet');
+export const groupBySchema = z.enum(['day','week','month']).default('day');
+
+export const ymdSchema = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/); // yyyy-mm-dd
+
+export const dateRangeSchema = z.object({
+  start: ymdSchema,
+  end: ymdSchema,
 });
 
-export const businessSalesQuerySchema = z.object({
-  query: z.object({
-    outletIds: z
-      .union([z.array(z.string()), z.string()])
-      .optional()
-      .transform((v) => (Array.isArray(v) ? v : typeof v === 'string' && v.length > 0 ? [v] : undefined)),
-    dateFrom: z.string().optional(),
-    dateTo: z.string().optional(),
-    groupBy: z.enum(['day', 'outlet']).optional(),
-    timezone: z.string().optional(),
-  }),
+export const salesSummaryQuerySchema = z.object({
+  scope: scopeSchema.optional(),
+  outletId: z.string().cuid().optional(),
+  groupBy: groupBySchema.optional(),
+  start: ymdSchema,
+  end: ymdSchema,
 });
 
-export const healthQuerySchema = z.object({
-  query: z.object({
-    // optional for future use
-  }),
+export const ordersReportQuerySchema = z.object({
+  scope: scopeSchema.optional(),
+  outletId: z.string().cuid().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  perPage: z.coerce.number().int().min(1).max(100).optional(),
+  start: ymdSchema,
+  end: ymdSchema,
+});
+
+export const itemsReportQuerySchema = z.object({
+  scope: scopeSchema.optional(),
+  outletId: z.string().cuid().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  perPage: z.coerce.number().int().min(1).max(200).optional(),
+  start: ymdSchema,
+  end: ymdSchema,
 });

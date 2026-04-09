@@ -1,71 +1,47 @@
-import type { Prisma } from '@prisma/client';
-
-export type MoneyString = string; // formatted decimal with 2 places
-
-export type SalesSummary = {
+export type SalesSummaryBucket = {
+  key: string; // e.g., 2026-04-09 / 2026-W15 / 2026-04
+  label: string; // human label
   orders: number;
-  gross: MoneyString;
-  discount: MoneyString;
-  tax: MoneyString;
-  service: MoneyString;
-  net: MoneyString;
-  items: number;
-  aov: MoneyString; // Average Order Value = net / orders (paid orders)
-  refunds?: {
-    count: number;
-    amount: MoneyString;
-  };
+  revenue: number;
+  avgOrder: number;
 };
 
-export type SalesTimeseriesPoint = {
-  date: string; // YYYY-MM-DD (in requested timezone)
-  orders: number;
-  gross: MoneyString;
-  discount: MoneyString;
-  tax: MoneyString;
-  service: MoneyString;
-  net: MoneyString;
-  items: number;
+export type SalesSummaryResponse = {
+  scope: 'business'|'outlet';
+  outletId?: string | null;
+  groupBy: 'day'|'week'|'month';
+  start: string; // yyyy-mm-dd
+  end: string;   // yyyy-mm-dd
+  totalRevenue: number;
+  totalOrders: number;
+  avgOrder: number;
+  buckets: SalesSummaryBucket[];
 };
 
-export type OutletSalesReport = {
-  summary: SalesSummary;
-  timeseries: SalesTimeseriesPoint[];
-};
-
-export type BusinessGroupBy = 'day' | 'outlet';
-
-export type BusinessSalesTimeseries = {
-  summary: SalesSummary;
-  timeseries: SalesTimeseriesPoint[];
-};
-
-export type BusinessSalesPerOutletRow = {
+export type OrdersReportItem = {
+  id: string;
+  orderNumber: string;
   outletId: string;
-  outletName: string;
-  orders: number;
-  gross: MoneyString;
-  discount: MoneyString;
-  tax: MoneyString;
-  service: MoneyString;
-  net: MoneyString;
-  items: number;
-  aov: MoneyString;
+  outletName: string | null;
+  totalAmount: number;
+  paymentStatus: string;
+  status: string;
+  createdAt: string;
 };
 
-export type BusinessSalesByOutlet = {
-  summary: SalesSummary;
-  outlets: BusinessSalesPerOutletRow[];
+export type OrdersReportResponse = {
+  items: OrdersReportItem[];
+  meta: { page: number; perPage: number; total: number; totalPages: number };
 };
 
-export type BusinessSalesReport = BusinessSalesTimeseries | BusinessSalesByOutlet;
-
-export type DateRange = {
-  dateFrom: string; // YYYY-MM-DD (local tz)
-  dateTo: string; // YYYY-MM-DD (local tz)
-  timezone: string; // e.g., Asia/Jakarta
-  startUtc: Date;
-  endUtc: Date;
+export type ItemsReportRow = {
+  productId: string;
+  productName: string;
+  quantity: number;
+  revenue: number;
 };
 
-export type RawNumberLike = Prisma.Decimal | number | string | null | undefined;
+export type ItemsReportResponse = {
+  items: ItemsReportRow[];
+  meta: { page: number; perPage: number; total: number; totalPages: number };
+};

@@ -15,6 +15,8 @@ import {
   updateKitchenOrderItemStatusSchema,
 } from './kitchen.validation';
 
+import { requireFeatureFlag } from '../../middlewares/require-feature-flag.middleware';
+
 const router = Router();
 
 function resolveOutletIdFromKitchenListParams(req: Request): string | null {
@@ -32,6 +34,7 @@ router.use(businessAccessMiddleware);
 
 router.get(
   '/outlets/:outletId/kitchen/orders',
+  requireFeatureFlag('KITCHEN_DISPLAY'),
   validate(listKitchenOrdersSchema),
   requireBusinessPermission(BusinessPermissionCode.ORDER_VIEW),
   requireOutletAccess(resolveOutletIdFromKitchenListParams),
@@ -40,6 +43,7 @@ router.get(
 
 router.patch(
   '/kitchen/orders/:id/items/:itemId/status',
+  requireFeatureFlag('KITCHEN_DISPLAY'),
   validate(updateKitchenOrderItemStatusSchema),
   requireBusinessPermission(BusinessPermissionCode.ORDER_UPDATE),
   updateKitchenOrderItemStatusController,

@@ -3,35 +3,19 @@ import { BusinessPermissionCode } from '@prisma/client';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { businessAccessMiddleware } from '../../middlewares/business-access.middleware';
 import { requireBusinessPermission } from '../../middlewares/require-business-permission.middleware';
-import { requireOutletAccess } from '../../middlewares/require-outlet-access.middleware';
 import { validate } from '../../middlewares/validate.middleware';
-import { businessSalesQuerySchema, healthQuerySchema, outletSalesQuerySchema } from './reports.validation';
-import { getBusinessSalesHandler, getOutletSalesHandler, getSalesHealthHandler } from './reports.controller';
+import { getItemsReportController, getOrdersReportController, getSalesSummaryController } from './reports.controller';
+import { z } from 'zod';
+import { itemsReportQuerySchema, ordersReportQuerySchema, salesSummaryQuerySchema } from './reports.validation';
 
 const router = Router();
 
-router.use(authMiddleware, businessAccessMiddleware);
+router.use(authMiddleware);
+router.use(businessAccessMiddleware);
 
-router.get(
-  '/sales/outlet',
-  requireBusinessPermission(BusinessPermissionCode.REPORT_VIEW),
-  requireOutletAccess((req) => (req.query?.outletId as string) || null),
-  validate(outletSalesQuerySchema),
-  getOutletSalesHandler,
-);
-
-router.get(
-  '/sales/business',
-  requireBusinessPermission(BusinessPermissionCode.REPORT_VIEW),
-  validate(businessSalesQuerySchema),
-  getBusinessSalesHandler,
-);
-
-router.get(
-  '/sales/health',
-  requireBusinessPermission(BusinessPermissionCode.REPORT_VIEW),
-  validate(healthQuerySchema),
-  getSalesHealthHandler,
-);
+router.get('/sales-summary', requireBusinessPermission(BusinessPermissionCode.ORDER_VIEW), validate(z.object({ query: salesSummaryQuerySchema })), getSalesSummaryController);
+router.get('/orders', requireBusinessPermission(BusinessPermissionCode.ORDER_VIEW), validate(z.object({ query: ordersReportQuerySchema })), getOrdersReportController);
+router.get('/items', requireBusinessPermission(BusinessPermissionCode.ORDER_VIEW), validate(z.object({ query: itemsReportQuerySchema })), getItemsReportController);
 
 export default router;
+

@@ -15,6 +15,8 @@ import {
   updateOutletTableStatusHandler,
 } from './outlet-tables.controller';
 
+import { requireFeatureFlag } from '../../middlewares/require-feature-flag.middleware';
+
 const router = Router();
 
 function resolveOutletId(req: Request): string | undefined {

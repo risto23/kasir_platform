@@ -14,9 +14,14 @@ import promoRoutes from '../modules/promos/promo.routes';
 import orderRoutes from '../modules/orders/order.routes';
 import paymentRoutes from '../modules/payments/payment.routes';
 import receiptRoutes from '../modules/receipts/receipt.routes';
-import kitchenRoutes from '../modules/kitchen/kitchen.routes';
+
 import guestRoutes from '../modules/guest/guest.routes';
+
+
+import reportsRoutes from '../modules/reports/reports.routes';
+
 import restaurantOperationsRoutes from '../modules/restaurant-operations/restaurant-operations.routes';
+import businessFeatureFlagRoutes from '../modules/business-feature-flag/business-feature-flag.routes';
 
 import reportsRoutes from '../modules/reports/reports.routes';
 
@@ -29,13 +34,15 @@ router.use('/platform/outlets', outletRoutes);
 router.use('/platform/feature-flags', platformFeatureFlagRoutes);
 router.use('/platform', platformBusinessTypeRoutes);
 router.use('/business', businessReferenceRoutes);
+router.use('/business', businessFeatureFlagRoutes);
 router.use('/business-users', businessUserRoutes);
 router.use('/products', productRoutes);
 router.use('/business/products', productRouter);
 router.use('/promos', promoRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
-router.use('/receipts', receiptRoutes);
+
+router.use('/reports', reportsRoutes);
 
 router.use('/reports', reportsRoutes);
 
