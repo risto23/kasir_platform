@@ -14,9 +14,12 @@ import promoRoutes from '../modules/promos/promo.routes';
 import orderRoutes from '../modules/orders/order.routes';
 import paymentRoutes from '../modules/payments/payment.routes';
 import receiptRoutes from '../modules/receipts/receipt.routes';
-import kitchenRoutes from '../modules/kitchen/kitchen.routes';
+
+import guestRoutes from '../modules/guest/guest.routes';
+
 
 import reportsRoutes from '../modules/reports/reports.routes';
+
 import restaurantOperationsRoutes from '../modules/restaurant-operations/restaurant-operations.routes';
 import businessFeatureFlagRoutes from '../modules/business-feature-flag/business-feature-flag.routes';
 
