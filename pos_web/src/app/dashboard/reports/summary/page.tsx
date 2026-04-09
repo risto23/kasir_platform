@@ -6,7 +6,7 @@ import { toBackendDate } from '@/lib/date-format';
 type GroupBy = 'day'|'week'|'month';
 
 export default function SalesSummaryPage() {
-  const today = useMemo(() => { const d = new Date(); const dd=String(d.getDate()).padStart(2,'0'); const mm=String(d.getMonth()+1).padStart(2,'0'); const yyyy=String(d.getFullYear()); return ${dd}--; }, []);
+  const today = useMemo(() => { const d = new Date(); const dd=String(d.getDate()).padStart(2,'0'); const mm=String(d.getMonth()+1).padStart(2,'0'); const yyyy=String(d.getFullYear()); return `${dd}-${mm}-${yyyy}`; }, []);
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
@@ -99,4 +99,6 @@ export default function SalesSummaryPage() {
     </div>
   );
 }
+
+
 

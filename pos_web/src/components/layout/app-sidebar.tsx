@@ -1,7 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import {, getFilteredNavigation} from '@/components/layout/app-navigation';
+import { usePathname } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronRight, faStore } from '@fortawesome/free-solid-svg-icons';
+import { getFilteredNavigation, getNavigationContext, isMenuActive } from '@/components/layout/app-navigation';
+import { getCachedCurrentUser } from '@/lib/auth';
+import { getBusinessFeatureFlags } from '@/lib/feature-flags';
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -127,3 +133,4 @@ export function AppSidebar() {
     </aside>
   );
 }
+

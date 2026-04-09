@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from 'next/link';import { getActiveBusinessId } from '@/lib/auth';import { getBusinessFeatureFlags } from '@/lib/feature-flags';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
@@ -283,14 +283,14 @@ export default function TableQrPage() {
     [searchParams],
   );
 
-  const [state, setState] = useState<LoadState>('idle');
+  const [state, setState] = useState<LoadState>('idle');  const [featureEnabled, setFeatureEnabled] = useState<boolean>(true);  const [businessId, setBusinessId] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [singleData, setSingleData] = useState<TableQrResponse | null>(null);
   const [bulkItems, setBulkItems] = useState<TableQrBulkItem[]>([]);
   const [monitorData, setMonitorData] = useState<OutletTableMonitorResponse | null>(null);
 
   const isSingleMode = Boolean(outletId && tableId);
-  const isBulkMode = Boolean(outletId && !tableId);
+  const isBulkMode = Boolean(outletId && !tableId && false);
 
   useEffect(() => {
     let isMounted = true;
@@ -537,3 +537,6 @@ export default function TableQrPage() {
     </div>
   );
 }
+
+
+
