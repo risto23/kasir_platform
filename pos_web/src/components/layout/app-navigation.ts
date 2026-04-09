@@ -332,6 +332,36 @@ const menuGroups: AppNavGroup[] = [
         requireOutletScope: true,
         allowedRoles: ['OWNER', 'ADMIN', 'KITCHEN'],
         requiredFeatureKeys: ['KITCHEN_DISPLAY'],
+  ,
+  {
+    section: 'Reports',
+    items: [
+      {
+        href: '/dashboard/reports/summary',
+        label: 'Sales Summary',
+        icon: faChartLine,
+        requiredPermissions: ['ORDER_VIEW'],
+        businessOnly: true,
+        allowedRoles: ['OWNER','ADMIN']
+      },
+      {
+        href: '/dashboard/reports/orders',
+        label: 'Orders Report',
+        icon: faReceipt,
+        requiredPermissions: ['ORDER_VIEW'],
+        businessOnly: true,
+        allowedRoles: ['OWNER','ADMIN','CASHIER']
+      },
+      {
+        href: '/dashboard/reports/items',
+        label: 'Items Report',
+        icon: faBoxOpen,
+        requiredPermissions: ['ORDER_VIEW'],
+        businessOnly: true,
+        allowedRoles: ['OWNER','ADMIN']
+      }
+    ],
+  }
       },
       {
         href: '/dashboard/tables/monitor',
