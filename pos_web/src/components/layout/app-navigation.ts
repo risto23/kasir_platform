@@ -204,191 +204,59 @@ const menuGroups: AppNavGroup[] = [
   {
     section: 'Overview',
     items: [
-      {
-        href: '/dashboard',
-        label: 'Dashboard',
-        icon: faChartLine,
-      },
+      { href: '/dashboard', label: 'Dashboard', icon: faChartLine },
     ],
   },
   {
     section: 'Platform',
     items: [
-      {
-        href: '/dashboard/businesses',
-        label: 'Businesses',
-        icon: faShop,
-        platformOnly: true,
-      },
-      {
-        href: '/dashboard/business-types',
-        label: 'Business Types',
-        icon: faLayerGroup,
-        platformOnly: true,
-      },
+      { href: '/dashboard/businesses', label: 'Businesses', icon: faShop, platformOnly: true },
+      { href: '/dashboard/business-types', label: 'Business Types', icon: faLayerGroup, platformOnly: true },
     ],
   },
   {
     section: 'Business Management',
     items: [
-      {
-        href: '/dashboard/outlets',
-        label: 'Outlets',
-        icon: faLocationDot,
-        requiredPermissions: ['OUTLET_VIEW'],
-        businessOnly: true,
-        allowedRoles: ['OWNER', 'ADMIN', 'INVENTORY'],
-      },
-      {
-        href: '/dashboard/business-users',
-        label: 'Business Users',
-        icon: faUsers,
-        requiredPermissions: ['BUSINESS_USER_VIEW'],
-        businessOnly: true,
-        allowedRoles: ['OWNER', 'ADMIN'],
-      },
+      { href: '/dashboard/outlets', label: 'Outlets', icon: faLocationDot, requiredPermissions: ['OUTLET_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/business-users', label: 'Business Users', icon: faUsers, requiredPermissions: ['BUSINESS_USER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
     ],
   },
   {
     section: 'Master Data',
     items: [
-      {
-        href: '/dashboard/categories',
-        label: 'Categories',
-        icon: faShapes,
-        requiredPermissions: ['CATEGORY_VIEW'],
-        businessOnly: true,
-        allowedRoles: ['OWNER', 'ADMIN', 'INVENTORY'],
-      },
-      {
-        href: '/dashboard/products',
-        label: 'Products / Menu',
-        icon: faBoxOpen,
-        requiredPermissions: ['PRODUCT_VIEW'],
-        businessOnly: true,
-        allowedRoles: ['OWNER', 'ADMIN', 'INVENTORY'],
-      },
-      {
-        href: '/dashboard/product-outlet-settings',
-        label: 'Outlet Pricing & Availability',
-        icon: faSliders,
-        requiredPermissions: ['PRODUCT_OUTLET_VIEW'],
-        businessOnly: true,
-        requireOutletScope: true,
-        allowedRoles: ['OWNER', 'ADMIN', 'INVENTORY'],
-      },
-      {
-        href: '/dashboard/outlet-tables', requiredFeatureKeys: ['TABLE_MANAGEMENT'],
-      },
-      {
-        href: '/dashboard/promos',
-        label: 'Promos',
-        icon: faPercent,
-        requiredPermissions: ['PROMO_VIEW'],
-        businessOnly: true,
-        allowedRoles: ['OWNER', 'ADMIN'],
-      },
+      { href: '/dashboard/categories', label: 'Categories', icon: faShapes, requiredPermissions: ['CATEGORY_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/products', label: 'Products / Menu', icon: faBoxOpen, requiredPermissions: ['PRODUCT_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/product-outlet-settings', label: 'Outlet Pricing & Availability', icon: faSliders, requiredPermissions: ['PRODUCT_OUTLET_VIEW'], businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/outlet-tables', label: 'Outlet Tables', icon: faTableCellsLarge, requiredPermissions: ['OUTLET_TABLE_VIEW'], businessOnly: true, restaurantOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN'], requiredFeatureKeys: ['TABLE_MANAGEMENT'] },
+      { href: '/dashboard/promos', label: 'Promos', icon: faPercent, requiredPermissions: ['PROMO_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
     ],
   },
   {
     section: 'POS Transaction',
     items: [
-      {
-        href: '/dashboard/pos',
-        label: 'POS Kasir',
-        icon: faCashRegister,
-        businessOnly: true,
-        requireOutletScope: true,
-        allowedRoles: ['OWNER', 'ADMIN', 'CASHIER'],
-      },
-      {
-        href: '/dashboard/pos/history',
-        label: 'Histori Transaksi',
-        icon: faClockRotateLeft,
-        businessOnly: true,
-        requireOutletScope: true,
-        allowedRoles: ['OWNER', 'ADMIN', 'CASHIER'],
-      },
-      {
-        href: '/dashboard/payments',
-        label: 'Payment History',
-        icon: faReceipt,
-        businessOnly: true,
-        requireOutletScope: true,
-        allowedRoles: ['OWNER', 'ADMIN', 'CASHIER'],
-      },
+      { href: '/dashboard/settings/pos', label: 'POS Settings', icon: faSliders, requiredPermissions: ['OUTLET_UPDATE'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
+      { href: '/dashboard/pos', label: 'POS Kasir', icon: faCashRegister, businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
+      { href: '/dashboard/pos/history', label: 'Histori Transaksi', icon: faClockRotateLeft, businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
+      { href: '/dashboard/payments', label: 'Payment History', icon: faReceipt, businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
     ],
   },
   {
     section: 'Restaurant Operation',
     items: [
-      {
-        href: '/dashboard/kitchen',
-        label: 'Kitchen Display',
-        icon: faUtensils,
-        requiredPermissions: ['ORDER_VIEW'],
-        businessOnly: true,
-        restaurantOnly: true,
-        requireOutletScope: true,
-        allowedRoles: ['OWNER', 'ADMIN', 'KITCHEN'],
-        requiredFeatureKeys: ['KITCHEN_DISPLAY'],
-  ,
+      { href: '/dashboard/kitchen', label: 'Kitchen Display', icon: faUtensils, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, restaurantOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','KITCHEN'], requiredFeatureKeys: ['KITCHEN_DISPLAY'] },
+      { href: '/dashboard/tables/monitor', label: 'Monitor Meja', icon: faTableCellsLarge, requiredPermissions: ['OUTLET_TABLE_VIEW'], businessOnly: true, restaurantOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN'], requiredFeatureKeys: ['TABLE_MANAGEMENT'] },
+      { href: '/dashboard/tables/qr', label: 'QR Meja', icon: faQrcode, requiredPermissions: ['OUTLET_TABLE_VIEW'], businessOnly: true, restaurantOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN'], requiredFeatureKeys: ['TABLE_MANAGEMENT','GUEST_QR'] },
+    ],
+  },
   {
     section: 'Reports',
     items: [
-      {
-        href: '/dashboard/reports/summary',
-        label: 'Sales Summary',
-        icon: faChartLine,
-        requiredPermissions: ['ORDER_VIEW'],
-        businessOnly: true,
-        allowedRoles: ['OWNER','ADMIN']
-      },
-      {
-        href: '/dashboard/reports/orders',
-        label: 'Orders Report',
-        icon: faReceipt,
-        requiredPermissions: ['ORDER_VIEW'],
-        businessOnly: true,
-        allowedRoles: ['OWNER','ADMIN','CASHIER']
-      },
-      {
-        href: '/dashboard/reports/items',
-        label: 'Items Report',
-        icon: faBoxOpen,
-        requiredPermissions: ['ORDER_VIEW'],
-        businessOnly: true,
-        allowedRoles: ['OWNER','ADMIN']
-      }
-    ],
-  }
-      },
-      {
-        href: '/dashboard/tables/monitor',
-        label: 'Monitor Meja',
-        icon: faTableCellsLarge,
-        requiredPermissions: ['OUTLET_TABLE_VIEW'],
-        businessOnly: true,
-        restaurantOnly: true,
-        requireOutletScope: true,
-        allowedRoles: ['OWNER', 'ADMIN'],
-        requiredFeatureKeys: ['TABLE_MANAGEMENT'],
-      },
-      {
-        href: '/dashboard/tables/qr',
-        label: 'QR Meja',
-        icon: faQrcode,
-        requiredPermissions: ['OUTLET_TABLE_VIEW'],
-        businessOnly: true,
-        restaurantOnly: true,
-        requireOutletScope: true,
-        allowedRoles: ['OWNER', 'ADMIN'],
-        requiredFeatureKeys: ['TABLE_MANAGEMENT','GUEST_QR'],
-      },
+      { href: '/dashboard/reports/summary', label: 'Sales Summary', icon: faChartLine, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
+      { href: '/dashboard/reports/orders', label: 'Orders Report', icon: faReceipt, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
+      { href: '/dashboard/reports/items', label: 'Items Report', icon: faBoxOpen, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
     ],
   },
 ];
-
 export function getFilteredNavigation(user: CurrentUser | null, featureKeys?: string[]): AppNavGroup[] {
   const accessProfile = (user?.accessProfile || {}) as AccessProfileLike;
   const activeMembership = getActiveMembership(user);
@@ -476,4 +344,6 @@ export function getNavigationContext(user: CurrentUser | null) {
     outletScopeAvailable,
   };
 }
+
+
 

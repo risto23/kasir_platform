@@ -23,6 +23,8 @@ import reportsRoutes from '../modules/reports/reports.routes';
 import restaurantOperationsRoutes from '../modules/restaurant-operations/restaurant-operations.routes';
 import businessFeatureFlagRoutes from '../modules/business-feature-flag/business-feature-flag.routes';
 
+import reportsRoutes from '../modules/reports/reports.routes';
+
 const router = Router();
 
 router.use('/health', healthRoutes);
@@ -39,6 +41,8 @@ router.use('/business/products', productRouter);
 router.use('/promos', promoRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
+
+router.use('/reports', reportsRoutes);
 
 router.use('/reports', reportsRoutes);
 

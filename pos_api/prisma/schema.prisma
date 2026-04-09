@@ -1,3 +1,5 @@
+// Prisma schema - POS Platform (Phase 1-6)
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -120,6 +122,13 @@ enum PaymentMethod {
   OTHER
 }
 
+enum InventoryMovementType {
+  IN
+  OUT
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+}
+
 enum BusinessPermissionCode {
   BUSINESS_ROLE_VIEW
   BUSINESS_PERMISSION_VIEW
@@ -170,9 +179,14 @@ enum BusinessPermissionCode {
   OUTLET_TABLE_CREATE
   OUTLET_TABLE_UPDATE
   OUTLET_TABLE_STATUS_UPDATE
-}
 
-model User {
+  INVENTORY_VIEW
+  INVENTORY_STOCK_IN
+  INVENTORY_STOCK_OUT
+  INVENTORY_ADJUST
+
+  REPORT_VIEW
+}model User {
   id           String     @id @default(cuid())
   fullName     String
   email        String     @unique
@@ -182,7 +196,7 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  ownedBusinesses Business[]         @relation("BusinessOwner")
+  ownedBusinesses Business[] @relation("BusinessOwner")
   platformRoles   UserPlatformRole[]
   businessUsers   BusinessUser[]
 
@@ -250,6 +264,8 @@ model Business {
   orders           Order[]
   payments         Payment[]
   receipts         Receipt[]
+  inventoryItems   InventoryItem[]
+  inventoryMovements InventoryMovement[]
 
   @@index([businessType])
   @@index([status])
@@ -275,6 +291,8 @@ model Outlet {
   payments              Payment[]
   receipts              Receipt[]
   promoOutlets          PromoOutlet[]
+  inventoryItems        InventoryItem[]
+  inventoryMovements    InventoryMovement[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -289,8 +307,8 @@ model BusinessRole {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  businessUsers   BusinessUser[]
   rolePermissions BusinessRolePermission[]
+  businessUsers   BusinessUser[]
 
   @@map("business_roles")
 }
@@ -339,6 +357,7 @@ model BusinessUser {
   outletAccesses   BusinessUserOutletAccess[]
   createdOrders    Order[]                    @relation("OrderCreatedByBusinessUser")
   receivedPayments Payment[]                  @relation("PaymentReceivedByBusinessUser")
+  createdInventoryMovements InventoryMovement[] @relation("InventoryMovementCreatedByBusinessUser")
 
   @@unique([businessId, userId])
   @@index([userId])
@@ -421,6 +440,8 @@ model Product {
   productOutletSettings ProductOutletSetting[]
   promos                Promo[]
   orderItems            OrderItem[]
+  inventoryItems        InventoryItem[]
+  inventoryMovements    InventoryMovement[]
 
   @@unique([businessId, name])
   @@unique([businessId, code])
@@ -505,6 +526,8 @@ model Order {
   @@index([businessId, outletId, status])
   @@index([businessId, outletId, paymentStatus])
   @@index([outletId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([businessId, outletId, createdAt])
   @@index([createdByBusinessUserId])
   @@index([tableId])
   @@map("orders")
@@ -641,3 +664,52 @@ model PromoOutlet {
   @@index([outletId])
   @@map("promo_outlets")
 }
+
+model InventoryItem {
+  id             String    @id @default(cuid())
+  businessId     String
+  outletId       String
+  productId      String
+  stockOnHand    Decimal   @default(0) @db.Decimal(14, 3)
+  minimumStock   Decimal?  @db.Decimal(14, 3)
+  lastMovementAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  business  Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet    Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  movements InventoryMovement[]
+
+  @@unique([productId, outletId])
+  @@index([businessId, outletId])
+  @@index([productId])
+  @@map("inventory_items")
+}
+
+model InventoryMovement {
+  id                      String                 @id @default(cuid())
+  businessId              String
+  outletId                String
+  productId               String
+  inventoryItemId         String
+  type                    InventoryMovementType
+  quantity                Decimal                @db.Decimal(14, 3)
+  note                    String?
+  referenceType           String?
+  referenceId             String?
+  createdByBusinessUserId String?
+  createdAt               DateTime               @default(now())
+
+  business  Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet    Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  item      InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  createdBy BusinessUser? @relation("InventoryMovementCreatedByBusinessUser", fields: [createdByBusinessUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, outletId])
+  @@index([productId])
+  @@index([createdAt])
+  @@map("inventory_movements")
+}
+
