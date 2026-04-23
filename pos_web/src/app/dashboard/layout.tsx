@@ -40,6 +40,7 @@ const DASHBOARD_ALLOWED_PERMISSIONS = [
   'PROMO_STATUS_UPDATE',
   'ORDER_VIEW',
   'ORDER_UPDATE',
+  'REPORT_VIEW',
 ] as const;
 
 type PermissionLike = {

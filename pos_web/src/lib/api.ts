@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { getAccessToken } from './storage';
 
 function shouldAttachBusinessHeader(url: string): boolean {
   return (
@@ -11,23 +10,20 @@ function shouldAttachBusinessHeader(url: string): boolean {
     url.startsWith('/receipts') ||
     url.startsWith('/inventory') ||
     url.startsWith('/reports') ||
+    url.startsWith('/audit-logs') ||
     url.startsWith('/settings')
   );
 }
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const token = getAccessToken();
     const activeBusinessId = window.localStorage.getItem('activeBusinessId');
     const url = config.url ?? '';
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
 
     if (activeBusinessId && shouldAttachBusinessHeader(url)) {
       config.headers['x-business-id'] = activeBusinessId;

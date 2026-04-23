@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { api } from '@/lib/api';
 import { getActiveBusinessId } from '@/lib/auth';
 import type {
@@ -18,6 +19,28 @@ function getRequiredBusinessId(): string {
   return businessId.trim();
 }
 
+function getApiErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+): string {
+  if (axios.isAxiosError(error)) {
+    const responseMessage =
+      typeof error.response?.data?.message === 'string'
+        ? error.response.data.message.trim()
+        : '';
+
+    if (responseMessage) {
+      return responseMessage;
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+}
+
 export async function getTableQr(params: {
   outletId: string;
   tableId: string;
@@ -34,22 +57,26 @@ export async function getTableQr(params: {
     throw new Error('tableId wajib diisi.');
   }
 
-  const response = await api.get<GetTableQrApiResponse>(
-    `/outlets/${encodeURIComponent(outletId)}/qr/tables/${encodeURIComponent(tableId)}`,
-    {
-      headers: {
-        'x-business-id': businessId,
+  try {
+    const response = await api.get<GetTableQrApiResponse>(
+      `/outlets/${encodeURIComponent(outletId)}/qr/tables/${encodeURIComponent(tableId)}`,
+      {
+        headers: {
+          'x-business-id': businessId,
+        },
       },
-    },
-  );
+    );
 
-  const result = response.data;
+    const result = response.data;
 
-  if (!result?.success || !result.data) {
-    throw new Error(result?.message ?? 'Gagal mengambil QR meja.');
+    if (!result?.success || !result.data) {
+      throw new Error(result?.message ?? 'Gagal mengambil QR meja.');
+    }
+
+    return result.data;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Gagal mengambil QR meja.'));
   }
-
-  return result.data;
 }
 
 export async function getOutletTableMonitor(params: {
@@ -62,22 +89,28 @@ export async function getOutletTableMonitor(params: {
     throw new Error('outletId wajib diisi.');
   }
 
-  const response = await api.get<GetOutletTableMonitorApiResponse>(
-    `/outlets/${encodeURIComponent(outletId)}/tables/monitor`,
-    {
-      headers: {
-        'x-business-id': businessId,
+  try {
+    const response = await api.get<GetOutletTableMonitorApiResponse>(
+      `/outlets/${encodeURIComponent(outletId)}/tables/monitor`,
+      {
+        headers: {
+          'x-business-id': businessId,
+        },
       },
-    },
-  );
+    );
 
-  const result = response.data;
+    const result = response.data;
 
-  if (!result?.success || !result.data) {
-    throw new Error(result?.message ?? 'Gagal mengambil monitor meja.');
+    if (!result?.success || !result.data) {
+      throw new Error(result?.message ?? 'Gagal mengambil monitor meja.');
+    }
+
+    return result.data;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, 'Gagal mengambil monitor meja.'),
+    );
   }
-
-  return result.data;
 }
 
 export async function getTableQrBulkByOutlet(params: {

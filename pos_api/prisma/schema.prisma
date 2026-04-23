@@ -204,6 +204,7 @@ model User {
   businessUsers   BusinessUser[]
   ownedBusinesses Business[]         @relation("BusinessOwner")
   platformRoles   UserPlatformRole[]
+  auditLogs       AuditLog[]         @relation("AuditLogActorUser")
 
   @@index([status])
   @@map("users")
@@ -272,6 +273,8 @@ model Business {
   inventoryItems       InventoryItem[]
   inventoryMovements   InventoryMovement[]
   outletPosChargeRules OutletPosChargeRule[]
+  setting             BusinessSetting?
+  auditLogs            AuditLog[]
 
   @@index([businessType])
   @@index([status])
@@ -301,6 +304,9 @@ model Outlet {
   inventoryMovements    InventoryMovement[]
   roundingSetting       OutletRoundingSetting?
   outletPosChargeRules  OutletPosChargeRule[]
+  setting               OutletSetting?
+  receiptSetting        OutletReceiptSetting?
+  auditLogs             AuditLog[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -366,6 +372,7 @@ model BusinessUser {
   createdOrders             Order[]                    @relation("OrderCreatedByBusinessUser")
   receivedPayments          Payment[]                  @relation("PaymentReceivedByBusinessUser")
   createdInventoryMovements InventoryMovement[]        @relation("InventoryMovementCreatedByBusinessUser")
+  auditLogs                 AuditLog[]                 @relation("AuditLogActorBusinessUser")
 
   @@unique([businessId, userId])
   @@index([userId])
@@ -709,6 +716,60 @@ model OutletRoundingSetting {
   @@map("outlet_rounding_settings")
 }
 
+model OutletReceiptSetting {
+  id                String   @id @default(cuid())
+  outletId          String   @unique
+  brandName         String?
+  logoUrl           String?
+  headerText        String?
+  footerText        String?
+  showBusinessName  Boolean  @default(true)
+  showOutletName    Boolean  @default(true)
+  showOutletAddress Boolean  @default(true)
+  showOutletPhone   Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@index([outletId])
+  @@map("outlet_receipt_settings")
+}
+
+model BusinessSetting {
+  id                  String   @id @default(cuid())
+  businessId          String   @unique
+  supportEmail        String?
+  supportPhone        String?
+  websiteUrl          String?
+  address             String?
+  tagline             String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("business_settings")
+}
+
+model OutletSetting {
+  id                  String   @id @default(cuid())
+  outletId            String   @unique
+  guestQrEnabled      Boolean  @default(true)
+  contactEmail        String?
+  whatsappNumber      String?
+  mapsUrl             String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@index([outletId])
+  @@map("outlet_settings")
+}
+
 model InventoryItem {
   id             String    @id @default(cuid())
   businessId     String
@@ -755,4 +816,32 @@ model InventoryMovement {
   @@index([productId])
   @@index([createdAt])
   @@map("inventory_movements")
+}
+
+model AuditLog {
+  id                  String   @id @default(cuid())
+  businessId          String
+  outletId            String?
+  actorUserId         String?
+  actorBusinessUserId String?
+  action              String
+  entityType          String
+  entityId            String?
+  entityLabel         String?
+  summary             String?
+  changes             Json?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+
+  actorBusinessUser BusinessUser? @relation("AuditLogActorBusinessUser", fields: [actorBusinessUserId], references: [id], onDelete: SetNull)
+  actorUser         User?         @relation("AuditLogActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  business          Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet            Outlet?       @relation(fields: [outletId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([outletId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, createdAt])
+  @@map("audit_logs")
 }

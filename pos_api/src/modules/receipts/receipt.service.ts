@@ -46,6 +46,19 @@ export async function createReceiptForPaidOrder(params: {
         select: {
           name: true,
           address: true,
+          phone: true,
+          receiptSetting: {
+            select: {
+              brandName: true,
+              logoUrl: true,
+              headerText: true,
+              footerText: true,
+              showBusinessName: true,
+              showOutletName: true,
+              showOutletAddress: true,
+              showOutletPhone: true,
+            },
+          },
         },
       },
       table: {
@@ -110,6 +123,17 @@ export async function createReceiptForPaidOrder(params: {
         businessName: order.business.name,
         outletName: order.outlet.name,
         outletAddress: order.outlet.address,
+        outletPhone: order.outlet.phone,
+        brandName: order.outlet.receiptSetting?.brandName ?? order.outlet.name,
+        logoUrl: order.outlet.receiptSetting?.logoUrl ?? null,
+        headerText: order.outlet.receiptSetting?.headerText ?? null,
+        footerText:
+          order.outlet.receiptSetting?.footerText ??
+          'Terima kasih. Simpan struk ini sebagai bukti transaksi.',
+        showBusinessName: order.outlet.receiptSetting?.showBusinessName ?? true,
+        showOutletName: order.outlet.receiptSetting?.showOutletName ?? true,
+        showOutletAddress: order.outlet.receiptSetting?.showOutletAddress ?? true,
+        showOutletPhone: order.outlet.receiptSetting?.showOutletPhone ?? true,
         tableName: order.table?.name ?? null,
         notes: order.notes,
         subtotal: toMoneyString(order.subtotal),

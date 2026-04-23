@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { BusinessStatus } from '@prisma/client';
 import { successResponse, errorResponse } from '../../utils/api-response';
+import { buildFieldChangeSet, createAuditLogSafely } from '../../utils/audit-log';
 import {
   createBusinessService,
   getBusinessByIdService,
@@ -63,6 +64,23 @@ export async function createBusinessController(
 ) {
   try {
     const result = await createBusinessService(req.body);
+    await createAuditLogSafely({
+      businessId: result.id,
+      actorUserId: req.authUser?.userId,
+      action: 'BUSINESS_CREATED',
+      entityType: 'BUSINESS',
+      entityId: result.id,
+      entityLabel: result.name,
+      summary: `Business ${result.name} dibuat`,
+      changes: {
+        after: {
+          name: result.name,
+          slug: result.slug,
+          businessType: result.businessType,
+          status: result.status,
+        },
+      },
+    });
     return res.status(201).json(successResponse('Business created', result));
   } catch (error: unknown) {
     const message =
@@ -76,7 +94,35 @@ export async function updateBusinessController(
   res: Response
 ) {
   try {
+    const before = await getBusinessByIdService(req.params.id);
     const result = await updateBusinessService(req.params.id, req.body);
+    const changes = buildFieldChangeSet(
+      {
+        name: before.name,
+        slug: before.slug,
+        ownerUserId: before.ownerUserId,
+      },
+      {
+        name: result.name,
+        slug: result.slug,
+        ownerUserId: result.ownerUserId,
+      },
+      ['name', 'slug', 'ownerUserId'],
+    );
+
+    if (changes) {
+      await createAuditLogSafely({
+        businessId: result.id,
+        actorUserId: req.authUser?.userId,
+        action: 'BUSINESS_UPDATED',
+        entityType: 'BUSINESS',
+        entityId: result.id,
+        entityLabel: result.name,
+        summary: `Business ${result.name} diperbarui`,
+        changes,
+      });
+    }
+
     return res.json(successResponse('Business updated', result));
   } catch (error: unknown) {
     const message =
@@ -90,10 +136,30 @@ export async function updateBusinessStatusController(
   res: Response
 ) {
   try {
+    const before = await getBusinessByIdService(req.params.id);
     const result = await updateBusinessStatusService(
       req.params.id,
       req.body.status
     );
+    const changes = buildFieldChangeSet(
+      { status: before.status },
+      { status: result.status },
+      ['status'],
+    );
+
+    if (changes) {
+      await createAuditLogSafely({
+        businessId: result.id,
+        actorUserId: req.authUser?.userId,
+        action: 'BUSINESS_STATUS_UPDATED',
+        entityType: 'BUSINESS',
+        entityId: result.id,
+        entityLabel: result.name,
+        summary: `Status business ${result.name} diubah ke ${result.status}`,
+        changes,
+      });
+    }
+
     return res.json(successResponse('Business status updated', result));
   } catch (error: unknown) {
     const message =

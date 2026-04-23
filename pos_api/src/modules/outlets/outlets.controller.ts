@@ -13,6 +13,7 @@ import type {
   UpdateOutletBody,
   UpdateOutletStatusBody,
 } from './outlets.validation';
+import { buildFieldChangeSet, createAuditLogSafely } from '../../utils/audit-log';
 
 type RequestWithBusinessAccess = OutletsRequest & {
   businessAccess?: {
@@ -81,6 +82,26 @@ export async function createOutletController(
     const body = typedReq.validatedBody as CreateOutletBody;
 
     const data = await createOutlet(businessId, body);
+    await createAuditLogSafely({
+      businessId,
+      outletId: data.id,
+      actorUserId: req.authUser?.userId,
+      actorBusinessUserId: typedReq.businessAccess?.businessUserId,
+      action: 'OUTLET_CREATED',
+      entityType: 'OUTLET',
+      entityId: data.id,
+      entityLabel: data.name,
+      summary: `Outlet ${data.name} dibuat`,
+      changes: {
+        after: {
+          name: data.name,
+          code: data.code,
+          address: data.address,
+          phone: data.phone,
+          status: data.status,
+        },
+      },
+    });
 
     return res.status(201).json({
       success: true,
@@ -124,8 +145,39 @@ export async function updateOutletController(
     const businessId = getCurrentBusinessId(typedReq);
     const outletId = getValidatedId(typedReq);
     const body = typedReq.validatedBody as UpdateOutletBody;
+    const before = await getOutletDetail(businessId, outletId);
 
     const data = await updateOutlet(businessId, outletId, body);
+    const changes = buildFieldChangeSet(
+      {
+        name: before.name,
+        address: before.address,
+        phone: before.phone,
+        status: before.status,
+      },
+      {
+        name: data.name,
+        address: data.address,
+        phone: data.phone,
+        status: data.status,
+      },
+      ['name', 'address', 'phone', 'status'],
+    );
+
+    if (changes) {
+      await createAuditLogSafely({
+        businessId,
+        outletId: data.id,
+        actorUserId: req.authUser?.userId,
+        actorBusinessUserId: typedReq.businessAccess?.businessUserId,
+        action: 'OUTLET_UPDATED',
+        entityType: 'OUTLET',
+        entityId: data.id,
+        entityLabel: data.name,
+        summary: `Outlet ${data.name} diperbarui`,
+        changes,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -147,8 +199,29 @@ export async function updateOutletStatusController(
     const businessId = getCurrentBusinessId(typedReq);
     const outletId = getValidatedId(typedReq);
     const body = typedReq.validatedBody as UpdateOutletStatusBody;
+    const before = await getOutletDetail(businessId, outletId);
 
     const data = await updateOutletStatus(businessId, outletId, body);
+    const changes = buildFieldChangeSet(
+      { status: before.status },
+      { status: data.status },
+      ['status'],
+    );
+
+    if (changes) {
+      await createAuditLogSafely({
+        businessId,
+        outletId: data.id,
+        actorUserId: req.authUser?.userId,
+        actorBusinessUserId: typedReq.businessAccess?.businessUserId,
+        action: 'OUTLET_STATUS_UPDATED',
+        entityType: 'OUTLET',
+        entityId: data.id,
+        entityLabel: data.name,
+        summary: `Status outlet ${data.name} diubah ke ${data.status}`,
+        changes,
+      });
+    }
 
     return res.status(200).json({
       success: true,

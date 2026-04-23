@@ -96,6 +96,11 @@ export default function ReceiptPrint({
     receipt?.businessName ||
     receipt?.contentSnapshot?.businessName ||
     '-';
+  const brandName =
+    receipt?.contentSnapshot?.brandName ||
+    receipt?.outletName ||
+    receipt?.contentSnapshot?.outletName ||
+    businessName;
 
   const outletName =
     receipt?.outletName ||
@@ -106,6 +111,16 @@ export default function ReceiptPrint({
     receipt?.outletAddress ||
     receipt?.contentSnapshot?.outletAddress ||
     '-';
+  const outletPhone = receipt?.contentSnapshot?.outletPhone || '-';
+  const logoUrl = receipt?.contentSnapshot?.logoUrl || null;
+  const headerText = receipt?.contentSnapshot?.headerText || null;
+  const footerText =
+    receipt?.contentSnapshot?.footerText ||
+    'Terima kasih. Simpan struk ini sebagai bukti transaksi.';
+  const showBusinessName = receipt?.contentSnapshot?.showBusinessName ?? true;
+  const showOutletName = receipt?.contentSnapshot?.showOutletName ?? true;
+  const showOutletAddress = receipt?.contentSnapshot?.showOutletAddress ?? true;
+  const showOutletPhone = receipt?.contentSnapshot?.showOutletPhone ?? true;
 
   const orderNumber =
     receipt?.order?.orderNumber ||
@@ -183,13 +198,22 @@ export default function ReceiptPrint({
       <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
         <div className="mx-auto w-full max-w-[280px] text-[11px] leading-5 text-slate-700">
           <div className="border-b border-dashed border-slate-300 pb-4 text-center">
-            <h2 className="text-lg font-bold text-slate-900">
-              {businessName}
-            </h2>
-            <p className="mt-1 text-sm font-medium text-slate-800">
-              {outletName}
-            </p>
-            <p className="text-slate-500">{outletAddress}</p>
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logoUrl}
+                alt="Receipt logo"
+                className="mx-auto mb-3 h-14 w-14 rounded-2xl object-cover"
+              />
+            ) : null}
+            <h2 className="text-lg font-bold text-slate-900">{brandName}</h2>
+            {showBusinessName ? (
+              <p className="mt-1 text-sm font-medium text-slate-800">{businessName}</p>
+            ) : null}
+            {showOutletName ? <p className="text-slate-700">{outletName}</p> : null}
+            {showOutletAddress ? <p className="text-slate-500">{outletAddress}</p> : null}
+            {showOutletPhone ? <p className="text-slate-500">{outletPhone}</p> : null}
+            {headerText ? <p className="mt-2 whitespace-pre-line text-slate-500">{headerText}</p> : null}
           </div>
 
           <div className="border-b border-dashed border-slate-300 py-4">
@@ -330,8 +354,9 @@ export default function ReceiptPrint({
           </div>
 
           <div className="pt-4 text-center text-[10px] text-slate-500">
-            <p>Terima kasih.</p>
-            <p>Simpan struk ini sebagai bukti transaksi.</p>
+            {footerText.split('\n').map((line, index) => (
+              <p key={`${line}-${index}`}>{line}</p>
+            ))}
           </div>
         </div>
       </div>

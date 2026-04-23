@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -68,7 +68,18 @@ export function AppHeader({
   const router = useRouter();
   const pathname = usePathname();
 
-  const currentUser = useMemo(() => getCachedCurrentUser(), []);
+  const [currentUser, setCurrentUser] = useState(() => getCachedCurrentUser());
+  useEffect(() => {
+    const syncUser = () => setCurrentUser(getCachedCurrentUser());
+
+    window.addEventListener('storage', syncUser);
+    window.addEventListener('pos-current-user-updated', syncUser);
+
+    return () => {
+      window.removeEventListener('storage', syncUser);
+      window.removeEventListener('pos-current-user-updated', syncUser);
+    };
+  }, []);
   const filteredMobileNavItems = useMemo(
     () => getFilteredNavigation(currentUser).flatMap((group) => group.items),
     [currentUser],

@@ -45,6 +45,15 @@ export type ReceiptContentSnapshot = {
   businessName: string;
   outletName: string;
   outletAddress: string | null;
+  outletPhone?: string | null;
+  brandName?: string | null;
+  logoUrl?: string | null;
+  headerText?: string | null;
+  footerText?: string | null;
+  showBusinessName?: boolean;
+  showOutletName?: boolean;
+  showOutletAddress?: boolean;
+  showOutletPhone?: boolean;
   tableName: string | null;
   notes: string | null;
   subtotal: number;

@@ -231,7 +231,7 @@ export async function createCategory(
   const normalizedName = normalizeName(payload.name);
   const normalizedDescription = normalizeDescription(payload.description);
   const generatedCode = await generateCategoryCode(businessId, normalizedName);
-  const normalizedCode = normalizeCode(generatedCode);
+  const normalizedCode = normalizeCode(generatedCode) ?? generatedCode;
 
   await ensureCategoryNameUnique(businessId, normalizedName);
   await ensureCategoryCodeUnique(businessId, normalizedCode);

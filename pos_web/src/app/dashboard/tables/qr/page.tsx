@@ -1,9 +1,10 @@
 'use client';
 
-import Link from 'next/link';import { getActiveBusinessId } from '@/lib/auth';import { getBusinessFeatureFlags } from '@/lib/feature-flags';
-import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
+import { getBusinessFeatureFlags } from '@/lib/feature-flags';
 import {
   getOutletTableMonitor,
   getTableQr,
@@ -15,7 +16,7 @@ import type {
   TableQrResponse,
 } from '@/types/restaurant-operations';
 
-type LoadState = 'idle' | 'loading' | 'success' | 'error';
+type LoadState = 'idle' | 'loading' | 'success' | 'error' | 'unavailable';
 
 function getTextParam(value: string | null): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -50,6 +51,14 @@ function formatCapacity(value: number | null): string {
   }
 
   return String(value);
+}
+
+function isGuestQrFeatureDisabled(message: string): boolean {
+  return message.toLowerCase().includes('fitur guest_qr tidak aktif');
+}
+
+function isOutletGuestQrDisabled(message: string): boolean {
+  return message.toLowerCase().includes('guest_qr belum aktif untuk outlet ini');
 }
 
 function SingleQrCard({ data }: { data: TableQrResponse }) {
@@ -271,7 +280,7 @@ function BulkQrCard({ item }: { item: TableQrBulkItem }) {
   );
 }
 
-export default function TableQrPage() {
+function TableQrPageContent() {
   const searchParams = useSearchParams();
 
   const outletId = useMemo(
@@ -283,7 +292,7 @@ export default function TableQrPage() {
     [searchParams],
   );
 
-  const [state, setState] = useState<LoadState>('idle');  const [featureEnabled, setFeatureEnabled] = useState<boolean>(true);  const [businessId, setBusinessId] = useState<string>('');
+  const [state, setState] = useState<LoadState>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [singleData, setSingleData] = useState<TableQrResponse | null>(null);
   const [bulkItems, setBulkItems] = useState<TableQrBulkItem[]>([]);
@@ -311,6 +320,20 @@ export default function TableQrPage() {
         setSingleData(null);
         setBulkItems([]);
         setMonitorData(null);
+
+        const featureFlags = await getBusinessFeatureFlags();
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (!featureFlags.includes('GUEST_QR')) {
+          setErrorMessage(
+            'QR meja belum tersedia untuk business yang sedang aktif. Aktifkan fitur Guest QR dulu kalau ingin generate QR per meja.',
+          );
+          setState('unavailable');
+          return;
+        }
 
         if (tableId) {
           const result = await getTableQr({
@@ -346,6 +369,23 @@ export default function TableQrPage() {
 
         const message =
           error instanceof Error ? error.message : 'Gagal memuat QR meja.';
+
+        if (isGuestQrFeatureDisabled(message)) {
+          setErrorMessage(
+            'QR meja belum tersedia untuk business yang sedang aktif. Aktifkan fitur Guest QR dulu kalau ingin generate QR per meja.',
+          );
+          setState('unavailable');
+          return;
+        }
+
+        if (isOutletGuestQrDisabled(message)) {
+          setErrorMessage(
+            'QR meja belum diaktifkan untuk outlet ini. Buka Outlet Settings lalu aktifkan Guest QR untuk outlet yang ingin memakai QR meja.',
+          );
+          setState('unavailable');
+          return;
+        }
+
         setErrorMessage(message);
         setState('error');
       }
@@ -452,6 +492,29 @@ export default function TableQrPage() {
           </div>
         )}
 
+        {state === 'unavailable' && (
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-amber-800">
+              QR meja belum tersedia
+            </h2>
+            <p className="mt-2 text-sm text-amber-700">{errorMessage}</p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href={backHref}
+                className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                Kembali ke daftar meja
+              </Link>
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Buka Dashboard
+              </Link>
+            </div>
+          </div>
+        )}
+
         {state === 'success' && isSingleMode && singleData ? (
           <>
             <SingleQrCard data={singleData} />
@@ -535,6 +598,14 @@ export default function TableQrPage() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+export default function TableQrPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <TableQrPageContent />
+    </Suspense>
   );
 }
 

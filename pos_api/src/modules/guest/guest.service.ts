@@ -149,14 +149,17 @@ function getCurrentDateParts() {
 function getGuestQrSecret(): string {
   const explicitSecret =
     process.env.GUEST_QR_SECRET ??
-    process.env.POS_GUEST_QR_SECRET ??
-    process.env.JWT_SECRET;
+    process.env.POS_GUEST_QR_SECRET;
 
   if (typeof explicitSecret === 'string' && explicitSecret.trim() !== '') {
     return explicitSecret.trim();
   }
 
-  return 'pos-platform-secret';
+  if (process.env.NODE_ENV !== 'production' && process.env.JWT_SECRET) {
+    return process.env.JWT_SECRET;
+  }
+
+  throw new GuestModuleError('Konfigurasi token guest belum tersedia', 500);
 }
 
 function buildGuestTokenPayload(outletId: string, tableId: string): string {

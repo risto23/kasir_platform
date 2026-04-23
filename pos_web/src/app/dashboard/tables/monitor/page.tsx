@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getOutletTableMonitor } from '@/lib/restaurant-operations';
 import type {
@@ -233,7 +233,7 @@ function TableCard(props: {
   );
 }
 
-export default function TableMonitorPage() {
+function TableMonitorPageContent() {
   const searchParams = useSearchParams();
   const outletId = useMemo(() => getTextParam(searchParams.get('outletId')), [searchParams]);
 
@@ -410,5 +410,13 @@ export default function TableMonitorPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function TableMonitorPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <TableMonitorPageContent />
+    </Suspense>
   );
 }

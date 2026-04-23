@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { postAdjustment } from '../../../../lib/inventory';
-import type { InventoryMovementType } from '../../../../types/inventory';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import type { Outlet } from '../../../../types/outlet';
 import { api } from '../../../../lib/api';
 import { fetchStockSummary } from '../../../../lib/inventory';
 import type { StockSummaryItem } from '../../../../types/inventory';
+
+type AdjustmentMovementType = 'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT';
 
 function getErrorMessage(err: unknown): string {
   if (typeof err === 'object' && err !== null) {
@@ -25,7 +26,7 @@ export default function StockAdjustmentPage() {
 
   const [outletId, setOutletId] = useState('');
   const [productId, setProductId] = useState('');
-  const [type, setType] = useState<InventoryMovementType>('ADJUSTMENT_IN');
+  const [type, setType] = useState<AdjustmentMovementType>('ADJUSTMENT_IN');
   const [quantity, setQuantity] = useState<number>(1);
   const [note, setNote] = useState('');
   const [result, setResult] = useState<string | null>(null);
@@ -156,7 +157,7 @@ export default function StockAdjustmentPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">Type</label>
-              <select value={type} onChange={(e) => setType(e.target.value as InventoryMovementType)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500">
+              <select value={type} onChange={(e) => setType(e.target.value as AdjustmentMovementType)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500">
                 <option value="ADJUSTMENT_IN">ADJUSTMENT_IN (Tambah)</option>
                 <option value="ADJUSTMENT_OUT">ADJUSTMENT_OUT (Kurangi)</option>
               </select>
