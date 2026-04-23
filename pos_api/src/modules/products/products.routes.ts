@@ -6,6 +6,7 @@ import { BusinessPermissionCode } from '@prisma/client';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { businessAccessMiddleware } from '../../middlewares/business-access.middleware';
 import { requireBusinessPermission } from '../../middlewares/require-business-permission.middleware';
+import { validateUploadedImage } from '../../middlewares/validate-uploaded-image.middleware';
 import {
   listProductsHandler,
   getProductDetailHandler,
@@ -34,8 +35,13 @@ const storage = multer.diskStorage({
     callback(null, uploadDirectory);
   },
   filename: (_req, file, callback) => {
-    const ext = path.extname(file.originalname || '').toLowerCase();
-    const safeExt = ext || '.jpg';
+    const extensionByMimeType: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+    };
+    const safeExt = extensionByMimeType[file.mimetype] ?? '.jpg';
     const fileName = `product-${Date.now()}-${Math.round(Math.random() * 1_000_000)}${safeExt}`;
     callback(null, fileName);
   },
@@ -78,6 +84,7 @@ router.post(
   '/',
   requireBusinessPermission(BusinessPermissionCode.PRODUCT_CREATE),
   imageUpload.single('image'),
+  validateUploadedImage,
   validateCreateProduct,
   createProductHandler,
 );
@@ -86,6 +93,7 @@ router.put(
   '/:id',
   requireBusinessPermission(BusinessPermissionCode.PRODUCT_UPDATE),
   imageUpload.single('image'),
+  validateUploadedImage,
   validateProductParams,
   validateUpdateProduct,
   updateProductHandler,

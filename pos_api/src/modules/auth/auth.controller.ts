@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { successResponse, errorResponse } from '../../utils/api-response';
 import { loginService, meService } from './auth.service';
+import { clearAuthCookie, setAuthCookie } from '../../utils/auth-cookie';
 
 type LoginBody = {
   email: string;
@@ -15,6 +16,8 @@ export async function loginController(
   try {
     const { email, password } = req.body;
     const result = await loginService(email, password);
+
+    setAuthCookie(res, result.accessToken);
 
     return res.json(successResponse('Login berhasil', result));
   } catch (error: unknown) {
@@ -39,4 +42,9 @@ export async function meController(req: Request, res: Response) {
       error instanceof Error ? error.message : 'User tidak ditemukan';
     return res.status(404).json(errorResponse(message));
   }
+}
+
+export async function logoutController(_req: Request, res: Response) {
+  clearAuthCookie(res);
+  return res.json(successResponse('Logout berhasil'));
 }

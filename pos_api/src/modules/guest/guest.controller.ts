@@ -96,7 +96,6 @@ function getCreateGuestOrderInput(req: Request): CreateGuestOrderInput {
 }
 
 export async function getGuestMenuController(req: Request, res: Response) {
-  console.log('[guest.controller] getGuestMenuController hit');
   try {
     const outletId = getOutletIdFromParams(req);
     const query = getGuestMenuQuery(req);

@@ -9,6 +9,7 @@ import {
   faPercent,
   faQrcode,
   faReceipt,
+  faShieldHalved,
   faShapes,
   faShop,
   faSliders,
@@ -235,6 +236,9 @@ const menuGroups: AppNavGroup[] = [
     section: 'POS Transaction',
     items: [
       { href: '/dashboard/settings/pos', label: 'POS Settings', icon: faSliders, requiredPermissions: ['OUTLET_UPDATE'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
+      { href: '/dashboard/settings/business', label: 'Business Settings', icon: faShop, requiredPermissions: ['OUTLET_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
+      { href: '/dashboard/settings/outlet', label: 'Outlet Settings', icon: faLocationDot, requiredPermissions: ['OUTLET_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
+      { href: '/dashboard/settings/receipt', label: 'Receipt Settings', icon: faReceipt, requiredPermissions: ['OUTLET_UPDATE'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
       { href: '/dashboard/pos', label: 'POS Kasir', icon: faCashRegister, businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
       { href: '/dashboard/pos/history', label: 'Histori Transaksi', icon: faClockRotateLeft, businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
       { href: '/dashboard/payments', label: 'Payment History', icon: faReceipt, businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
@@ -254,6 +258,7 @@ const menuGroups: AppNavGroup[] = [
       { href: '/dashboard/reports/summary', label: 'Sales Summary', icon: faChartLine, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
       { href: '/dashboard/reports/orders', label: 'Orders Report', icon: faReceipt, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
       { href: '/dashboard/reports/items', label: 'Items Report', icon: faBoxOpen, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
+      { href: '/dashboard/audit-logs', label: 'Audit Logs', icon: faShieldHalved, requiredPermissions: ['REPORT_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
     ],
   },
 ];

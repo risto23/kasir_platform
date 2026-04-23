@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 function getTextParam(value: string | null): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export default function DashboardGuestMenuRedirectPage() {
+function DashboardGuestMenuRedirectPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -44,5 +44,13 @@ export default function DashboardGuestMenuRedirectPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function DashboardGuestMenuRedirectPage() {
+  return (
+    <Suspense fallback={null}>
+      <DashboardGuestMenuRedirectPageContent />
+    </Suspense>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   clearGuestCart,
@@ -19,7 +19,7 @@ import type {
 } from '@/types/guest';
 import { resolveImageUrl } from '@/lib/resolve-image-url';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTrashCan } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faTag, faTrashCan } from '@fortawesome/free-solid-svg-icons';
 
 type LoadState = 'idle' | 'loading' | 'success' | 'error';
 
@@ -174,12 +174,10 @@ function sanitizeCartAgainstMenu(params: {
 function MenuItemCard(props: {
   item: GuestMenuItem;
   quantity: number;
-  note: string;
   onIncrease: (item: GuestMenuItem) => void;
   onDecrease: (productId: string) => void;
-  onNoteChange: (productId: string, note: string) => void;
 }) {
-  const { item, quantity, note, onIncrease, onDecrease, onNoteChange } = props;
+  const { item, quantity, onIncrease, onDecrease } = props;
 
   return (
     <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -247,39 +245,64 @@ function MenuItemCard(props: {
 
         <div className="flex items-center justify-between gap-3">
           <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">
+            <FontAwesomeIcon icon={faTag} className="h-3 w-3" />
             {item.unit || 'Unit'}
           </div>
 
-          
-        </div>
+          <div className="flex items-center gap-3">
+            {quantity > 0 ? (
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1">
+                <button
+                  type="button"
+                  onClick={() => onDecrease(item.id)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-50"
+                >
+                  -
+                </button>
 
+                <span className="min-w-8 text-center text-sm font-semibold text-slate-900">
+                  {quantity}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => onIncrease(item)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-50"
+                >
+                  +
+                </button>
+              </div>
+            ) : null}
+
+            {/* <button
+              type="button"
+              onClick={() => onIncrease(item)}
+              className={`inline-flex h-11 items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 ${
+                quantity > 0 ? 'flex-1' : 'w-full'
+              }`}
+            >
+              Tambah
+            </button> */}
+          </div>
+        </div>
         <div>
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Catatan
-          </label>
-          <input
-            type="text"
-            value={note}
-            maxLength={MAX_NOTE_LENGTH}
-            onChange={(event) => onNoteChange(item.id, event.target.value)}
-            placeholder="contoh: pedas, tanpa es, dll"
-            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-          />
+            <button
+              type="button"
+              onClick={() =>  onIncrease(item)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <FontAwesomeIcon icon={faPlus} className="h-3.5 w-3.5" />
+              Tambah
+            </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onIncrease(item)}
-          className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
-        >
-          Tambah
-        </button>
+        
       </div>
     </div>
   );
 }
 
-export default function GuestMenuPage() {
+function GuestMenuPageContent() {
   const searchParams = useSearchParams();
   const hasLoadedRef = useRef(false);
 
@@ -593,6 +616,14 @@ export default function GuestMenuPage() {
     });
   }, [data, searchKeyword, selectedCategoryId]);
 
+  const menuItemsById = useMemo(() => {
+    if (!data) {
+      return new Map<string, GuestMenuItem>();
+    }
+
+    return createMenuItemMap(data.categories);
+  }, [data]);
+
   const totalVisibleItems = filteredItems.length;
 
   if (!hasValidParams) {
@@ -776,10 +807,8 @@ export default function GuestMenuPage() {
                             key={item.id}
                             item={item}
                             quantity={quantities[item.id] ?? 0}
-                            note={notesMap[item.id] ?? ''}
                             onIncrease={handleIncrease}
                             onDecrease={handleDecrease}
-                            onNoteChange={handleNoteChange}
                           />
                         ))}
                       </div>
@@ -828,11 +857,6 @@ export default function GuestMenuPage() {
                             {item.productName}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">{item.productCode}</p>
-                          {item.note ? (
-                            <p className="mt-2 text-xs leading-5 text-slate-600">
-                              Catatan: {item.note}
-                            </p>
-                          ) : null}
                         </div>
 
                         <button
@@ -862,9 +886,7 @@ export default function GuestMenuPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              const sourceItem = filteredItems.find(
-                                (menuItem) => menuItem.id === item.productId,
-                              );
+                              const sourceItem = menuItemsById.get(item.productId);
 
                               if (sourceItem) {
                                 handleIncrease(sourceItem);
@@ -883,6 +905,17 @@ export default function GuestMenuPage() {
                           </p>
                         </div>
                       </div>
+
+                      <textarea
+                        value={notesMap[item.productId] ?? item.note ?? ''}
+                        onChange={(event) =>
+                          handleNoteChange(item.productId, event.target.value)
+                        }
+                        rows={2}
+                        maxLength={MAX_NOTE_LENGTH}
+                        placeholder="Catatan item"
+                        className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                      />
                     </div>
                   ))
                 ) : (
@@ -953,4 +986,12 @@ export default function GuestMenuPage() {
       items: cart.items.filter((cartItem) => cartItem.productId !== productId),
     });
   }
+}
+
+export default function GuestMenuPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <GuestMenuPageContent />
+    </Suspense>
+  );
 }

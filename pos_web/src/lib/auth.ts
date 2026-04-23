@@ -1,5 +1,4 @@
 import { api } from './api';
-import { setAccessToken, removeAccessToken } from './storage';
 import type {
   CurrentUser,
   LoginResponse,
@@ -10,6 +9,7 @@ import type {
 const AUTH_USER_STORAGE_KEY = 'pos_current_user';
 const ACTIVE_BUSINESS_ID_STORAGE_KEY = 'activeBusinessId';
 const ACTIVE_OUTLET_ID_STORAGE_KEY = 'activeOutletId';
+const LEGACY_TOKEN_STORAGE_KEY = 'pos_access_token';
 
 function persistCurrentUser(user: CurrentUser | null) {
   if (typeof window === 'undefined' || !user) {
@@ -17,6 +17,7 @@ function persistCurrentUser(user: CurrentUser | null) {
   }
 
   localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+  window.dispatchEvent(new Event('pos-current-user-updated'));
 }
 
 function clearActiveBusinessContext() {
@@ -103,6 +104,106 @@ export function clearCachedCurrentUser() {
   }
 
   localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  window.dispatchEvent(new Event('pos-current-user-updated'));
+}
+
+export function updateCachedBusinessName(
+  businessId: string,
+  businessName: string,
+) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const currentUser = getCachedCurrentUser();
+
+  if (!currentUser) {
+    return;
+  }
+
+  const nextMemberships = currentUser.businessMemberships.map((membership) =>
+    membership.businessId === businessId
+      ? {
+          ...membership,
+          businessName,
+        }
+      : membership,
+  );
+
+  const nextDefaultMembership =
+    currentUser.accessProfile.defaultBusinessMembership?.businessId === businessId
+      ? {
+          ...currentUser.accessProfile.defaultBusinessMembership,
+          businessName,
+        }
+      : currentUser.accessProfile.defaultBusinessMembership;
+
+  persistCurrentUser({
+    ...currentUser,
+    businessMemberships: nextMemberships,
+    accessProfile: {
+      ...currentUser.accessProfile,
+      defaultBusinessMembership: nextDefaultMembership ?? null,
+    },
+  });
+}
+
+export function updateCachedOutletName(outletId: string, outletName: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const currentUser = getCachedCurrentUser() as
+    | (CurrentUser & {
+        businessMemberships: Array<
+          BusinessMembership & {
+            allowedOutlets?: Array<{
+              outletId: string;
+              outletName?: string | null;
+              [key: string]: unknown;
+            }>;
+          }
+        >;
+        accessProfile: CurrentUser['accessProfile'] & {
+          defaultBusinessMembership?: (BusinessMembership & {
+            allowedOutlets?: Array<{
+              outletId: string;
+              outletName?: string | null;
+              [key: string]: unknown;
+            }>;
+          }) | null;
+        };
+      })
+    | null;
+
+  if (!currentUser) {
+    return;
+  }
+
+  const patchMembership = <T extends BusinessMembership & { allowedOutlets?: Array<{ outletId: string; outletName?: string | null; [key: string]: unknown }> }>(membership: T): T => ({
+    ...membership,
+    allowedOutlets: Array.isArray(membership.allowedOutlets)
+      ? membership.allowedOutlets.map((outlet) =>
+          outlet.outletId === outletId
+            ? {
+                ...outlet,
+                outletName,
+              }
+            : outlet,
+        )
+      : membership.allowedOutlets,
+  });
+
+  persistCurrentUser({
+    ...currentUser,
+    businessMemberships: currentUser.businessMemberships.map(patchMembership),
+    accessProfile: {
+      ...currentUser.accessProfile,
+      defaultBusinessMembership: currentUser.accessProfile.defaultBusinessMembership
+        ? patchMembership(currentUser.accessProfile.defaultBusinessMembership)
+        : null,
+    },
+  });
 }
 
 export function getDefaultBusinessMembership(
@@ -192,7 +293,7 @@ export async function login(email: string, password: string) {
   const response = await api.post('/auth/login', { email, password });
   const data = response.data.data as LoginResponse;
 
-  setAccessToken(data.accessToken);
+  localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
   persistCurrentUser(data.user);
   applyDefaultAccessContext(data.user);
 
@@ -210,7 +311,11 @@ export async function getMe() {
 }
 
 export function logout() {
-  removeAccessToken();
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+  }
+
+  void api.post('/auth/logout').catch(() => undefined);
   clearCachedCurrentUser();
   clearActiveBusinessContext();
   clearActiveOutletContext();

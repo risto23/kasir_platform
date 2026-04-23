@@ -128,7 +128,7 @@ export default function ReportsPage() {
     if (!outletId) return;
     try {
       const blob = await exportOutletSalesXlsx({ outletId, dateFrom: oDateFrom, dateTo: oDateTo, timezone: oTimezone });
-      await downloadBlob(blob, `outlet-sales-${outletId}-${oDateFrom}-${oDateTo}.xlsx`);
+      await downloadBlob(blob, `outlet-sales-${outletId}-${oDateFrom}-${oDateTo}.xls`);
     } catch (err) {
       setOError(getErrorMessage(err));
     }
@@ -148,7 +148,7 @@ export default function ReportsPage() {
     try {
       const blob = await exportBusinessSalesXlsx({ outletIds: bOutletIds, dateFrom: bDateFrom, dateTo: bDateTo, groupBy: bGroupBy, timezone: bTimezone });
       const name = bGroupBy === 'outlet' ? 'business-by-outlet' : 'business-timeseries';
-      await downloadBlob(blob, `${name}-${bDateFrom}-${bDateTo}.xlsx`);
+      await downloadBlob(blob, `${name}-${bDateFrom}-${bDateTo}.xls`);
     } catch (err) {
       setBError(getErrorMessage(err));
     }
@@ -268,7 +268,7 @@ export default function ReportsPage() {
                 <Input className="w-40" placeholder="Timezone (opsional)" value={oTimezone} onChange={(e) => setOTimezone(e.target.value)} />
                 <Button onClick={() => void loadOutlet()} disabled={oLoading || !outletId}>Load</Button>
                 <Button variant="outline" onClick={() => void exportOutlet()}>Export CSV</Button>
-                <Button variant="outline" onClick={() => void exportOutletXlsx()}>Export XLSX</Button>
+                <Button variant="outline" onClick={() => void exportOutletXlsx()}>Export Excel</Button>
                 <Button variant="outline" onClick={() => { setOQuick('7D'); setODateFrom(offsetDate(-6)); setODateTo(today()); setOTimezone('Asia/Jakarta'); }} title="Reset"><FontAwesomeIcon icon={faRotateRight} className="h-3 w-3" /></Button>
               </div>
             </div>
@@ -379,7 +379,7 @@ export default function ReportsPage() {
                 <Input className="w-40" placeholder="Timezone (opsional)" value={bTimezone} onChange={(e) => setBTimezone(e.target.value)} />
                 <Button onClick={() => void loadBusiness()} disabled={bLoading}>Load</Button>
                 <Button variant="outline" onClick={() => void exportBusiness()}>Export CSV</Button>
-                <Button variant="outline" onClick={() => void exportBusinessXlsx()}>Export XLSX</Button>
+                <Button variant="outline" onClick={() => void exportBusinessXlsx()}>Export Excel</Button>
                 <Button variant="outline" onClick={() => { setBQuick('7D'); setBDateFrom(offsetDate(-6)); setBDateTo(today()); setBTimezone('Asia/Jakarta'); setBGroupBy('day'); }} title="Reset"><FontAwesomeIcon icon={faRotateRight} className="h-3 w-3" /></Button>
               </div>
             </div>

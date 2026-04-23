@@ -82,7 +82,7 @@ export default function PromoDetailPage() {
         <div>
           <Link
             href="/dashboard/promos"
-            className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex rounded-xl border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
           >
             Kembali ke List Promo
           </Link>
@@ -101,7 +101,7 @@ export default function PromoDetailPage() {
         <div>
           <Link
             href="/dashboard/promos"
-            className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex rounded-xl border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
           >
             Kembali ke List Promo
           </Link>
@@ -124,14 +124,14 @@ export default function PromoDetailPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/dashboard/promos"
-              className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex rounded-xl border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
             >
               Kembali ke List
             </Link>
 
             <Link
               href={`/dashboard/promos/${promo.id}/edit`}
-              className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="inline-flex rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
               Edit Promo
             </Link>

@@ -11,8 +11,19 @@ import { getBusinessFeatureFlags } from '@/lib/feature-flags';
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const currentUser = useMemo(() => getCachedCurrentUser(), []);
+  const [currentUser, setCurrentUser] = useState(() => getCachedCurrentUser());
   const [featureKeys, setFeatureKeys] = useState<string[] | null>(null);
+  useEffect(() => {
+    const syncUser = () => setCurrentUser(getCachedCurrentUser());
+
+    window.addEventListener('storage', syncUser);
+    window.addEventListener('pos-current-user-updated', syncUser);
+
+    return () => {
+      window.removeEventListener('storage', syncUser);
+      window.removeEventListener('pos-current-user-updated', syncUser);
+    };
+  }, []);
   useEffect(() => {
     let mounted = true;
     (async () => {

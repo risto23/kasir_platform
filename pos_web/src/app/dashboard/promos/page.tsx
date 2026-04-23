@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import {
   formatPromoPeriod,
   formatPromoTargetValue,
@@ -38,6 +39,18 @@ const initialFilters: Filters = {
   effectiveStatus: '',
   outletScope: '',
 };
+
+function getStatusActionVariant(status: PromoStatus) {
+  return status === 'ACTIVE' ? 'danger' : 'success';
+}
+
+function getStatusActionLabel(item: PromoItem, isLoading: boolean) {
+  if (isLoading) {
+    return 'Memproses...';
+  }
+
+  return item.status === 'ACTIVE' ? 'Nonaktifkan' : 'Aktifkan';
+}
 
 export default function PromosPage() {
   const [meta, setMeta] = useState<PromoFormMeta | null>(null);
@@ -336,30 +349,29 @@ export default function PromosPage() {
                       <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/dashboard/promos/${item.id}`}
-                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                          className="inline-flex rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-100"
                         >
                           Detail
                         </Link>
 
                         <Link
                           href={`/dashboard/promos/${item.id}/edit`}
-                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                          className="inline-flex rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
                         >
                           Edit
                         </Link>
 
-                        <button
-                          type="button"
+                        <Button
                           onClick={() => void handleToggleStatus(item)}
                           disabled={statusLoadingId === item.id}
-                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          variant={getStatusActionVariant(item.status)}
+                          className="rounded-lg px-3 py-2 text-xs font-semibold"
                         >
-                          {statusLoadingId === item.id
-                            ? 'Memproses...'
-                            : item.status === 'ACTIVE'
-                              ? 'Nonaktifkan'
-                              : 'Aktifkan'}
-                        </button>
+                          {getStatusActionLabel(
+                            item,
+                            statusLoadingId === item.id,
+                          )}
+                        </Button>
                       </div>
                     </td>
                   </tr>

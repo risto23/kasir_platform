@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import axios from 'axios';
-import { useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -17,15 +17,26 @@ import {
   faReceipt,
   faTrashCan,
 } from '@fortawesome/free-solid-svg-icons';
-
-import { clearGuestCart, createGuestOrder, getGuestCart, saveGuestCart } from '@/lib/guest';
+import { resolveImageUrl } from '@/lib/resolve-image-url';
+import {
+  clearGuestCart,
+  createGuestOrder,
+  getGuestCart,
+  getGuestMenu,
+  saveGuestCart,
+} from '@/lib/guest';
 import type {
   CreateGuestOrderPayload,
   CreatedGuestOrderResponse,
+  GuestCartItem,
   GuestCartStorage,
+  GuestMenuCategoryGroup,
+  GuestMenuItem,
 } from '@/types/guest';
+import Image from 'next/image';
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
+type LoadState = 'idle' | 'loading' | 'success' | 'error';
 
 const ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const TOKEN_PATTERN = /^[a-zA-Z0-9._:%-]+$/;
@@ -109,21 +120,6 @@ function buildGuestMenuUrl(params: {
   return `/guest/menu?${nextParams.toString()}`;
 }
 
-function isCartMatched(params: {
-  cart: GuestCartStorage | null;
-  outletId: string;
-  tableId: string;
-  token: string;
-}): boolean {
-  const { cart, outletId, tableId, token } = params;
-
-  if (!cart) {
-    return false;
-  }
-
-  return cart.outletId === outletId && cart.tableId === tableId && cart.token === token;
-}
-
 function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const responseMessage = error.response?.data?.message;
@@ -140,24 +136,66 @@ function getErrorMessage(error: unknown): string {
   return 'Terjadi kesalahan.';
 }
 
-function sanitizeCart(cart: GuestCartStorage): GuestCartStorage {
+function flattenMenuItems(categories: GuestMenuCategoryGroup[]): GuestMenuItem[] {
+  return categories.flatMap((group) => group.items);
+}
+
+function createMenuItemMap(categories: GuestMenuCategoryGroup[]): Map<string, GuestMenuItem> {
+  return new Map(flattenMenuItems(categories).map((item) => [item.id, item]));
+}
+
+function sanitizeCartAgainstMenu(params: {
+  existingCart: GuestCartStorage | null;
+  outletId: string;
+  tableId: string;
+  token: string;
+  menuItemMap: Map<string, GuestMenuItem>;
+}): GuestCartStorage {
+  const { existingCart, outletId, tableId, token, menuItemMap } = params;
+
+  if (
+    !existingCart ||
+    existingCart.outletId !== outletId ||
+    existingCart.tableId !== tableId ||
+    existingCart.token !== token
+  ) {
+    return {
+      outletId,
+      tableId,
+      token,
+      items: [],
+    };
+  }
+
+  const sanitizedItems = existingCart.items.reduce<GuestCartItem[]>((accumulator, cartItem) => {
+    const menuItem = menuItemMap.get(cartItem.productId);
+
+    if (!menuItem) {
+      return accumulator;
+    }
+
+    accumulator.push({
+      productId: menuItem.id,
+      productName: menuItem.name,
+      productCode: menuItem.code,
+      quantity: clampQuantity(cartItem.quantity),
+      unitPrice: menuItem.finalPrice,
+      note: sanitizeNote(cartItem.note) || null,
+      imageUrl: menuItem.imageUrl ?? null,
+    });
+
+    return accumulator;
+  }, []);
+
   return {
-    outletId: cart.outletId,
-    tableId: cart.tableId,
-    token: cart.token,
-    items: cart.items.map((item) => ({
-      productId: item.productId,
-      productName: item.productName,
-      productCode: item.productCode,
-      quantity: clampQuantity(item.quantity),
-      unitPrice: item.unitPrice,
-      note: sanitizeNote(item.note) || null,
-      imageUrl: item.imageUrl,
-    })),
+    outletId,
+    tableId,
+    token,
+    items: sanitizedItems,
   };
 }
 
-export default function GuestCheckoutPage() {
+function GuestCheckoutPageContent() {
   const searchParams = useSearchParams();
 
   const outletId = useMemo(
@@ -177,49 +215,8 @@ export default function GuestCheckoutPage() {
   const hasValidParams = Boolean(outletId && tableId && token);
   const invalidParamsMessage = 'outletId, tableId, dan token guest tidak valid.';
 
-  const baseState = useMemo(() => {
-    if (!hasValidParams) {
-      return {
-        isError: true,
-        errorMessage: invalidParamsMessage,
-        cart: null as GuestCartStorage | null,
-      };
-    }
-
-    const existingCart = getGuestCart();
-
-    if (
-      !isCartMatched({
-        cart: existingCart,
-        outletId,
-        tableId,
-        token,
-      })
-    ) {
-      return {
-        isError: true,
-        errorMessage: 'Cart guest tidak cocok dengan outlet, meja, atau token yang aktif.',
-        cart: null as GuestCartStorage | null,
-      };
-    }
-
-    if (!existingCart) {
-      return {
-        isError: true,
-        errorMessage: 'Cart guest tidak ditemukan.',
-        cart: null as GuestCartStorage | null,
-      };
-    }
-
-    const matchedCart: GuestCartStorage = existingCart;
-
-    return {
-      isError: false,
-      errorMessage: '',
-      cart: sanitizeCart(matchedCart),
-    };
-  }, [hasValidParams, invalidParamsMessage, outletId, tableId, token]);
-
+  const [loadState, setLoadState] = useState<LoadState>('idle');
+  const [loadErrorMessage, setLoadErrorMessage] = useState('');
   const [cartOverrideState, setCartOverrideState] = useState<{
     key: string;
     cart: GuestCartStorage | null;
@@ -229,13 +226,87 @@ export default function GuestCheckoutPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successData, setSuccessData] = useState<CreatedGuestOrderResponse | null>(null);
 
+useEffect(() => {
+  let isCancelled = false;
+
+  async function loadCheckoutCart(): Promise<void> {
+    if (!hasValidParams) {
+      if (isCancelled) {
+        return;
+      }
+
+      setLoadState('error');
+      setLoadErrorMessage(invalidParamsMessage);
+      setCartOverrideState({
+        key: requestKey,
+        cart: null,
+      });
+      return;
+    }
+
+    try {
+      setLoadState('loading');
+      setLoadErrorMessage('');
+
+      const existingCart = getGuestCart();
+
+      const menuResponse = await getGuestMenu({
+        outletId,
+        tableId,
+        token,
+      });
+
+      if (isCancelled) {
+        return;
+      }
+
+      const menuItemMap = createMenuItemMap(menuResponse.categories);
+
+      const sanitizedCart = sanitizeCartAgainstMenu({
+        existingCart,
+        outletId,
+        tableId,
+        token,
+        menuItemMap,
+      });
+
+      saveGuestCart(sanitizedCart);
+
+      setCartOverrideState({
+        key: requestKey,
+        cart: sanitizedCart,
+      });
+
+      setLoadState('success');
+    } catch (error: unknown) {
+      if (isCancelled) {
+        return;
+      }
+
+      setLoadState('error');
+      setLoadErrorMessage(getErrorMessage(error));
+      setCartOverrideState({
+        key: requestKey,
+        cart: null,
+      });
+    }
+  }
+
+  void loadCheckoutCart();
+
+  return () => {
+    isCancelled = true;
+  };
+}, [hasValidParams, invalidParamsMessage, outletId, requestKey, tableId, token]);
+
   const cart =
     cartOverrideState && cartOverrideState.key === requestKey
       ? cartOverrideState.cart
-      : baseState.cart;
+      : null;
 
-  const effectiveErrorMessage = submitState === 'error' ? errorMessage : baseState.errorMessage;
-  const hasLoadError = baseState.isError;
+  const hasLoadError = loadState === 'error';
+  const isLoading = loadState === 'idle' || loadState === 'loading';
+  const effectiveErrorMessage = submitState === 'error' ? errorMessage : loadErrorMessage;
 
   function persistCart(nextCart: GuestCartStorage): void {
     setCartOverrideState({
@@ -395,6 +466,31 @@ export default function GuestCheckoutPage() {
         token,
       })
     : '/guest/menu';
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-6">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+            <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-700">
+              <FontAwesomeIcon icon={faCashRegister} className="h-3 w-3" />
+              Guest Checkout
+            </div>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
+              Checkout Guest
+            </h1>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Memuat ringkasan pesanan...
+            </p>
+          </section>
+
+          <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-10 shadow-sm sm:px-6">
+            <div className="text-center text-sm text-slate-500">Loading...</div>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   if (hasLoadError) {
     return (
@@ -594,8 +690,10 @@ export default function GuestCheckoutPage() {
                           <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 text-slate-400">
                             {item.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={item.imageUrl}
+                              <Image
+                                width={96}
+                                height={96}
+                                src={resolveImageUrl(item.imageUrl)}
                                 alt={item.productName}
                                 className="h-full w-full object-cover"
                               />
@@ -764,5 +862,13 @@ export default function GuestCheckoutPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function GuestCheckoutPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <GuestCheckoutPageContent />
+    </Suspense>
   );
 }

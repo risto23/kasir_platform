@@ -464,6 +464,24 @@ export default function PosCashierPage() {
     [cart],
   );
 
+  const baseCartProductMap = useMemo(() => {
+    return cart.reduce<Record<string, { lineId: string; qty: number }>>(
+      (accumulator, item) => {
+        if (item.note.trim() !== '') {
+          return accumulator;
+        }
+
+        accumulator[item.productId] = {
+          lineId: item.lineId,
+          qty: item.qty,
+        };
+
+        return accumulator;
+      },
+      {},
+    );
+  }, [cart]);
+
   useEffect(() => {
     if (!activeBusinessId || typeof window === 'undefined') {
       return;
@@ -811,6 +829,21 @@ export default function PosCashierPage() {
 
   function removeCartItem(lineId: string) {
     setCart((prev) => prev.filter((item) => item.lineId !== lineId));
+  }
+
+  function decreaseBaseCartProduct(productId: string) {
+    const baseLine = baseCartProductMap[productId];
+
+    if (!baseLine) {
+      return;
+    }
+
+    if (baseLine.qty <= 1) {
+      removeCartItem(baseLine.lineId);
+      return;
+    }
+
+    updateCartQty(baseLine.lineId, baseLine.qty - 1);
   }
 
   function clearCart() {
@@ -1243,6 +1276,8 @@ export default function PosCashierPage() {
                   {filteredProducts.map((product) => {
                     const imageUrl = getProductImageUrl(product);
                     const displayPrice = getProductDisplayPrice(product);
+                    const baseCartEntry = baseCartProductMap[product.id];
+                    const cardQuantity = baseCartEntry?.qty ?? 0;
 
                     return (
                       <article
@@ -1321,14 +1356,43 @@ export default function PosCashierPage() {
                               {product.unit || 'Unit'}
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => addToCart(product)}
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-                            >
-                              <FontAwesomeIcon icon={faPlus} className="h-3.5 w-3.5" />
-                              Tambah
-                            </button>
+                            <div className="flex items-center gap-3">
+                              {cardQuantity > 0 ? (
+                                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => decreaseBaseCartProduct(product.id)}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-50"
+                                  >
+                                    <FontAwesomeIcon icon={faMinus} className="h-3 w-3" />
+                                  </button>
+
+                                  <span className="min-w-6 text-center text-sm font-semibold text-slate-900">
+                                    {cardQuantity}
+                                  </span>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => addToCart(product)}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-50"
+                                  >
+                                    <FontAwesomeIcon icon={faPlus} className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ) : null}
+
+                              
+                            </div>
+                          </div>
+                          <div>
+                              <button
+                                type="button"
+                                onClick={() => addToCart(product)}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                              >
+                                <FontAwesomeIcon icon={faPlus} className="h-3.5 w-3.5" />
+                                Tambah
+                              </button>
                           </div>
                         </div>
                       </article>

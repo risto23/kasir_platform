@@ -69,6 +69,15 @@ type ReceiptApiRow = {
     businessName: string;
     outletName: string;
     outletAddress?: string | null;
+    outletPhone?: string | null;
+    brandName?: string | null;
+    logoUrl?: string | null;
+    headerText?: string | null;
+    footerText?: string | null;
+    showBusinessName?: boolean;
+    showOutletName?: boolean;
+    showOutletAddress?: boolean;
+    showOutletPhone?: boolean;
     tableName?: string | null;
     notes?: string | null;
     subtotal?: string | number | null;
@@ -144,15 +153,24 @@ function toNumber(value: string | number | null | undefined): number {
 
 function mapReceipt(row: ReceiptApiRow): ReceiptDetailResponse {
   const snapshot = row.contentSnapshot
-    ? {
-        orderId: row.contentSnapshot.orderId,
-        orderNumber: row.contentSnapshot.orderNumber,
-        businessName: row.contentSnapshot.businessName,
-        outletName: row.contentSnapshot.outletName,
-        outletAddress: row.contentSnapshot.outletAddress ?? null,
-        tableName: row.contentSnapshot.tableName ?? null,
-        notes: row.contentSnapshot.notes ?? null,
-        subtotal: toNumber(row.contentSnapshot.subtotal),
+      ? {
+          orderId: row.contentSnapshot.orderId,
+          orderNumber: row.contentSnapshot.orderNumber,
+          businessName: row.contentSnapshot.businessName,
+          outletName: row.contentSnapshot.outletName,
+          outletAddress: row.contentSnapshot.outletAddress ?? null,
+          outletPhone: row.contentSnapshot.outletPhone ?? null,
+          brandName: row.contentSnapshot.brandName ?? null,
+          logoUrl: row.contentSnapshot.logoUrl ?? null,
+          headerText: row.contentSnapshot.headerText ?? null,
+          footerText: row.contentSnapshot.footerText ?? null,
+          showBusinessName: row.contentSnapshot.showBusinessName ?? true,
+          showOutletName: row.contentSnapshot.showOutletName ?? true,
+          showOutletAddress: row.contentSnapshot.showOutletAddress ?? true,
+          showOutletPhone: row.contentSnapshot.showOutletPhone ?? true,
+          tableName: row.contentSnapshot.tableName ?? null,
+          notes: row.contentSnapshot.notes ?? null,
+          subtotal: toNumber(row.contentSnapshot.subtotal),
         discountAmount: toNumber(row.contentSnapshot.discountAmount),
         taxAmount: toNumber(row.contentSnapshot.taxAmount),
         serviceChargeAmount: toNumber(row.contentSnapshot.serviceChargeAmount),

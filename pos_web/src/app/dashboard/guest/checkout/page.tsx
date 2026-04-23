@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { clearGuestCart, createGuestOrder, getGuestCart } from '@/lib/guest';
 import type {
@@ -188,7 +188,7 @@ function OrderItemRow(props: { item: GuestCartItem }) {
   );
 }
 
-export default function GuestCheckoutPage() {
+function GuestCheckoutPageContent() {
   const searchParams = useSearchParams();
 
   const outletId = useMemo(
@@ -576,5 +576,13 @@ export default function GuestCheckoutPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function GuestCheckoutPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <GuestCheckoutPageContent />
+    </Suspense>
   );
 }

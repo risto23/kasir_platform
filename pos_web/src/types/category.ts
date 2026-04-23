@@ -7,6 +7,12 @@ export type Category = {
   code: string | null;
   name: string;
   description: string | null;
+  parentId?: string | null;
+  parent?: {
+    id: string;
+    name: string;
+  } | null;
+  childrenCount?: number;
   sortOrder?: number;
   status: CategoryStatus;
   createdAt?: string;
