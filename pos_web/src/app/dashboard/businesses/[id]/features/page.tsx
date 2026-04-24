@@ -142,14 +142,14 @@ export default function BusinessFeaturesPage() {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-violet-700">
             <FontAwesomeIcon icon={faSliders} className="h-3 w-3" />
-            Feature Flags
+            Pengaturan Fitur
           </div>
 
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
-            Manage Features
+            Kelola Fitur
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Atur fitur yang aktif untuk business ini pada fase 1.
+            Atur fitur yang aktif untuk business ini sesuai kebutuhan operasional.
           </p>
         </div>
 
@@ -187,7 +187,7 @@ export default function BusinessFeaturesPage() {
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Enabled Features</p>
+          <p className="text-sm font-medium text-slate-500">Fitur Aktif</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
             {enabledCount}
           </p>
@@ -280,7 +280,7 @@ export default function BusinessFeaturesPage() {
               >
                 <span className="inline-flex items-center gap-2">
                   <FontAwesomeIcon icon={faFloppyDisk} className="h-4 w-4" />
-                  {saving ? 'Menyimpan...' : 'Save Features'}
+                  {saving ? 'Menyimpan...' : 'Simpan Fitur'}
                 </span>
               </Button>
             </div>
@@ -320,7 +320,7 @@ export default function BusinessFeaturesPage() {
 
           <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-base font-semibold text-slate-900">
-              Catatan Fase 1
+              Informasi Fitur
             </p>
 
             <div className="mt-4 space-y-2">
@@ -328,7 +328,7 @@ export default function BusinessFeaturesPage() {
                 'Feature flags diatur per business.',
                 'Business type tetap tidak editable bebas.',
                 'Outlet tetap mengikuti business induknya.',
-                'Fitur yang aktif bisa dibatasi sesuai kebutuhan fase 1.',
+                'Fitur yang aktif bisa disesuaikan dengan kebutuhan business.',
               ].map((note) => (
                 <div
                   key={note}

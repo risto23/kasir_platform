@@ -108,27 +108,27 @@ function getDashboardVariant(user: CurrentUser | null) {
 function getKitchenSummaryCards(): DashboardCard[] {
   return [
     {
-      title: 'Kitchen Scope',
+      title: 'Area Kitchen',
       value: 'Restaurant',
       description:
         'Dashboard ini difokuskan untuk operasional kitchen per outlet.',
       icon: faUtensils,
     },
     {
-      title: 'Queue Source',
+      title: 'Sumber Antrian',
       value: 'Order',
       description: 'Antrian kitchen diambil dari order aktif restaurant.',
       icon: faReceipt,
     },
     {
-      title: 'Item Flow',
+      title: 'Alur Item',
       value: '3 Step',
       description: 'PENDING → PROCESSING → DONE → SERVED.',
       icon: faArrowTrendUp,
     },
     {
-      title: 'Outlet Scope',
-      value: 'Scoped',
+      title: 'Akses Outlet',
+      value: 'Terbatas',
       description:
         'Kitchen hanya melihat outlet yang memang menjadi hak aksesnya.',
       icon: faLocationDot,
@@ -177,20 +177,20 @@ function getKitchenQuickActions(isSuperAdmin: boolean): DashboardAction[] {
 
 function getKitchenArchitectureNotes(isSuperAdmin: boolean): string[] {
   const notes = [
-    'kitchen hanya untuk business type restaurant',
-    'antrian kitchen berbasis order aktif per outlet',
-    'status item kitchen mengikuti flow transaksi yang sudah ada',
-    'backend tetap menjadi penjaga utama permission dan outlet scope',
-    'kitchen tidak diarahkan ke payment atau master data admin',
-    'super admin tetap bisa masuk kitchen selama business context aktif adalah restaurant',
+    'Area kitchen tersedia khusus untuk business restaurant.',
+    'Antrian kitchen menampilkan order aktif dari outlet yang dipilih.',
+    'Status item membantu tim memantau pesanan dari proses hingga tersaji.',
+    'Akses tetap mengikuti outlet yang ditugaskan ke pengguna.',
+    'Fokus halaman ini ada di proses pesanan, bukan pembayaran.',
+    'Super admin juga bisa membuka area kitchen saat business restaurant aktif.',
   ];
 
   if (isSuperAdmin) {
     notes.unshift(
-      'login saat ini adalah super admin dengan business context restaurant',
+      'Business context restaurant sedang aktif untuk akun super admin.',
     );
   } else {
-    notes.unshift('login saat ini adalah role kitchen yang outlet-scoped');
+    notes.unshift('Tampilan ini menyesuaikan akses role kitchen yang sedang aktif.');
   }
 
   return notes;
@@ -212,14 +212,14 @@ function getDefaultSummaryCards(isSuperAdmin: boolean): DashboardCard[] {
         icon: faLocationDot,
       },
       {
-        title: 'Business Active',
+        title: 'Business Aktif',
         value: '10',
         description: 'Business yang saat ini berstatus aktif.',
         icon: faArrowTrendUp,
       },
       {
         title: 'Promo Module',
-        value: 'Fase 3',
+        value: 'Ready',
         description:
           'Promo kategori, produk/menu, nama, brand, dan satuan.',
         icon: faPercent,
@@ -229,14 +229,14 @@ function getDefaultSummaryCards(isSuperAdmin: boolean): DashboardCard[] {
 
   return [
     {
-      title: 'Business Scope',
-      value: 'Active',
+      title: 'Business Aktif',
+      value: 'Aktif',
       description: 'Dashboard ini mengikuti business context yang sedang aktif.',
       icon: faShop,
     },
     {
-      title: 'Outlet Scope',
-      value: 'Scoped',
+      title: 'Akses Outlet',
+      value: 'Sesuai Role',
       description: 'Akses outlet tetap mengikuti role dan assignment user.',
       icon: faLocationDot,
     },
@@ -362,35 +362,32 @@ function getDefaultArchitectureNotes(params: {
 
   if (isSuperAdmin) {
     return [
-      '1 business hanya punya 1 business type',
-      '1 business bisa punya banyak outlet',
-      'outlet mengikuti business induknya',
-      'retail dan restaurant tetap dibedakan',
-      'promo support category, product/menu, nama, brand, dan unit',
-      'outlet table hanya untuk restaurant',
-      'status efektif promo: ACTIVE / INACTIVE / SCHEDULED / EXPIRED',
-      'tanpa hard delete',
+      'Setiap business memiliki tipe usaha yang jelas.',
+      'Satu business dapat memiliki beberapa outlet.',
+      'Outlet tetap dikelola di bawah business induknya.',
+      'Retail dan restaurant memiliki alur kerja yang berbeda.',
+      'Promo bisa diterapkan ke kategori, produk, nama, brand, dan satuan.',
+      'Pengelolaan meja tersedia untuk business restaurant.',
+      'Status promo membantu membedakan promo aktif, terjadwal, dan selesai.',
     ];
   }
 
   if (activeMembership?.businessType === 'RESTAURANT') {
     return [
-      'dashboard business user tetap mengikuti role, permission, dan outlet scope',
-      'restaurant operational tetap dipisahkan dari retail',
-      'kitchen, monitor meja, dan QR guest hanya muncul untuk context restaurant',
-      'entry point QR diarahkan dari dashboard dan master meja',
-      'guest flow tetap public tetapi tidak dibuka untuk retail',
-      'tanpa hard delete',
+      'Menu dan fitur mengikuti role yang sedang aktif.',
+      'Area operasional restaurant tetap dipisahkan dari retail.',
+      'Kitchen, monitor meja, dan QR meja tersedia saat context restaurant aktif.',
+      'Akses outlet tetap mengikuti assignment pengguna.',
+      'Guest flow hanya ditampilkan untuk business restaurant.',
     ];
   }
 
   return [
-    'dashboard business user tidak perlu tampil seperti dashboard platform',
-    'akses menu tetap mengikuti permission dan role aktif',
-    'outlet scope tetap dijaga oleh assignment outlet user',
-    'flow POS tetap fokus ke order, payment, dan receipt',
-    'master data hanya muncul di menu jika memang user punya haknya',
-    'tanpa hard delete',
+    'Dashboard menyesuaikan business yang sedang aktif.',
+    'Akses menu mengikuti role dan izin yang dimiliki pengguna.',
+    'Akses outlet tetap mengikuti outlet yang ditugaskan.',
+    'POS tetap fokus pada order, pembayaran, dan struk.',
+    'Master data hanya muncul bila pengguna memiliki akses.',
   ];
 }
 
@@ -447,8 +444,8 @@ export default function DashboardPage() {
     : isSuperAdmin
       ? 'Dashboard ini difokuskan untuk pengelolaan master data dan operasional POS secara sederhana, rapi, dan konsisten, termasuk kategori, produk/menu, pricing outlet, promo, dan meja outlet restaurant.'
       : activeMembership?.businessType === 'RESTAURANT'
-        ? 'Dashboard ini difokuskan untuk area kerja restaurant yang sedang aktif. Entry point kitchen, monitor meja, dan QR meja dirapikan agar bisa dipakai dari UI normal tanpa URL manual.'
-        : 'Dashboard ini difokuskan untuk area kerja business yang sedang aktif. Menu, outlet, dan fitur yang terlihat tetap mengikuti role, permission, dan scope outlet user.';
+        ? 'Dashboard ini difokuskan untuk area kerja restaurant yang sedang aktif. Kitchen, monitor meja, dan QR meja tersedia dalam alur kerja yang lebih rapi dan mudah diakses.'
+        : 'Dashboard ini difokuskan untuk area kerja business yang sedang aktif. Menu, outlet, dan fitur yang terlihat tetap mengikuti role, permission, dan akses outlet user.';
 
   const businessTypeLabel = activeMembership?.businessType ?? 'UNKNOWN';
 
@@ -491,7 +488,7 @@ export default function DashboardPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
-                Business Type
+                Jenis Business
               </p>
               <p className="mt-2 text-base font-semibold text-white">
                 {businessTypeLabel}
@@ -500,7 +497,7 @@ export default function DashboardPage() {
 
             <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
-                Current Scope
+                Area Kerja
               </p>
               <p className="mt-2 text-base font-semibold text-white">
                 {currentScopeLabel}
@@ -509,7 +506,7 @@ export default function DashboardPage() {
 
             <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
-                Current Role
+                Role Aktif
               </p>
               <p className="mt-2 text-base font-semibold text-white">
                 {roleLabel}
@@ -518,7 +515,7 @@ export default function DashboardPage() {
 
             <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
-                Access Model
+                Akses
               </p>
               <p className="mt-2 text-base font-semibold text-white">
                 {accessModelLabel}
@@ -605,17 +602,17 @@ export default function DashboardPage() {
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <p data-testid="dashboard-quick-actions" className="text-sm font-semibold text-slate-900">
             {isKitchenLikeDashboard
-              ? 'Ringkasan Operasional Kitchen'
+              ? 'Ringkasan Kitchen'
               : isSuperAdmin
-                ? 'Ringkasan Arsitektur Dashboard'
-                : 'Ringkasan Akses Dashboard'}
+                ? 'Ringkasan Dashboard'
+                : 'Informasi Akses'}
           </p>
           <p className="mt-1 text-sm text-slate-500">
             {isKitchenLikeDashboard
-              ? 'Batasan akses dan flow kitchen tetap dijaga agar konsisten.'
+              ? 'Informasi singkat untuk membantu operasional kitchen tetap lancar.'
               : isSuperAdmin
-                ? 'Batasan utama tetap dijaga agar implementasi tetap konsisten.'
-                : 'Dashboard business tetap dijaga agar tidak melebar seperti dashboard platform.'}
+                ? 'Gambaran singkat area utama yang tersedia di dashboard.'
+                : 'Ringkasan akses dan area kerja yang tersedia untuk akun ini.'}
           </p>
 
           <div className="mt-5 space-y-3">

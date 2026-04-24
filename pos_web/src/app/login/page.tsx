@@ -32,8 +32,8 @@ export default function LoginPage() {
                   </h2>
 
                   <p className="text-sm leading-7 text-slate-200">
-                    Dirancang untuk kebutuhan dasar fase 1: business management,
-                    outlet management, dan kontrol akses platform secara terpusat.
+                    Dirancang untuk pengelolaan business, outlet, dan kontrol
+                    akses platform secara terpusat.
                   </p>
                 </div>
               </div>
@@ -59,7 +59,7 @@ export default function LoginPage() {
                       Fokus
                     </p>
                     <p className="mt-2 text-sm font-medium text-white">
-                      Fase 1
+                      Operasional Inti
                     </p>
                     <p className="mt-1 text-xs leading-6 text-slate-200">
                       Business & outlet management

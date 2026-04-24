@@ -160,7 +160,7 @@ export default function BusinessListPage() {
               Daftar Business
             </h2>
             <p className="text-sm text-slate-500">
-              List business yang terdaftar pada POS Platform fase 1.
+              Lihat business yang sudah terdaftar di platform.
             </p>
           </div>
 
@@ -395,10 +395,10 @@ export default function BusinessListPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
-              Catatan Fase 1
+              Informasi Penting
             </h2>
             <p className="text-sm text-slate-500">
-              Aturan inti business tetap dijaga agar implementasi tetap konsisten.
+              Ringkasan aturan utama untuk pengelolaan business.
             </p>
           </div>
 
