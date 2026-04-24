@@ -219,7 +219,7 @@ export default function OutletListPage() {
                 Daftar Outlet
               </h2>
               <p className="text-sm text-slate-500">
-                Data outlet untuk business aktif pada Fase 2.
+                Data outlet untuk business yang sedang aktif.
               </p>
             </div>
 
@@ -540,7 +540,7 @@ export default function OutletListPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
-              Catatan Fase 2
+              Informasi Outlet
             </h2>
             <p className="text-sm text-slate-500">
               Outlet sekarang dikelola dalam business scope aktif.

@@ -78,11 +78,11 @@ export default function BusinessTypesPage() {
         </div>
 
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
-          Master Business Types
+          Jenis Business
         </h1>
         <p className="mt-1 text-sm leading-6 text-slate-500">
-          Reference business type untuk fase 1. Tipe business dipilih saat create
-          dan tidak editable bebas setelah business dibuat.
+          Pilih jenis business yang paling sesuai dengan operasional usaha.
+          Tipe business ditentukan saat pembuatan business.
         </p>
       </section>
 
@@ -147,14 +147,14 @@ export default function BusinessTypesPage() {
 
       <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
         <h2 className="text-base font-semibold text-slate-900">
-          Catatan Implementasi
+          Informasi Penting
         </h2>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {[
-            'Business type tetap master reference pada fase 1.',
-            'Tidak ada perubahan bebas business type setelah business dibuat.',
-            'Outlet mengikuti business type business induknya.',
-            'Halaman ini bersifat reference, bukan CRUD business type.',
+            'Business type dipilih saat business dibuat.',
+            'Jenis business tidak bisa diubah bebas setelah tersimpan.',
+            'Outlet mengikuti jenis business induknya.',
+            'Halaman ini membantu memilih tipe business yang tepat.',
           ].map((note) => (
             <div
               key={note}

@@ -120,7 +120,7 @@ export default function CreateBusinessPage() {
             Tambah Business
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Isi data business baru untuk platform POS fase 1.
+            Isi data business baru untuk mulai mengelola operasionalnya di platform.
           </p>
         </div>
 
@@ -268,7 +268,7 @@ export default function CreateBusinessPage() {
                   Aturan Business Type
                 </p>
                 <p className="text-xs text-slate-500">
-                  Tetap sesuai keputusan fase 1
+                  Dipilih saat business dibuat
                 </p>
               </div>
             </div>

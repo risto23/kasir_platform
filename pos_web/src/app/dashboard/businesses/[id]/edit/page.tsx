@@ -152,7 +152,7 @@ export default function EditBusinessPage() {
             Edit Business
           </h1>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Perbarui informasi business tanpa mengubah fondasi utama fase 1.
+            Perbarui informasi business sesuai kebutuhan operasional.
           </p>
         </div>
 
@@ -318,7 +318,7 @@ export default function EditBusinessPage() {
                 'Name dan slug boleh diperbarui.',
                 'Status boleh diubah ACTIVE / INACTIVE.',
                 'Business type tetap dipertahankan.',
-                'Tidak ada hard delete pada fase 1.',
+                'Pastikan perubahan data sesuai kondisi business saat ini.',
               ].map((note) => (
                 <div
                   key={note}

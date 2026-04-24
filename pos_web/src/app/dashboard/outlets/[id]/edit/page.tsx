@@ -454,7 +454,7 @@ export default function EditOutletPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Scope Fase 2
+                  Fokus Outlet
                 </p>
                 <p className="text-xs text-slate-500">
                   Tetap sederhana dan aman
