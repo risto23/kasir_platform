@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { API_BASE_URL } from '@/lib/api-config';
 
 function shouldAttachBusinessHeader(url: string): boolean {
   return (
@@ -16,7 +17,7 @@ function shouldAttachBusinessHeader(url: string): boolean {
 }
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
 

@@ -1,3 +1,5 @@
+import { API_ORIGIN } from '@/lib/api-config';
+
 export function resolveImageUrl(imageUrl?: string | null) {
   if (!imageUrl) {
     return '';
@@ -11,14 +13,9 @@ export function resolveImageUrl(imageUrl?: string | null) {
     return imageUrl;
   }
 
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
-
-  const baseUrl = apiBaseUrl.replace(/\/api\/?$/, '');
-
   if (imageUrl.startsWith('/')) {
-    return `${baseUrl}${imageUrl}`;
+    return `${API_ORIGIN}${imageUrl}`;
   }
 
-  return `${baseUrl}/${imageUrl}`;
+  return `${API_ORIGIN}/${imageUrl}`;
 }

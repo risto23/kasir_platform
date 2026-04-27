@@ -6,9 +6,7 @@ import type {
   GuestCartStorage,
   GuestMenuResponse,
 } from '@/types/guest';
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:4000/api';
+import { API_BASE_URL } from '@/lib/api-config';
 
 const GUEST_CART_STORAGE_KEY = 'pos_guest_cart_v1';
 
