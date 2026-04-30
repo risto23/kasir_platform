@@ -35,3 +35,12 @@ export const itemsReportQuerySchema = z.object({
   start: ymdSchema,
   end: ymdSchema,
 });
+
+export const supplierPayablesReportQuerySchema = z.object({
+  scope: scopeSchema.optional(),
+  outletId: z.string().cuid().optional(),
+  supplierId: z.string().cuid().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  perPage: z.coerce.number().int().min(1).max(200).optional(),
+  asOfDate: ymdSchema,
+});

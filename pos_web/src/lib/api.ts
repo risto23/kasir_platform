@@ -5,6 +5,12 @@ function shouldAttachBusinessHeader(url: string): boolean {
   return (
     url.startsWith('/business/') ||
     url.startsWith('/products') ||
+    url.startsWith('/suppliers') ||
+    url.startsWith('/purchase-orders') ||
+    url.startsWith('/goods-receipts') ||
+    url.startsWith('/purchase-returns') ||
+    url.startsWith('/purchase-price-history') ||
+    url.startsWith('/supplier-invoices') ||
     url.startsWith('/promos') ||
     url.startsWith('/orders') ||
     url.startsWith('/payments') ||

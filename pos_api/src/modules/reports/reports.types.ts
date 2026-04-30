@@ -45,3 +45,47 @@ export type ItemsReportResponse = {
   items: ItemsReportRow[];
   meta: { page: number; perPage: number; total: number; totalPages: number };
 };
+
+export type SupplierPayableAgingBucket = {
+  key: 'CURRENT' | 'DUE_1_30' | 'DUE_31_60' | 'DUE_61_90' | 'DUE_OVER_90';
+  label: string;
+  invoiceCount: number;
+  outstandingAmount: number;
+};
+
+export type SupplierPayableReportItem = {
+  id: string;
+  invoiceNumber: string;
+  supplierId: string;
+  supplierName: string;
+  supplierCode: string;
+  outletId: string;
+  outletName: string;
+  goodsReceiptId: string | null;
+  goodsReceiptNumber: string | null;
+  purchaseOrderId: string | null;
+  purchaseOrderNumber: string | null;
+  invoiceDate: string;
+  dueDate: string | null;
+  outstandingBaseDate: string;
+  daysOverdue: number;
+  grandTotal: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  status: string;
+};
+
+export type SupplierPayablesReportResponse = {
+  scope: 'business' | 'outlet';
+  outletId: string | null;
+  asOfDate: string;
+  summary: {
+    openInvoiceCount: number;
+    totalOutstanding: number;
+    overdueInvoiceCount: number;
+    overdueOutstanding: number;
+  };
+  aging: SupplierPayableAgingBucket[];
+  items: SupplierPayableReportItem[];
+  meta: { page: number; perPage: number; total: number; totalPages: number };
+};

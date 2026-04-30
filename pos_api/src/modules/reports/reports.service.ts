@@ -1,6 +1,12 @@
-import { PaymentStatus, Prisma } from '@prisma/client';
+import { PaymentStatus, Prisma, SupplierInvoiceStatus } from '@prisma/client';
 import { prisma } from '../../config/prisma';
-import type { ItemsReportResponse, OrdersReportResponse, SalesSummaryBucket, SalesSummaryResponse } from './reports.types';
+import type {
+  ItemsReportResponse,
+  OrdersReportResponse,
+  SalesSummaryBucket,
+  SalesSummaryResponse,
+  SupplierPayablesReportResponse,
+} from './reports.types';
 
 function toDate(value: string): Date { return new Date(value + 'T00:00:00.000Z'); }
 function ymd(date: Date): string { return date.toISOString().slice(0,10); }
@@ -16,6 +22,10 @@ function weekKey(date: Date): string {
 }
 
 function labelOf(groupBy: 'day'|'week'|'month', key: string): string { return key; }
+
+function endOfDay(value: string): Date {
+  return new Date(`${value}T23:59:59.999Z`);
+}
 
 export async function getSalesSummaryService(params: {
   businessId: string;
@@ -144,5 +154,190 @@ export async function getItemsReportService(params: {
   const sliced = all.slice(start, start + params.perPage);
 
   return { items: sliced, meta: { page: params.page, perPage: params.perPage, total, totalPages: Math.max(1, Math.ceil(total/params.perPage)) } };
+}
+
+export async function getSupplierPayablesReportService(params: {
+  businessId: string;
+  scope: 'business' | 'outlet';
+  outletId?: string | null;
+  supplierId?: string | null;
+  asOfDate: string;
+  page: number;
+  perPage: number;
+}): Promise<SupplierPayablesReportResponse> {
+  const asOf = endOfDay(params.asOfDate);
+
+  const where: Prisma.SupplierInvoiceWhereInput = {
+    businessId: params.businessId,
+    ...(params.scope === 'outlet' && params.outletId ? { outletId: params.outletId } : {}),
+    ...(params.supplierId ? { supplierId: params.supplierId } : {}),
+    status: {
+      in: [SupplierInvoiceStatus.UNPAID, SupplierInvoiceStatus.PARTIALLY_PAID],
+    },
+    outstandingAmount: {
+      gt: new Prisma.Decimal(0),
+    },
+    invoiceDate: {
+      lte: asOf,
+    },
+  };
+
+  const [total, rows, allOpenInvoices] = await Promise.all([
+    prisma.supplierInvoice.count({ where }),
+    prisma.supplierInvoice.findMany({
+      where,
+      include: {
+        supplier: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+        outlet: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        goodsReceipt: {
+          select: {
+            id: true,
+            receiptNumber: true,
+          },
+        },
+        purchaseOrder: {
+          select: {
+            id: true,
+            poNumber: true,
+          },
+        },
+      },
+      orderBy: [
+        {
+          dueDate: 'asc',
+        },
+        {
+          invoiceDate: 'asc',
+        },
+      ],
+      skip: (params.page - 1) * params.perPage,
+      take: params.perPage,
+    }),
+    prisma.supplierInvoice.findMany({
+      where,
+      select: {
+        id: true,
+        invoiceDate: true,
+        dueDate: true,
+        outstandingAmount: true,
+      },
+    }),
+  ]);
+
+  const agingMap = new Map<
+    'CURRENT' | 'DUE_1_30' | 'DUE_31_60' | 'DUE_61_90' | 'DUE_OVER_90',
+    { label: string; invoiceCount: number; outstandingAmount: number }
+  >([
+    ['CURRENT', { label: 'Belum Jatuh Tempo', invoiceCount: 0, outstandingAmount: 0 }],
+    ['DUE_1_30', { label: '1-30 Hari', invoiceCount: 0, outstandingAmount: 0 }],
+    ['DUE_31_60', { label: '31-60 Hari', invoiceCount: 0, outstandingAmount: 0 }],
+    ['DUE_61_90', { label: '61-90 Hari', invoiceCount: 0, outstandingAmount: 0 }],
+    ['DUE_OVER_90', { label: '> 90 Hari', invoiceCount: 0, outstandingAmount: 0 }],
+  ]);
+
+  let totalOutstanding = 0;
+  let overdueInvoiceCount = 0;
+  let overdueOutstanding = 0;
+
+  for (const invoice of allOpenInvoices) {
+    const baseDate = invoice.dueDate ?? invoice.invoiceDate;
+    const diffTime = asOf.getTime() - baseDate.getTime();
+    const daysOverdue = Math.floor(diffTime / 86400000);
+    const amount = Number(invoice.outstandingAmount);
+
+    totalOutstanding += amount;
+
+    let bucketKey:
+      | 'CURRENT'
+      | 'DUE_1_30'
+      | 'DUE_31_60'
+      | 'DUE_61_90'
+      | 'DUE_OVER_90';
+
+    if (daysOverdue <= 0) {
+      bucketKey = 'CURRENT';
+    } else if (daysOverdue <= 30) {
+      bucketKey = 'DUE_1_30';
+    } else if (daysOverdue <= 60) {
+      bucketKey = 'DUE_31_60';
+    } else if (daysOverdue <= 90) {
+      bucketKey = 'DUE_61_90';
+    } else {
+      bucketKey = 'DUE_OVER_90';
+    }
+
+    const bucket = agingMap.get(bucketKey);
+    if (bucket) {
+      bucket.invoiceCount += 1;
+      bucket.outstandingAmount += amount;
+    }
+
+    if (daysOverdue > 0) {
+      overdueInvoiceCount += 1;
+      overdueOutstanding += amount;
+    }
+  }
+
+  return {
+    scope: params.scope,
+    outletId: params.scope === 'outlet' ? params.outletId ?? null : null,
+    asOfDate: params.asOfDate,
+    summary: {
+      openInvoiceCount: total,
+      totalOutstanding,
+      overdueInvoiceCount,
+      overdueOutstanding,
+    },
+    aging: Array.from(agingMap.entries()).map(([key, bucket]) => ({
+      key,
+      label: bucket.label,
+      invoiceCount: bucket.invoiceCount,
+      outstandingAmount: bucket.outstandingAmount,
+    })),
+    items: rows.map((invoice) => {
+      const baseDate = invoice.dueDate ?? invoice.invoiceDate;
+      const diffTime = asOf.getTime() - baseDate.getTime();
+      const daysOverdue = Math.floor(diffTime / 86400000);
+
+      return {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        supplierId: invoice.supplierId,
+        supplierName: invoice.supplier.name,
+        supplierCode: invoice.supplier.code,
+        outletId: invoice.outletId,
+        outletName: invoice.outlet.name,
+        goodsReceiptId: invoice.goodsReceiptId,
+        goodsReceiptNumber: invoice.goodsReceipt?.receiptNumber ?? null,
+        purchaseOrderId: invoice.purchaseOrderId,
+        purchaseOrderNumber: invoice.purchaseOrder?.poNumber ?? null,
+        invoiceDate: invoice.invoiceDate.toISOString(),
+        dueDate: invoice.dueDate ? invoice.dueDate.toISOString() : null,
+        outstandingBaseDate: baseDate.toISOString(),
+        daysOverdue,
+        grandTotal: Number(invoice.grandTotal),
+        paidAmount: Number(invoice.paidAmount),
+        outstandingAmount: Number(invoice.outstandingAmount),
+        status: invoice.status,
+      };
+    }),
+    meta: {
+      page: params.page,
+      perPage: params.perPage,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / params.perPage)),
+    },
+  };
 }
 

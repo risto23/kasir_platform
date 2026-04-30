@@ -1,7 +1,17 @@
 import type { Request, Response } from 'express';
 import { errorResponse, successResponse } from '../../utils/api-response';
-import { salesSummaryQuerySchema, ordersReportQuerySchema, itemsReportQuerySchema } from './reports.validation';
-import { getItemsReportService, getOrdersReportService, getSalesSummaryService } from './reports.service';
+import {
+  salesSummaryQuerySchema,
+  ordersReportQuerySchema,
+  itemsReportQuerySchema,
+  supplierPayablesReportQuerySchema,
+} from './reports.validation';
+import {
+  getItemsReportService,
+  getOrdersReportService,
+  getSalesSummaryService,
+  getSupplierPayablesReportService,
+} from './reports.service';
 
 function getBusinessId(req: Request) {
   const businessId = req.businessAccess?.businessId;
@@ -70,6 +80,29 @@ export async function getItemsReportController(req: Request, res: Response) {
     return res.json(successResponse('Items report generated', result));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Gagal memuat items report';
+    return res.status(400).json(errorResponse(message));
+  }
+}
+
+export async function getSupplierPayablesReportController(req: Request, res: Response) {
+  try {
+    const parsed = supplierPayablesReportQuerySchema.parse(req.query);
+    const businessId = getBusinessId(req);
+
+    const result = await getSupplierPayablesReportService({
+      businessId,
+      scope: parsed.scope ?? 'outlet',
+      outletId: parsed.outletId,
+      supplierId: parsed.supplierId,
+      asOfDate: parsed.asOfDate,
+      page: parsed.page ?? 1,
+      perPage: parsed.perPage ?? 50,
+    });
+
+    return res.json(successResponse('Supplier payables report generated', result));
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'Gagal memuat laporan payable supplier';
     return res.status(400).json(errorResponse(message));
   }
 }

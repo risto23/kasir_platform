@@ -12,7 +12,10 @@
         "db:seed": "tsx prisma/seed.ts",
         "test": "jest",
         "test:run": "jest --ci",
-        "test:watch": "jest --watch"
+        "test:watch": "jest --watch",
+        "test:e2e": "node tests/run-e2e.cjs",
+        "test:e2e:procurement": "node tests/run-procurement-e2e.cjs",
+        "test:run:full": "npm run test:run && npm run test:e2e"
     },
     "prisma": {
         "seed": "tsx prisma/seed.ts"
