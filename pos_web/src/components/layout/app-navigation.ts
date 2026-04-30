@@ -1,9 +1,11 @@
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faBoxOpen,
+  faBoxesStacked,
   faCashRegister,
   faChartLine,
   faClockRotateLeft,
+  faFileInvoice,
   faLayerGroup,
   faLocationDot,
   faPercent,
@@ -14,6 +16,7 @@ import {
   faShop,
   faSliders,
   faTableCellsLarge,
+  faTruck,
   faUsers,
   faUtensils,
 } from '@fortawesome/free-solid-svg-icons';
@@ -227,6 +230,12 @@ const menuGroups: AppNavGroup[] = [
     items: [
       { href: '/dashboard/categories', label: 'Categories', icon: faShapes, requiredPermissions: ['CATEGORY_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
       { href: '/dashboard/products', label: 'Products / Menu', icon: faBoxOpen, requiredPermissions: ['PRODUCT_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/suppliers', label: 'Suppliers', icon: faTruck, requiredPermissions: ['SUPPLIER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/purchase-orders', label: 'Purchase Orders', icon: faFileInvoice, requiredPermissions: ['SUPPLIER_VIEW'], businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/goods-receipts', label: 'Goods Receipts', icon: faBoxesStacked, requiredPermissions: ['SUPPLIER_VIEW'], businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/purchase-returns', label: 'Purchase Returns', icon: faTruck, requiredPermissions: ['SUPPLIER_VIEW'], businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/supplier-invoices', label: 'Supplier Invoices', icon: faReceipt, requiredPermissions: ['SUPPLIER_VIEW'], businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
+      { href: '/dashboard/purchase-price-history', label: 'Purchase Price History', icon: faChartLine, requiredPermissions: ['SUPPLIER_VIEW'], businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
       { href: '/dashboard/product-outlet-settings', label: 'Outlet Pricing & Availability', icon: faSliders, requiredPermissions: ['PRODUCT_OUTLET_VIEW'], businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
       { href: '/dashboard/outlet-tables', label: 'Outlet Tables', icon: faTableCellsLarge, requiredPermissions: ['OUTLET_TABLE_VIEW'], businessOnly: true, restaurantOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN'], requiredFeatureKeys: ['TABLE_MANAGEMENT'] },
       { href: '/dashboard/promos', label: 'Promos', icon: faPercent, requiredPermissions: ['PROMO_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
@@ -258,6 +267,7 @@ const menuGroups: AppNavGroup[] = [
       { href: '/dashboard/reports/summary', label: 'Sales Summary', icon: faChartLine, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
       { href: '/dashboard/reports/orders', label: 'Orders Report', icon: faReceipt, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
       { href: '/dashboard/reports/items', label: 'Items Report', icon: faBoxOpen, requiredPermissions: ['ORDER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
+      { href: '/dashboard/reports/supplier-payables', label: 'Supplier Payables', icon: faTruck, requiredPermissions: ['SUPPLIER_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN','INVENTORY'] },
       { href: '/dashboard/audit-logs', label: 'Audit Logs', icon: faShieldHalved, requiredPermissions: ['REPORT_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
     ],
   },

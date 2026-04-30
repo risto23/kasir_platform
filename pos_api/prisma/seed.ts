@@ -366,6 +366,30 @@ async function main() {
     'Mengubah availability dan harga product per outlet',
   );
 
+  const permissionSupplierView = await upsertBusinessPermission(
+    BusinessPermissionCode.SUPPLIER_VIEW,
+    'Supplier View',
+    'Melihat daftar supplier',
+  );
+
+  const permissionSupplierCreate = await upsertBusinessPermission(
+    BusinessPermissionCode.SUPPLIER_CREATE,
+    'Supplier Create',
+    'Membuat supplier',
+  );
+
+  const permissionSupplierUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.SUPPLIER_UPDATE,
+    'Supplier Update',
+    'Mengubah data supplier',
+  );
+
+  const permissionSupplierStatusUpdate = await upsertBusinessPermission(
+    BusinessPermissionCode.SUPPLIER_STATUS_UPDATE,
+    'Supplier Status Update',
+    'Mengubah status supplier',
+  );
+
   const permissionPromoView = await upsertBusinessPermission(
     BusinessPermissionCode.PROMO_VIEW,
     'Promo View',
@@ -512,6 +536,10 @@ async function main() {
     permissionProductStatusUpdate.id,
     permissionProductOutletView.id,
     permissionProductOutletUpdate.id,
+    permissionSupplierView.id,
+    permissionSupplierCreate.id,
+    permissionSupplierUpdate.id,
+    permissionSupplierStatusUpdate.id,
     permissionPromoView.id,
     permissionPromoCreate.id,
     permissionPromoUpdate.id,
@@ -559,6 +587,10 @@ async function main() {
     permissionProductStatusUpdate.id,
     permissionProductOutletView.id,
     permissionProductOutletUpdate.id,
+    permissionSupplierView.id,
+    permissionSupplierCreate.id,
+    permissionSupplierUpdate.id,
+    permissionSupplierStatusUpdate.id,
     permissionPromoView.id,
     permissionPromoCreate.id,
     permissionPromoUpdate.id,
@@ -610,6 +642,7 @@ async function main() {
     permissionCategoryView.id,
     permissionProductView.id,
     permissionProductOutletView.id,
+    permissionSupplierView.id,
     permissionPromoView.id,
     permissionInventoryView.id,
     permissionInventoryStockIn.id,

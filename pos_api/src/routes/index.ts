@@ -10,9 +10,17 @@ import businessReferenceRoutes from '../modules/business-reference/business-refe
 import businessUserRoutes from '../modules/business-users/business-user.routes';
 import productRoutes from '../modules/products/products.routes';
 import productRouter from '../modules/business-product/product.routes';
+import supplierRoutes from '../modules/suppliers/suppliers.routes';
+import supplierProductRoutes from '../modules/supplier-products/supplier-products.routes';
+import purchaseOrderRoutes from '../modules/purchase-orders/purchase-orders.routes';
+import goodsReceiptRoutes from '../modules/goods-receipts/goods-receipts.routes';
+import purchaseReturnRoutes from '../modules/purchase-returns/purchase-returns.routes';
+import purchasePriceHistoryRoutes from '../modules/purchase-price-history/purchase-price-history.routes';
+import supplierInvoiceRoutes from '../modules/supplier-invoices/supplier-invoices.routes';
 import promoRoutes from '../modules/promos/promo.routes';
 import orderRoutes from '../modules/orders/order.routes';
 import paymentRoutes from '../modules/payments/payment.routes';
+import inventoryRoutes from '../modules/inventory/inventory.routes';
 import kitchenRoutes from '../modules/kitchen/kitchen.routes';
 import receiptRoutes from '../modules/receipts/receipt.routes';
 
@@ -43,9 +51,17 @@ router.use('/business', businessFeatureFlagRoutes);
 router.use('/business-users', businessUserRoutes);
 router.use('/products', productRoutes);
 router.use('/business/products', productRouter);
+router.use('/suppliers', supplierRoutes);
+router.use('/suppliers', supplierProductRoutes);
+router.use('/purchase-orders', purchaseOrderRoutes);
+router.use('/goods-receipts', goodsReceiptRoutes);
+router.use('/purchase-returns', purchaseReturnRoutes);
+router.use('/purchase-price-history', purchasePriceHistoryRoutes);
+router.use('/supplier-invoices', supplierInvoiceRoutes);
 router.use('/promos', promoRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/inventory', inventoryRoutes);
 
 router.use('/reports', reportsRoutes);
 router.use('/audit-logs', auditLogsRoutes);
