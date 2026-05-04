@@ -1,15 +1,7 @@
-import { BusinessType, PaymentMethod } from '@prisma/client';
+import { BusinessType, PaymentMethod, PlanCode } from '@prisma/client';
 import { z } from 'zod';
 
-export const subscriptionPlanCodeSchema = z
-  .string()
-  .trim()
-  .min(2)
-  .max(50)
-  .regex(
-    /^[A-Z][A-Z0-9_]*$/,
-    'Target plan code harus uppercase dan hanya boleh berisi huruf, angka, atau underscore.',
-  );
+export const subscriptionPlanCodeSchema = z.nativeEnum(PlanCode);
 
 export const subscriptionPlanBusinessTypeSchema = z
   .nativeEnum(BusinessType)

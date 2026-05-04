@@ -5,6 +5,7 @@ import {
   SubscriptionScheduleChangeStatus,
   SubscriptionScheduleChangeType,
   SubscriptionStatus,
+  PlanCode,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import type {
@@ -32,7 +33,7 @@ const PLAN_DISPLAY_ORDER = [
 
 function mapPlanSummary(plan: {
   id: string;
-  code: string;
+  code: PlanCode;
   name: string;
   description: string | null;
   monthlyPrice: unknown;
@@ -64,7 +65,7 @@ function mapPlanSummary(plan: {
   };
 }
 
-function getPlanDisplayOrder(code: string) {
+function getPlanDisplayOrder(code: PlanCode) {
   const index = PLAN_DISPLAY_ORDER.indexOf(code);
 
   if (index >= 0) {
@@ -74,7 +75,7 @@ function getPlanDisplayOrder(code: string) {
   return PLAN_DISPLAY_ORDER.length + 100;
 }
 
-function getOrderedPlans<T extends { code: string; name: string }>(plans: T[]): T[] {
+function getOrderedPlans<T extends { code: PlanCode; name: string }>(plans: T[]): T[] {
   return plans.sort((left, right) => {
     const leftIndex = getPlanDisplayOrder(left.code);
     const rightIndex = getPlanDisplayOrder(right.code);
@@ -272,7 +273,7 @@ async function getBusinessTypeByBusinessId(businessId: string) {
 
 async function getTargetPlanByCode(params: {
   businessType: BusinessType;
-  targetPlanCode: string;
+  targetPlanCode: PlanCode;
 }) {
   const plan = await prisma.plan.findFirst({
     where: {
@@ -460,7 +461,7 @@ export async function getSubscriptionPlanById(
 }
 
 export async function createSubscriptionPlan(params: {
-  code: string;
+  code: PlanCode;
   name: string;
   description: string | null;
   monthlyPrice: number;
@@ -753,7 +754,7 @@ export async function getSubscriptionInvoiceDetailByBusiness(params: {
 
 async function getPlanChangePreviewInternal(params: {
   businessId: string;
-  targetPlanCode: string;
+  targetPlanCode: PlanCode;
 }): Promise<SubscriptionChangePreviewResponse> {
   const [subscription, usageResponse, businessType] = await Promise.all([
     getActiveSubscriptionByBusiness(params.businessId),
@@ -811,14 +812,14 @@ async function getPlanChangePreviewInternal(params: {
 
 export async function getSubscriptionChangePreviewByBusiness(params: {
   businessId: string;
-  targetPlanCode: string;
+  targetPlanCode: PlanCode;
 }): Promise<SubscriptionChangePreviewResponse> {
   return getPlanChangePreviewInternal(params);
 }
 
 export async function changeSubscriptionPlanByBusiness(params: {
   businessId: string;
-  targetPlanCode: string;
+  targetPlanCode: PlanCode;
 }): Promise<SubscriptionPlanChangeResultResponse> {
   const preview = await getPlanChangePreviewInternal({
     businessId: params.businessId,
@@ -1033,7 +1034,7 @@ export async function reactivateSubscriptionByBusiness(params: {
 
 export async function startSubscriptionByBusiness(params: {
   businessId: string;
-  targetPlanCode: string;
+  targetPlanCode: PlanCode;
 }): Promise<SubscriptionStartResponse> {
   const [activeSubscription, latestSubscription, businessType] = await Promise.all([
     getActiveSubscriptionByBusiness(params.businessId),

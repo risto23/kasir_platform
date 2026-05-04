@@ -79,13 +79,13 @@ function detachBrowserWindow() {
 async function loadApiModule() {
   vi.resetModules();
   requestUse.mockClear();
-  const module = await import('../../src/lib/api');
+  const apiModule = await import('../../src/lib/api');
   const interceptor = requestUse.mock.calls[0]?.[0] as
     | ((config: { url?: string; headers: Record<string, string> }) => { url?: string; headers: Record<string, string> })
     | undefined;
 
   return {
-    api: module.api,
+    api: apiModule.api,
     interceptor,
   };
 }
