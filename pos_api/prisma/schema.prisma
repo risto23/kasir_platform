@@ -242,6 +242,18 @@ model SubscriptionScheduleChange {
   @@map("subscription_schedule_changes")
 }
 
+model SubscriptionNotificationLog {
+  id               String   @id @default(cuid())
+  subscriptionId   String
+  notificationType String
+  periodEnd        DateTime
+  sentAt           DateTime @default(now())
+  recipientEmail   String
+
+  @@unique([subscriptionId, notificationType, periodEnd])
+  @@map("subscription_notification_logs")
+}
+
 model Outlet {
   id                     String                     @id @default(cuid())
   businessId             String
