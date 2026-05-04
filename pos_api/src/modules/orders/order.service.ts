@@ -11,6 +11,7 @@ import {
   PromoTargetType,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { enforceMonthlyTransactionLimit } from '../../middlewares/subscription-limit.middleware';
 import type {
   AddOrderItemInput,
   CreateOrderInput,
@@ -751,6 +752,12 @@ export async function createOrder(input: CreateOrderInput) {
       businessType: outlet.business.businessType,
       outletId: input.outletId,
       tableId: input.tableId,
+    });
+
+    await enforceMonthlyTransactionLimit({
+      reader: tx,
+      businessId: input.businessId,
+      blockedAction: 'CREATE_ORDER',
     });
 
     const orderNumber = await generateOrderNumber(tx);

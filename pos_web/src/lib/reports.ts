@@ -72,6 +72,23 @@ type OrdersReportResponse = {
   };
 };
 
+type ItemsReportItem = {
+  productId: string;
+  productName: string;
+  quantity: number;
+  revenue: number;
+};
+
+type ItemsReportResponse = {
+  items: ItemsReportItem[];
+  meta?: {
+    page: number;
+    perPage: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 type SalesSummaryResponse = {
   scope: 'business' | 'outlet';
   outletId?: string | null;
@@ -316,7 +333,7 @@ export async function fetchOrdersReport(params: OrdersParams) {
 
 export async function fetchItemsReport(params: ItemsParams) {
   const response = await api.get('/reports/items', { params });
-  return response.data?.data;
+  return response.data?.data as ItemsReportResponse;
 }
 
 export async function fetchOutletSales(
@@ -404,3 +421,11 @@ export async function exportBusinessSalesXlsx(params: ExportBusinessParams) {
 
   return createExcelBlob('Business Sales', timeseriesToSheetRows(report.timeseries));
 }
+
+export type {
+  ItemsReportItem,
+  ItemsReportResponse,
+  OrdersReportItem,
+  OrdersReportResponse,
+  SalesSummaryResponse,
+};

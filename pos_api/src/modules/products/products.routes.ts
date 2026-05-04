@@ -6,6 +6,7 @@ import { BusinessPermissionCode } from '@prisma/client';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { businessAccessMiddleware } from '../../middlewares/business-access.middleware';
 import { requireBusinessPermission } from '../../middlewares/require-business-permission.middleware';
+import { requireSubscriptionWriteAccess } from '../../middlewares/subscription-write-access.middleware';
 import { validateUploadedImage } from '../../middlewares/validate-uploaded-image.middleware';
 import {
   listProductsHandler,
@@ -83,6 +84,7 @@ router.get(
 router.post(
   '/',
   requireBusinessPermission(BusinessPermissionCode.PRODUCT_CREATE),
+  requireSubscriptionWriteAccess('CREATE_PRODUCT'),
   imageUpload.single('image'),
   validateUploadedImage,
   validateCreateProduct,
@@ -92,6 +94,7 @@ router.post(
 router.put(
   '/:id',
   requireBusinessPermission(BusinessPermissionCode.PRODUCT_UPDATE),
+  requireSubscriptionWriteAccess('UPDATE_PRODUCT'),
   imageUpload.single('image'),
   validateUploadedImage,
   validateProductParams,
@@ -102,6 +105,7 @@ router.put(
 router.patch(
   '/:id/status',
   requireBusinessPermission(BusinessPermissionCode.PRODUCT_STATUS_UPDATE),
+  requireSubscriptionWriteAccess('UPDATE_PRODUCT_STATUS'),
   validateProductParams,
   validateUpdateProductStatus,
   updateProductStatusHandler,

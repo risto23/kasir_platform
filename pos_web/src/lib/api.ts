@@ -16,6 +16,7 @@ function shouldAttachBusinessHeader(url: string): boolean {
     url.startsWith('/payments') ||
     url.startsWith('/receipts') ||
     url.startsWith('/inventory') ||
+    url.startsWith('/subscriptions') ||
     url.startsWith('/reports') ||
     url.startsWith('/audit-logs') ||
     url.startsWith('/settings')

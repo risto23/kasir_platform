@@ -176,11 +176,11 @@ export default function ReportsPage() {
     try {
       setBLoading(true);
       setBError(null);
-      setBSummary(null as any);
+      setBSummary(null);
       setBSeries([]);
-      setBOutletRows([] as any);
+      setBOutletRows([]);
       const data = await fetchBusinessSales({ outletIds: bOutletIds, dateFrom: bDateFrom, dateTo: bDateTo, groupBy: bGroupBy, timezone: bTimezone });
-      if ((data as any).timeseries) {
+      if ('timeseries' in data) {
         const r = data as BusinessSalesTimeseries;
         setBSummary(r.summary);
         setBSeries(r.timeseries);
@@ -235,6 +235,9 @@ export default function ReportsPage() {
                     <option key={o.id} value={o.id}>{o.name}</option>
                   ))}
                 </select>
+                {loadingOptions ? (
+                  <p className="mt-2 text-xs text-slate-500">Memuat outlet aktif...</p>
+                ) : null}
               </div>
               <div className="sm:col-span-4">
                 <label className="mb-1 block text-xs font-medium text-slate-600">Periode</label>
@@ -341,6 +344,9 @@ export default function ReportsPage() {
                     </label>
                   ))}
                 </div>
+                {loadingOptions ? (
+                  <p className="mt-2 text-xs text-slate-500">Memuat outlet aktif...</p>
+                ) : null}
               </div>
               <div className="sm:col-span-4">
                 <label className="mb-1 block text-xs font-medium text-slate-600">Periode</label>

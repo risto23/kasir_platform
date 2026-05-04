@@ -34,9 +34,15 @@ function superAdminUser(): CurrentUser {
 
 async function mockMe(page: Page) {
   await page.route('**/api/auth/me', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: superAdminUser() }) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: superAdminUser() }),
+    });
   });
-}async function seedDashboardContext(page: Page) {
+}
+
+async function seedDashboardContext(page: Page) {
   await page.addInitScript((user) => {
     window.localStorage.setItem('pos_current_user', JSON.stringify(user));
     window.localStorage.setItem('activeBusinessId', 'b-1');
@@ -46,19 +52,23 @@ async function mockMe(page: Page) {
 test('dashboard shows quick actions for super admin restaurant', async ({ page }) => {
   await seedDashboardContext(page);
   await mockMe(page);
-  await page.goto('/dashboard');
-  await page.waitForLoadState('domcontentloaded');
+  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
 
-  await expect(page.getByTestId('dashboard-quick-actions').first()).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole('link', { name: 'Buka Kitchen Display' })).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole('link', { name: 'Monitor Meja' }).first()).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole('link', { name: 'QR Meja' }).first()).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole('link', { name: 'Lihat Meja Outlet' }).first()).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('dashboard-quick-actions').first()).toBeVisible({
+    timeout: 20000,
+  });
+  await expect(page.getByRole('link', { name: 'Buka Kitchen Display' })).toBeVisible({
+    timeout: 20000,
+  });
+  await expect(page.getByRole('link', { name: 'Monitor Meja' }).first()).toBeVisible({
+    timeout: 20000,
+  });
+  await expect(page.getByRole('link', { name: 'QR Meja' }).first()).toBeVisible({
+    timeout: 20000,
+  });
+  await expect(
+    page.getByRole('link', { name: 'Lihat Meja Outlet' }).first(),
+  ).toBeVisible({
+    timeout: 20000,
+  });
 });
-
-
-
-
-
-
-

@@ -13,10 +13,78 @@ import {
   PromoOutletScope,
   PromoStatus,
   PromoTargetType,
+  SubscriptionStatus,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+type SeedPlanInput = {
+  code: string;
+  name: string;
+  description: string;
+  monthlyPrice: number;
+  businessType: BusinessType | null;
+  maxOutlets: number | null;
+  maxUsers: number | null;
+  maxProducts: number | null;
+  maxMonthlyTransactions: number | null;
+  isCustomPricing?: boolean;
+};
+
+function getCurrentMonthWindow() {
+  const now = new Date();
+  const periodStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0),
+  );
+  const periodEnd = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+  );
+  const yearMonth = `${periodStart.getUTCFullYear()}-${String(
+    periodStart.getUTCMonth() + 1,
+  ).padStart(2, '0')}`;
+
+  return {
+    periodStart,
+    periodEnd,
+    yearMonth,
+  };
+}
+
+async function upsertSubscriptionPlan(input: SeedPlanInput) {
+  return prisma.plan.upsert({
+    where: {
+      code: input.code,
+    },
+    update: {
+      name: input.name,
+      description: input.description,
+      monthlyPrice: input.monthlyPrice,
+      currencyCode: 'IDR',
+      businessType: input.businessType,
+      maxOutlets: input.maxOutlets,
+      maxUsers: input.maxUsers,
+      maxProducts: input.maxProducts,
+      maxMonthlyTransactions: input.maxMonthlyTransactions,
+      isActive: true,
+      isCustomPricing: input.isCustomPricing ?? false,
+    },
+    create: {
+      code: input.code,
+      name: input.name,
+      description: input.description,
+      monthlyPrice: input.monthlyPrice,
+      currencyCode: 'IDR',
+      businessType: input.businessType,
+      maxOutlets: input.maxOutlets,
+      maxUsers: input.maxUsers,
+      maxProducts: input.maxProducts,
+      maxMonthlyTransactions: input.maxMonthlyTransactions,
+      isActive: true,
+      isCustomPricing: input.isCustomPricing ?? false,
+    },
+  });
+}
 
 async function upsertBusinessPermission(
   code: BusinessPermissionCode,
@@ -822,6 +890,167 @@ async function main() {
       ownerUserId: restaurantOwnerUser.id,
     },
   });
+
+  const starterPlan = await upsertSubscriptionPlan({
+    code: 'STARTER',
+    name: 'Starter',
+    description: 'Paket entry level untuk bisnis kecil dengan 1 outlet.',
+    monthlyPrice: 149000,
+    businessType: null,
+    maxOutlets: 1,
+    maxUsers: 3,
+    maxProducts: 100,
+    maxMonthlyTransactions: 1000,
+  });
+
+  const basicPlan = await upsertSubscriptionPlan({
+    code: 'BASIC',
+    name: 'Basic',
+    description: 'Paket dasar untuk bisnis kecil sampai menengah.',
+    monthlyPrice: 299000,
+    businessType: null,
+    maxOutlets: 2,
+    maxUsers: 8,
+    maxProducts: 500,
+    maxMonthlyTransactions: 5000,
+  });
+
+  const restaurantPlan = await upsertSubscriptionPlan({
+    code: 'RESTAURANT',
+    name: 'Restaurant',
+    description: 'Paket khusus restaurant dengan kebutuhan meja dan kitchen display.',
+    monthlyPrice: 499000,
+    businessType: BusinessType.RESTAURANT,
+    maxOutlets: 3,
+    maxUsers: 12,
+    maxProducts: 750,
+    maxMonthlyTransactions: 7000,
+  });
+
+  const retailProPlan = await upsertSubscriptionPlan({
+    code: 'RETAIL_PRO',
+    name: 'Retail Pro',
+    description: 'Paket khusus retail dengan katalog produk dan volume transaksi lebih besar.',
+    monthlyPrice: 499000,
+    businessType: BusinessType.RETAIL,
+    maxOutlets: 3,
+    maxUsers: 12,
+    maxProducts: 5000,
+    maxMonthlyTransactions: 12000,
+  });
+
+  const businessPlan = await upsertSubscriptionPlan({
+    code: 'BUSINESS',
+    name: 'Business',
+    description: 'Paket multi-outlet untuk bisnis menengah.',
+    monthlyPrice: 1299000,
+    businessType: null,
+    maxOutlets: 10,
+    maxUsers: 30,
+    maxProducts: 20000,
+    maxMonthlyTransactions: 50000,
+  });
+
+  const enterprisePlan = await upsertSubscriptionPlan({
+    code: 'ENTERPRISE',
+    name: 'Enterprise',
+    description: 'Paket custom pricing untuk volume tinggi dan kebutuhan khusus.',
+    monthlyPrice: 0,
+    businessType: null,
+    maxOutlets: null,
+    maxUsers: null,
+    maxProducts: null,
+    maxMonthlyTransactions: null,
+    isCustomPricing: true,
+  });
+
+  const currentBillingWindow = getCurrentMonthWindow();
+
+  const existingRetailSubscription = await prisma.businessSubscription.findFirst({
+    where: {
+      businessId: retailBusiness.id,
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const retailSubscription = existingRetailSubscription
+    ? await prisma.businessSubscription.update({
+        where: {
+          id: existingRetailSubscription.id,
+        },
+        data: {
+          planId: basicPlan.id,
+          status: SubscriptionStatus.ACTIVE,
+          startedAt: currentBillingWindow.periodStart,
+          currentPeriodStart: currentBillingWindow.periodStart,
+          currentPeriodEnd: currentBillingWindow.periodEnd,
+          trialEndsAt: null,
+          graceEndsAt: null,
+          cancelAtPeriodEnd: false,
+          cancelledAt: null,
+          suspendedAt: null,
+          notes: 'Seeded default subscription for demo retail business.',
+        },
+      })
+    : await prisma.businessSubscription.create({
+        data: {
+          businessId: retailBusiness.id,
+          planId: basicPlan.id,
+          status: SubscriptionStatus.ACTIVE,
+          startedAt: currentBillingWindow.periodStart,
+          currentPeriodStart: currentBillingWindow.periodStart,
+          currentPeriodEnd: currentBillingWindow.periodEnd,
+          notes: 'Seeded default subscription for demo retail business.',
+        },
+      });
+
+  const existingRestaurantSubscription = await prisma.businessSubscription.findFirst({
+    where: {
+      businessId: restaurantBusiness.id,
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const restaurantSubscription = existingRestaurantSubscription
+    ? await prisma.businessSubscription.update({
+        where: {
+          id: existingRestaurantSubscription.id,
+        },
+        data: {
+          planId: restaurantPlan.id,
+          status: SubscriptionStatus.ACTIVE,
+          startedAt: currentBillingWindow.periodStart,
+          currentPeriodStart: currentBillingWindow.periodStart,
+          currentPeriodEnd: currentBillingWindow.periodEnd,
+          trialEndsAt: null,
+          graceEndsAt: null,
+          cancelAtPeriodEnd: false,
+          cancelledAt: null,
+          suspendedAt: null,
+          notes: 'Seeded default subscription for demo restaurant business.',
+        },
+      })
+    : await prisma.businessSubscription.create({
+        data: {
+          businessId: restaurantBusiness.id,
+          planId: restaurantPlan.id,
+          status: SubscriptionStatus.ACTIVE,
+          startedAt: currentBillingWindow.periodStart,
+          currentPeriodStart: currentBillingWindow.periodStart,
+          currentPeriodEnd: currentBillingWindow.periodEnd,
+          notes: 'Seeded default subscription for demo restaurant business.',
+        },
+      });
 
   const retailOutletOne = await prisma.outlet.upsert({
     where: {
@@ -1755,6 +1984,52 @@ async function main() {
     skipDuplicates: true,
   });
 
+  await prisma.subscriptionUsageMonthly.upsert({
+    where: {
+      businessId_yearMonth: {
+        businessId: retailBusiness.id,
+        yearMonth: currentBillingWindow.yearMonth,
+      },
+    },
+    update: {
+      outletCount: 2,
+      userCount: 6,
+      productCount: 2,
+      transactionCount: 0,
+    },
+    create: {
+      businessId: retailBusiness.id,
+      yearMonth: currentBillingWindow.yearMonth,
+      outletCount: 2,
+      userCount: 6,
+      productCount: 2,
+      transactionCount: 0,
+    },
+  });
+
+  await prisma.subscriptionUsageMonthly.upsert({
+    where: {
+      businessId_yearMonth: {
+        businessId: restaurantBusiness.id,
+        yearMonth: currentBillingWindow.yearMonth,
+      },
+    },
+    update: {
+      outletCount: 2,
+      userCount: 3,
+      productCount: 2,
+      transactionCount: 0,
+    },
+    create: {
+      businessId: restaurantBusiness.id,
+      yearMonth: currentBillingWindow.yearMonth,
+      outletCount: 2,
+      userCount: 3,
+      productCount: 2,
+      transactionCount: 0,
+    },
+  });
+
   console.log('Seed completed.');
   console.log({
     superAdmins: {
@@ -1801,12 +2076,24 @@ async function main() {
       retail: {
         slug: retailBusiness.slug,
         type: retailBusiness.businessType,
+        subscriptionPlan: basicPlan.code,
+        subscriptionStatus: retailSubscription.status,
       },
       restaurant: {
         slug: restaurantBusiness.slug,
         type: restaurantBusiness.businessType,
+        subscriptionPlan: restaurantPlan.code,
+        subscriptionStatus: restaurantSubscription.status,
       },
     },
+    subscriptionPlans: [
+      starterPlan.code,
+      basicPlan.code,
+      restaurantPlan.code,
+      retailProPlan.code,
+      businessPlan.code,
+      enterprisePlan.code,
+    ],
     outlets: {
       retail: [retailOutletOne.code, retailOutletTwo.code],
       restaurant: [restaurantOutletOne.code, restaurantOutletTwo.code],

@@ -248,6 +248,7 @@ const menuGroups: AppNavGroup[] = [
       { href: '/dashboard/settings/business', label: 'Business Settings', icon: faShop, requiredPermissions: ['OUTLET_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
       { href: '/dashboard/settings/outlet', label: 'Outlet Settings', icon: faLocationDot, requiredPermissions: ['OUTLET_VIEW'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
       { href: '/dashboard/settings/receipt', label: 'Receipt Settings', icon: faReceipt, requiredPermissions: ['OUTLET_UPDATE'], businessOnly: true, allowedRoles: ['OWNER','ADMIN'] },
+      { href: '/dashboard/settings/billing', label: 'Billing Subscription', icon: faFileInvoice, businessOnly: true, allowedRoles: ['OWNER'] },
       { href: '/dashboard/pos', label: 'POS Kasir', icon: faCashRegister, businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
       { href: '/dashboard/pos/history', label: 'Histori Transaksi', icon: faClockRotateLeft, businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },
       { href: '/dashboard/payments', label: 'Payment History', icon: faReceipt, businessOnly: true, requireOutletScope: true, allowedRoles: ['OWNER','ADMIN','CASHIER'] },

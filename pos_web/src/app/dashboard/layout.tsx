@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { AppHeader } from '@/components/layout/app-header';
 import { AppSidebar } from '@/components/layout/app-sidebar';
-import { getMe, logout } from '@/lib/auth';
+import { getCachedCurrentUser, getMe, logout } from '@/lib/auth';
 import type { CurrentUser } from '@/types/auth';
 
 const DASHBOARD_ALLOWED_PERMISSIONS = [
@@ -143,6 +143,13 @@ export default function DashboardLayout({
   const [error, setError] = useState('');
 
   useEffect(() => {
+    const cachedUser = getCachedCurrentUser();
+
+    if (cachedUser && hasDashboardAccess(cachedUser)) {
+      setIsAllowed(true);
+      setChecking(false);
+    }
+
     async function validateAccess() {
       try {
         setChecking(true);

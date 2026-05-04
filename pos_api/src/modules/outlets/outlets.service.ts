@@ -1,5 +1,6 @@
 import { OutletStatus, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { enforceOutletLimit } from '../../middlewares/subscription-limit.middleware';
 import type {
   CreateOutletBody,
   ListOutletsQuery,
@@ -208,6 +209,15 @@ export async function createOutlet(
   businessId: string,
   payload: CreateOutletBody,
 ) {
+  const targetStatus = payload.status ?? OutletStatus.ACTIVE;
+
+  if (targetStatus === OutletStatus.ACTIVE) {
+    await enforceOutletLimit({
+      businessId,
+      blockedAction: 'CREATE_OUTLET',
+    });
+  }
+
   const name = payload.name.trim();
   const code = await generateOutletCode(businessId, name);
 
@@ -220,7 +230,7 @@ export async function createOutlet(
       name,
       address: normalizeNullableText(payload.address),
       phone: normalizeNullableText(payload.phone),
-      status: payload.status ?? OutletStatus.ACTIVE,
+      status: targetStatus,
     },
     include: {
       _count: {
@@ -249,6 +259,17 @@ export async function updateOutlet(
 ) {
   const currentOutlet = await getOutletOrThrow(businessId, outletId);
   const name = payload.name.trim();
+  const targetStatus = payload.status ?? OutletStatus.ACTIVE;
+
+  if (
+    currentOutlet.status !== OutletStatus.ACTIVE &&
+    targetStatus === OutletStatus.ACTIVE
+  ) {
+    await enforceOutletLimit({
+      businessId,
+      blockedAction: 'ACTIVATE_OUTLET',
+    });
+  }
 
   const updated = await prisma.outlet.update({
     where: {
@@ -258,7 +279,7 @@ export async function updateOutlet(
       name,
       address: normalizeNullableText(payload.address),
       phone: normalizeNullableText(payload.phone),
-      status: payload.status ?? OutletStatus.ACTIVE,
+      status: targetStatus,
     },
     include: {
       _count: {
@@ -278,6 +299,16 @@ export async function updateOutletStatus(
   payload: UpdateOutletStatusBody,
 ) {
   const currentOutlet = await getOutletOrThrow(businessId, outletId);
+
+  if (
+    currentOutlet.status !== OutletStatus.ACTIVE &&
+    payload.status === OutletStatus.ACTIVE
+  ) {
+    await enforceOutletLimit({
+      businessId,
+      blockedAction: 'ACTIVATE_OUTLET',
+    });
+  }
 
   if (
     currentOutlet.status === OutletStatus.ACTIVE &&

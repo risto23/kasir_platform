@@ -225,6 +225,42 @@ enum RoundingMethod {
   FLOOR
 }
 
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum SubscriptionInvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum SubscriptionPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  VOID
+  REFUNDED
+}
+
+enum SubscriptionScheduleChangeType {
+  UPGRADE
+  DOWNGRADE
+}
+
+enum SubscriptionScheduleChangeStatus {
+  PENDING
+  APPLIED
+  CANCELLED
+  REJECTED
+}
+
 // ===== Core Models =====
 
 model User {
@@ -286,6 +322,31 @@ model FeatureFlag {
   @@map("feature_flags")
 }
 
+model Plan {
+  id                     String        @id @default(cuid())
+  code                   String        @unique
+  name                   String        @unique
+  description            String?
+  monthlyPrice           Decimal       @db.Decimal(14, 2)
+  currencyCode           String        @default("IDR")
+  businessType           BusinessType?
+  maxOutlets             Int?
+  maxUsers               Int?
+  maxProducts            Int?
+  maxMonthlyTransactions Int?
+  isActive               Boolean       @default(true)
+  isCustomPricing        Boolean       @default(false)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  subscriptions       BusinessSubscription[]
+  scheduleChangesFrom SubscriptionScheduleChange[] @relation("SubscriptionScheduleChangeFromPlan")
+  scheduleChangesTo   SubscriptionScheduleChange[] @relation("SubscriptionScheduleChangeToPlan")
+
+  @@index([businessType, isActive])
+  @@map("plans")
+}
+
 model Business {
   id           String         @id @default(cuid())
   name         String
@@ -296,33 +357,156 @@ model Business {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
-  ownerUser            User?                 @relation("BusinessOwner", fields: [ownerUserId], references: [id])
-  outlets              Outlet[]
-  businessUsers        BusinessUser[]
-  businessFeatures     BusinessFeatureFlag[]
-  categories           Category[]
-  products             Product[]
-  suppliers            Supplier[]
-  supplierProducts     SupplierProduct[]
-  purchaseOrders       PurchaseOrder[]
-  goodsReceipts        GoodsReceipt[]
-  purchaseReturns      PurchaseReturn[]
-  purchasePriceHistories PurchasePriceHistory[]
-  supplierInvoices     SupplierInvoice[]
-  supplierPayments     SupplierPayment[]
-  promos               Promo[]
-  orders               Order[]
-  payments             Payment[]
-  receipts             Receipt[]
-  inventoryItems       InventoryItem[]
-  inventoryMovements   InventoryMovement[]
-  outletPosChargeRules OutletPosChargeRule[]
-  setting             BusinessSetting?
-  auditLogs            AuditLog[]
+  ownerUser                   User?                        @relation("BusinessOwner", fields: [ownerUserId], references: [id])
+  outlets                     Outlet[]
+  businessUsers               BusinessUser[]
+  businessFeatures            BusinessFeatureFlag[]
+  categories                  Category[]
+  products                    Product[]
+  suppliers                   Supplier[]
+  supplierProducts            SupplierProduct[]
+  purchaseOrders              PurchaseOrder[]
+  goodsReceipts               GoodsReceipt[]
+  purchaseReturns             PurchaseReturn[]
+  purchasePriceHistories      PurchasePriceHistory[]
+  supplierInvoices            SupplierInvoice[]
+  supplierPayments            SupplierPayment[]
+  promos                      Promo[]
+  orders                      Order[]
+  payments                    Payment[]
+  receipts                    Receipt[]
+  inventoryItems              InventoryItem[]
+  inventoryMovements          InventoryMovement[]
+  outletPosChargeRules        OutletPosChargeRule[]
+  setting                     BusinessSetting?
+  subscriptions               BusinessSubscription[]
+  subscriptionInvoices        SubscriptionInvoice[]
+  subscriptionUsageSnapshots  SubscriptionUsageMonthly[]
+  subscriptionScheduleChanges SubscriptionScheduleChange[]
+  auditLogs                   AuditLog[]
 
   @@index([businessType])
   @@index([status])
   @@map("businesses")
+}
+
+model BusinessSubscription {
+  id                 String             @id @default(cuid())
+  businessId         String
+  planId             String
+  status             SubscriptionStatus @default(TRIAL)
+  startedAt          DateTime           @default(now())
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  graceEndsAt        DateTime?
+  cancelAtPeriodEnd  Boolean            @default(false)
+  cancelledAt        DateTime?
+  suspendedAt        DateTime?
+  notes              String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  business        Business                     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  plan            Plan                         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices        SubscriptionInvoice[]
+  scheduleChanges SubscriptionScheduleChange[]
+
+  @@index([businessId, status])
+  @@index([businessId, currentPeriodEnd])
+  @@index([planId])
+  @@map("business_subscriptions")
+}
+
+model SubscriptionInvoice {
+  id                 String                    @id @default(cuid())
+  businessId         String
+  subscriptionId     String
+  invoiceNumber      String
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  subtotal           Decimal                   @default(0) @db.Decimal(14, 2)
+  taxAmount          Decimal                   @default(0) @db.Decimal(14, 2)
+  totalAmount        Decimal                   @default(0) @db.Decimal(14, 2)
+  status             SubscriptionInvoiceStatus @default(DRAFT)
+  dueDate            DateTime
+  issuedAt           DateTime?
+  paidAt             DateTime?
+  voidedAt           DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  business     Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subscription BusinessSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  payments     SubscriptionPayment[]
+
+  @@unique([businessId, invoiceNumber])
+  @@unique([subscriptionId, billingPeriodStart, billingPeriodEnd])
+  @@index([businessId, status, dueDate])
+  @@index([subscriptionId, status])
+  @@map("subscription_invoices")
+}
+
+model SubscriptionPayment {
+  id              String                    @id @default(cuid())
+  invoiceId       String
+  method          PaymentMethod
+  amount          Decimal                   @db.Decimal(14, 2)
+  status          SubscriptionPaymentStatus @default(PENDING)
+  referenceNumber String?
+  paidAt          DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  invoice SubscriptionInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, status])
+  @@index([paidAt])
+  @@map("subscription_payments")
+}
+
+model SubscriptionUsageMonthly {
+  id               String   @id @default(cuid())
+  businessId       String
+  yearMonth        String
+  outletCount      Int      @default(0)
+  userCount        Int      @default(0)
+  productCount     Int      @default(0)
+  transactionCount Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, yearMonth])
+  @@index([yearMonth])
+  @@map("subscription_usage_monthly")
+}
+
+model SubscriptionScheduleChange {
+  id             String                           @id @default(cuid())
+  businessId     String
+  subscriptionId String?
+  fromPlanId     String
+  toPlanId       String
+  type           SubscriptionScheduleChangeType
+  effectiveAt    DateTime
+  status         SubscriptionScheduleChangeStatus @default(PENDING)
+  requestedAt    DateTime                         @default(now())
+  processedAt    DateTime?
+  createdAt      DateTime                         @default(now())
+  updatedAt      DateTime                         @updatedAt
+
+  business     Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subscription BusinessSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  fromPlan     Plan                  @relation("SubscriptionScheduleChangeFromPlan", fields: [fromPlanId], references: [id], onDelete: Restrict)
+  toPlan       Plan                  @relation("SubscriptionScheduleChangeToPlan", fields: [toPlanId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, status, effectiveAt])
+  @@index([subscriptionId])
+  @@index([fromPlanId])
+  @@index([toPlanId])
+  @@map("subscription_schedule_changes")
 }
 
 model Outlet {
@@ -336,27 +520,27 @@ model Outlet {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
-  business              Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  businessUserAccesses  BusinessUserOutletAccess[]
-  productOutletSettings ProductOutletSetting[]
-  tables                OutletTable[]
-  purchaseOrders        PurchaseOrder[]
-  goodsReceipts         GoodsReceipt[]
-  purchaseReturns       PurchaseReturn[]
+  business               Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessUserAccesses   BusinessUserOutletAccess[]
+  productOutletSettings  ProductOutletSetting[]
+  tables                 OutletTable[]
+  purchaseOrders         PurchaseOrder[]
+  goodsReceipts          GoodsReceipt[]
+  purchaseReturns        PurchaseReturn[]
   purchasePriceHistories PurchasePriceHistory[]
-  supplierInvoices      SupplierInvoice[]
-  supplierPayments      SupplierPayment[]
-  orders                Order[]
-  payments              Payment[]
-  receipts              Receipt[]
-  promoOutlets          PromoOutlet[]
-  inventoryItems        InventoryItem[]
-  inventoryMovements    InventoryMovement[]
-  roundingSetting       OutletRoundingSetting?
-  outletPosChargeRules  OutletPosChargeRule[]
-  setting               OutletSetting?
-  receiptSetting        OutletReceiptSetting?
-  auditLogs             AuditLog[]
+  supplierInvoices       SupplierInvoice[]
+  supplierPayments       SupplierPayment[]
+  orders                 Order[]
+  payments               Payment[]
+  receipts               Receipt[]
+  promoOutlets           PromoOutlet[]
+  inventoryItems         InventoryItem[]
+  inventoryMovements     InventoryMovement[]
+  roundingSetting        OutletRoundingSetting?
+  outletPosChargeRules   OutletPosChargeRule[]
+  setting                OutletSetting?
+  receiptSetting         OutletReceiptSetting?
+  auditLogs              AuditLog[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -500,18 +684,18 @@ model Product {
   unit        String?
   barcode     String?
 
-  business              Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  category              Category?              @relation(fields: [categoryId], references: [id])
-  promos                Promo[]
-  purchaseOrderItems    PurchaseOrderItem[]
-  goodsReceiptItems     GoodsReceiptItem[]
-  purchaseReturnItems   PurchaseReturnItem[]
+  business               Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category               Category?              @relation(fields: [categoryId], references: [id])
+  promos                 Promo[]
+  purchaseOrderItems     PurchaseOrderItem[]
+  goodsReceiptItems      GoodsReceiptItem[]
+  purchaseReturnItems    PurchaseReturnItem[]
   purchasePriceHistories PurchasePriceHistory[]
-  supplierProducts      SupplierProduct[]
-  orderItems            OrderItem[]
-  productOutletSettings ProductOutletSetting[]
-  inventoryItems        InventoryItem[]
-  inventoryMovements    InventoryMovement[]
+  supplierProducts       SupplierProduct[]
+  orderItems             OrderItem[]
+  productOutletSettings  ProductOutletSetting[]
+  inventoryItems         InventoryItem[]
+  inventoryMovements     InventoryMovement[]
 
   @@unique([businessId, name])
   @@unique([businessId, code])
@@ -544,14 +728,14 @@ model Supplier {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  supplierProducts SupplierProduct[]
-  purchaseOrders PurchaseOrder[]
-  goodsReceipts  GoodsReceipt[]
-  purchaseReturns PurchaseReturn[]
+  business               Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  supplierProducts       SupplierProduct[]
+  purchaseOrders         PurchaseOrder[]
+  goodsReceipts          GoodsReceipt[]
+  purchaseReturns        PurchaseReturn[]
   purchasePriceHistories PurchasePriceHistory[]
-  supplierInvoices SupplierInvoice[]
-  supplierPayments SupplierPayment[]
+  supplierInvoices       SupplierInvoice[]
+  supplierPayments       SupplierPayment[]
 
   @@unique([businessId, code])
   @@unique([businessId, name])
@@ -578,13 +762,13 @@ model PurchaseOrder {
   createdAt               DateTime            @default(now())
   updatedAt               DateTime            @updatedAt
 
-  business Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  outlet   Outlet              @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  supplier Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  items    PurchaseOrderItem[]
-  goodsReceipts GoodsReceipt[]
+  business               Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet                 Outlet                 @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier               Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  items                  PurchaseOrderItem[]
+  goodsReceipts          GoodsReceipt[]
   purchasePriceHistories PurchasePriceHistory[]
-  supplierInvoices SupplierInvoice[]
+  supplierInvoices       SupplierInvoice[]
 
   @@index([businessId, outletId, status])
   @@index([businessId, supplierId])
@@ -609,9 +793,9 @@ model PurchaseOrderItem {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
-  goodsReceiptItems GoodsReceiptItem[]
+  purchaseOrder          PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product                Product                @relation(fields: [productId], references: [id], onDelete: Restrict)
+  goodsReceiptItems      GoodsReceiptItem[]
   purchasePriceHistories PurchasePriceHistory[]
 
   @@index([purchaseOrderId])
@@ -639,14 +823,14 @@ model GoodsReceipt {
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
 
-  business      Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  outlet        Outlet             @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  supplier      Supplier           @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  purchaseOrder PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
-  items         GoodsReceiptItem[]
-  purchaseReturns PurchaseReturn[]
+  business               Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet                 Outlet                 @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier               Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseOrder          PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  items                  GoodsReceiptItem[]
+  purchaseReturns        PurchaseReturn[]
   purchasePriceHistories PurchasePriceHistory[]
-  supplierInvoice SupplierInvoice?
+  supplierInvoice        SupplierInvoice?
 
   @@index([businessId, outletId, status])
   @@index([businessId, supplierId])
@@ -675,11 +859,11 @@ model GoodsReceiptItem {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  goodsReceipt      GoodsReceipt       @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
-  purchaseOrderItem PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
-  product           Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  goodsReceipt         GoodsReceipt          @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  purchaseOrderItem    PurchaseOrderItem?    @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
+  product              Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
   purchasePriceHistory PurchasePriceHistory?
-  purchaseReturnItems PurchaseReturnItem[]
+  purchaseReturnItems  PurchaseReturnItem[]
 
   @@index([goodsReceiptId])
   @@index([purchaseOrderItemId])
@@ -713,7 +897,7 @@ model PurchasePriceHistory {
 
   @@index([businessId, outletId, effectiveDate])
   @@index([businessId, productId, effectiveDate])
-  @@index([businessId, supplierId, effectiveDate])
+  @@index([businessId, supplierId, effectiveDate], map: "purchase_price_histories_businessId_supplierId_effectiveDate_id")
   @@index([goodsReceiptId])
   @@index([purchaseOrderId])
   @@index([purchaseOrderItemId])
@@ -762,42 +946,42 @@ model SupplierInvoice {
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @updatedAt
 
-  business      Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  outlet        Outlet         @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  supplier      Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  goodsReceipt  GoodsReceipt?  @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
-  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
-  payments      SupplierPayment[]
+  business        Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet          Outlet            @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier        Supplier          @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  goodsReceipt    GoodsReceipt?     @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+  purchaseOrder   PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  payments        SupplierPayment[]
   purchaseReturns PurchaseReturn[]
 
   @@unique([businessId, invoiceNumber])
+  @@unique([goodsReceiptId])
   @@index([businessId, outletId, status])
   @@index([businessId, supplierId])
-  @@unique([goodsReceiptId])
   @@index([purchaseOrderId])
   @@map("supplier_invoices")
 }
 
 model SupplierPayment {
-  id                  String        @id @default(cuid())
-  supplierInvoiceId   String
-  businessId          String
-  outletId            String
-  supplierId          String
+  id                   String        @id @default(cuid())
+  supplierInvoiceId    String
+  businessId           String
+  outletId             String
+  supplierId           String
   paidByBusinessUserId String
-  paymentNumber       String        @unique
-  method              PaymentMethod
-  amount              Decimal       @db.Decimal(14, 2)
-  paymentDate         DateTime
-  referenceNumber     String?
-  note                String?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  paymentNumber        String        @unique
+  method               PaymentMethod
+  amount               Decimal       @db.Decimal(14, 2)
+  paymentDate          DateTime
+  referenceNumber      String?
+  note                 String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
-  invoice   SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
-  business  Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  outlet    Outlet          @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  supplier  Supplier        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  invoice  SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet   Outlet          @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier Supplier        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
 
   @@index([supplierInvoiceId])
   @@index([businessId, outletId, paymentDate])
@@ -826,12 +1010,12 @@ model PurchaseReturn {
   createdAt               DateTime             @default(now())
   updatedAt               DateTime             @updatedAt
 
-  business       Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  outlet         Outlet           @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  supplier       Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  goodsReceipt   GoodsReceipt     @relation(fields: [goodsReceiptId], references: [id], onDelete: Restrict)
-  supplierInvoice SupplierInvoice? @relation(fields: [supplierInvoiceId], references: [id], onDelete: SetNull)
-  items          PurchaseReturnItem[]
+  business        Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet          Outlet               @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier        Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  goodsReceipt    GoodsReceipt         @relation(fields: [goodsReceiptId], references: [id], onDelete: Restrict)
+  supplierInvoice SupplierInvoice?     @relation(fields: [supplierInvoiceId], references: [id], onDelete: SetNull)
+  items           PurchaseReturnItem[]
 
   @@index([businessId, outletId, status])
   @@index([businessId, supplierId])
@@ -842,25 +1026,25 @@ model PurchaseReturn {
 }
 
 model PurchaseReturnItem {
-  id               String   @id @default(cuid())
-  purchaseReturnId String
+  id                 String   @id @default(cuid())
+  purchaseReturnId   String
   goodsReceiptItemId String
-  productId        String
-  productName      String
-  productCode      String?
-  productSku       String?
-  productBarcode   String?
-  unit             String?
-  quantityReturned Decimal  @db.Decimal(14, 3)
-  unitCost         Decimal  @db.Decimal(14, 2)
-  lineSubtotal     Decimal  @default(0) @db.Decimal(14, 2)
-  note             String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  productId          String
+  productName        String
+  productCode        String?
+  productSku         String?
+  productBarcode     String?
+  unit               String?
+  quantityReturned   Decimal  @db.Decimal(14, 3)
+  unitCost           Decimal  @db.Decimal(14, 2)
+  lineSubtotal       Decimal  @default(0) @db.Decimal(14, 2)
+  note               String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  purchaseReturn  PurchaseReturn  @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+  purchaseReturn   PurchaseReturn   @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
   goodsReceiptItem GoodsReceiptItem @relation(fields: [goodsReceiptItemId], references: [id], onDelete: Restrict)
-  product         Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product          Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([purchaseReturnId])
   @@index([goodsReceiptItemId])
@@ -1134,15 +1318,15 @@ model OutletReceiptSetting {
 }
 
 model BusinessSetting {
-  id                  String   @id @default(cuid())
-  businessId          String   @unique
-  supportEmail        String?
-  supportPhone        String?
-  websiteUrl          String?
-  address             String?
-  tagline             String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id           String   @id @default(cuid())
+  businessId   String   @unique
+  supportEmail String?
+  supportPhone String?
+  websiteUrl   String?
+  address      String?
+  tagline      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
@@ -1151,15 +1335,15 @@ model BusinessSetting {
 }
 
 model OutletSetting {
-  id                  String   @id @default(cuid())
-  outletId            String   @unique
-  guestQrEnabled      Boolean  @default(true)
-  contactEmail        String?
-  whatsappNumber      String?
-  mapsUrl             String?
-  notes               String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id             String   @id @default(cuid())
+  outletId       String   @unique
+  guestQrEnabled Boolean  @default(true)
+  contactEmail   String?
+  whatsappNumber String?
+  mapsUrl        String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
 

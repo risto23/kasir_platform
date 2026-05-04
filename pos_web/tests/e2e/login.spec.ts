@@ -47,6 +47,18 @@ async function mockAuthRoutes(page: import('@playwright/test').Page) {
     }
     route.fallback();
   });
+
+  await page.route('**/api/auth/me', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockLoginResponse),
+      });
+      return;
+    }
+    route.fallback();
+  });
 }
 
 test('login success redirects to dashboard', async ({ page }) => {

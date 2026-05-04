@@ -188,6 +188,22 @@ type OrderHistoryParams = {  outletId: string;
   queue?: PosOrderQueue;
   source?: PosOrderSource;
 };
+type PosChargeRuleApiRow = {
+  key?: string | null;
+  label?: string | null;
+  type?: string | null;
+  value?: string | number | null;
+  enabled?: boolean | null;
+};
+type PosRoundingApiRow = {
+  enabled?: boolean | null;
+  method?: string | null;
+  unit?: string | number | null;
+};
+type PosSettingsApiData = {
+  charges?: PosChargeRuleApiRow[] | null;
+  rounding?: PosRoundingApiRow | null;
+};
 function isRecord(value: unknown): value is Record<string, unknown> {  return typeof value === 'object' && value !== null;
 }function isOrderApiRow(value: unknown): value is OrderApiRow {  if (!isRecord(value)) {    return false;
   }  return (    typeof value.id === 'string' &&    typeof value.businessId === 'string' &&    typeof value.outletId === 'string' &&    typeof value.orderNumber === 'string' &&    typeof value.createdAt === 'string' &&    typeof value.updatedAt === 'string'  );
@@ -408,7 +424,7 @@ export async function getPosChargeSettings(outletId?: string): Promise<PosSettin
   if (!resolvedOutletId) {
     return { charges: [] };
   }
-  const response = await api.get<ApiEnvelope<{ charges?: PosSettingsChargeRule[]; rounding?: { enabled: boolean; method: 'NONE'|'NEAREST'|'CEIL'|'FLOOR'; unit: number } }>>(
+  const response = await api.get<ApiEnvelope<PosSettingsApiData>>(
     '/settings/pos-charges',
     {
       params: { outletId: resolvedOutletId },
@@ -416,14 +432,14 @@ export async function getPosChargeSettings(outletId?: string): Promise<PosSettin
     },
   );
 
-  const data = response.data.data as any;
+  const data = response.data.data;
   const charges: PosSettingsChargeRule[] = Array.isArray(data?.charges)
-    ? data.charges.map((r: any) => ({
-        key: String(r.key ?? ''),
-        label: String(r.label ?? r.key ?? ''),
-        type: r.type === 'FIXED_AMOUNT' ? 'FIXED_AMOUNT' : 'PERCENTAGE',
-        value: toNumber(r.value),
-        enabled: Boolean(r.enabled),
+    ? data.charges.map((rule) => ({
+        key: String(rule.key ?? ''),
+        label: String(rule.label ?? rule.key ?? ''),
+        type: rule.type === 'FIXED_AMOUNT' ? 'FIXED_AMOUNT' : 'PERCENTAGE',
+        value: toNumber(rule.value),
+        enabled: Boolean(rule.enabled),
       }))
     : [];
 
