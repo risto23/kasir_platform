@@ -61,7 +61,7 @@ export async function listBusinessUsersController(
     const businessId = getCurrentBusinessId(typedReq);
     const query = typedReq.validatedQuery as ListBusinessUsersQuery;
 
-    const data = await listBusinessUsers(businessId, query);
+    const data = await listBusinessUsers(businessId, query, req.authUser);
 
     return res.status(200).json({
       success: true,
@@ -83,7 +83,7 @@ export async function createBusinessUserController(
     const businessId = getCurrentBusinessId(typedReq);
     const body = typedReq.validatedBody as CreateBusinessUserBody;
 
-    const data = await createBusinessUser(businessId, body);
+    const data = await createBusinessUser(businessId, body, req.authUser);
 
     return res.status(201).json({
       success: true,
@@ -105,7 +105,7 @@ export async function getBusinessUserDetailController(
     const businessId = getCurrentBusinessId(typedReq);
     const businessUserId = getValidatedId(typedReq);
 
-    const data = await getBusinessUserDetail(businessId, businessUserId);
+    const data = await getBusinessUserDetail(businessId, businessUserId, req.authUser);
 
     return res.status(200).json({
       success: true,
@@ -128,7 +128,7 @@ export async function updateBusinessUserController(
     const businessUserId = getValidatedId(typedReq);
     const body = typedReq.validatedBody as UpdateBusinessUserBody;
 
-    const data = await updateBusinessUser(businessId, businessUserId, body);
+    const data = await updateBusinessUser(businessId, businessUserId, body, req.authUser);
 
     return res.status(200).json({
       success: true,
@@ -151,7 +151,7 @@ export async function updateBusinessUserStatusController(
     const businessUserId = getValidatedId(typedReq);
     const body = typedReq.validatedBody as UpdateBusinessUserStatusBody;
 
-    const data = await updateBusinessUserStatus(businessId, businessUserId, body);
+    const data = await updateBusinessUserStatus(businessId, businessUserId, body, req.authUser);
 
     return res.status(200).json({
       success: true,

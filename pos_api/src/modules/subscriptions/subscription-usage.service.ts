@@ -5,6 +5,7 @@ import {
   PaymentStatus,
   ProductStatus,
   SubscriptionStatus,
+  PlatformRoleCode,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
@@ -128,6 +129,15 @@ export async function calculateSubscriptionUsageMetricByBusiness(
       where: {
         businessId,
         status: BusinessUserStatus.ACTIVE,
+        user: {
+          platformRoles: {
+            none: {
+              platformRole: {
+                code: PlatformRoleCode.SUPER_ADMIN,
+              },
+            },
+          },
+        },
       },
     });
   }

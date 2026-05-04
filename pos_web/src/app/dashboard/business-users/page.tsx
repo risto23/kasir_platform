@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
 import {
   faCheck,
   faCircleNotch,
@@ -400,8 +401,14 @@ export default function BusinessUsersPage() {
 
       closeUserModal();
       await refreshUsers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal menyimpan user bisnis');
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || 'Gagal menyimpan user bisnis');
+      } else if (err instanceof Error) {
+        setError(err.message || 'Gagal menyimpan user bisnis');
+      } else {
+        setError('Gagal menyimpan user bisnis');
+      }
     } finally {
       setSubmitLoading(false);
     }
@@ -430,8 +437,14 @@ export default function BusinessUsersPage() {
 
       setFeedback(`Status user berhasil diubah ke ${nextStatus}`);
       await refreshUsers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal mengubah status user');
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || 'Gagal mengubah status user');
+      } else if (err instanceof Error) {
+        setError(err.message || 'Gagal mengubah status user');
+      } else {
+        setError('Gagal mengubah status user');
+      }
     } finally {
       setTableLoading(false);
     }
@@ -498,8 +511,14 @@ export default function BusinessUsersPage() {
       setFeedback('Outlet access berhasil diperbarui');
       closeOutletModal();
       await refreshUsers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memperbarui outlet access');
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || 'Gagal memperbarui outlet access');
+      } else if (err instanceof Error) {
+        setError(err.message || 'Gagal memperbarui outlet access');
+      } else {
+        setError('Gagal memperbarui outlet access');
+      }
     } finally {
       setOutletSubmitLoading(false);
     }
@@ -772,6 +791,12 @@ export default function BusinessUsersPage() {
               </button>
             </div>
 
+            {error ? (
+              <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {error}
+              </div>
+            ) : null}
+
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-slate-700">Nama lengkap</label>
@@ -965,6 +990,12 @@ export default function BusinessUsersPage() {
                 <FontAwesomeIcon icon={faXmark} />
               </button>
             </div>
+
+            {error ? (
+              <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {error}
+              </div>
+            ) : null}
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <label className="flex cursor-pointer items-start gap-3">

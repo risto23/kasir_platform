@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { successResponse, errorResponse } from '../../utils/api-response';
 import { loginService, meService } from './auth.service';
 import { clearAuthCookie, setAuthCookie } from '../../utils/auth-cookie';
+import { loginSchema } from './auth.validation';
 
 type LoginBody = {
   email: string;
@@ -10,11 +11,12 @@ type LoginBody = {
 };
 
 export async function loginController(
-  req: Request<Record<string, never>, unknown, LoginBody>,
+  req: Request,
   res: Response
 ) {
   try {
-    const { email, password } = req.body;
+    const validated = loginSchema.parse({ body: req.body });
+    const { email, password } = validated.body;
     const result = await loginService(email, password);
 
     setAuthCookie(res, result.accessToken);

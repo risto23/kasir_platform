@@ -4,6 +4,7 @@ import {
   BusinessUserStatus,
   Prisma,
   UserStatus,
+  PlatformRoleCode,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
@@ -15,6 +16,7 @@ import type {
   UpdateBusinessUserOutletAccessBody,
   UpdateBusinessUserStatusBody,
 } from './business-users.validation';
+import { JwtPayloadUser } from '../../types/auth';
 
 type BusinessUserWithRelations = Prisma.BusinessUserGetPayload<{
   include: {
@@ -185,11 +187,27 @@ function mapBusinessUser(item: BusinessUserWithRelations) {
 async function getMembershipOrThrow(
   businessId: string,
   businessUserId: string,
+  requester?: JwtPayloadUser,
 ) {
+  const isSuperAdmin = requester?.platformRoles?.includes(PlatformRoleCode.SUPER_ADMIN);
+
   const businessUser = await prisma.businessUser.findFirst({
     where: {
       id: businessUserId,
       businessId,
+      ...(isSuperAdmin
+        ? {}
+        : {
+            user: {
+              platformRoles: {
+                none: {
+                  platformRole: {
+                    code: PlatformRoleCode.SUPER_ADMIN,
+                  },
+                },
+              },
+            },
+          }),
     },
     include: {
       user: true,
@@ -225,13 +243,29 @@ async function getMembershipOrThrow(
 export async function listBusinessUsers(
   businessId: string,
   query: ListBusinessUsersQuery,
+  requester?: JwtPayloadUser,
 ) {
   const page = query.page ?? 1;
   const limit = query.limit ?? 10;
   const skip = (page - 1) * limit;
 
+  const isSuperAdmin = requester?.platformRoles?.includes(PlatformRoleCode.SUPER_ADMIN);
+
   const where: Prisma.BusinessUserWhereInput = {
     businessId,
+    ...(isSuperAdmin
+      ? {}
+      : {
+          user: {
+            platformRoles: {
+              none: {
+                platformRole: {
+                  code: PlatformRoleCode.SUPER_ADMIN,
+                },
+              },
+            },
+          },
+        }),
     ...(query.status ? { status: query.status } : {}),
     ...(query.roleCode
       ? {
@@ -312,6 +346,7 @@ export async function listBusinessUsers(
 export async function createBusinessUser(
   businessId: string,
   payload: CreateBusinessUserBody,
+  requester?: JwtPayloadUser,
 ) {
   const outletIds = normalizeOutletIds(payload.outletIds ?? []);
   validateRoleOutletAccessRule(
@@ -448,8 +483,9 @@ export async function createBusinessUser(
 export async function getBusinessUserDetail(
   businessId: string,
   businessUserId: string,
+  requester?: JwtPayloadUser,
 ) {
-  const businessUser = await getMembershipOrThrow(businessId, businessUserId);
+  const businessUser = await getMembershipOrThrow(businessId, businessUserId, requester);
   return mapBusinessUser(businessUser);
 }
 
@@ -457,6 +493,7 @@ export async function updateBusinessUser(
   businessId: string,
   businessUserId: string,
   payload: UpdateBusinessUserBody,
+  requester?: JwtPayloadUser,
 ) {
   const outletIds = normalizeOutletIds(payload.outletIds ?? []);
   validateRoleOutletAccessRule(
@@ -470,6 +507,19 @@ export async function updateBusinessUser(
       where: {
         id: businessUserId,
         businessId,
+        ...(requester?.platformRoles?.includes(PlatformRoleCode.SUPER_ADMIN)
+          ? {}
+          : {
+              user: {
+                platformRoles: {
+                  none: {
+                    platformRole: {
+                      code: PlatformRoleCode.SUPER_ADMIN,
+                    },
+                  },
+                },
+              },
+            }),
       },
       include: {
         user: true,
@@ -602,11 +652,25 @@ export async function updateBusinessUserStatus(
   businessId: string,
   businessUserId: string,
   payload: UpdateBusinessUserStatusBody,
+  requester?: JwtPayloadUser,
 ) {
   const currentMembership = await prisma.businessUser.findFirst({
     where: {
       id: businessUserId,
       businessId,
+      ...(requester?.platformRoles?.includes(PlatformRoleCode.SUPER_ADMIN)
+        ? {}
+        : {
+            user: {
+              platformRoles: {
+                none: {
+                  platformRole: {
+                    code: PlatformRoleCode.SUPER_ADMIN,
+                  },
+                },
+              },
+            },
+          }),
     },
   });
 

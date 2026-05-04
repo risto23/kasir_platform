@@ -79,7 +79,7 @@ describe('auth.controller', () => {
     const req = {
       body: {
         email: 'owner@example.com',
-        password: 'wrong',
+        password: 'wrongpass',
       },
     } as Request;
     const res = createResponse();
