@@ -1,12 +1,28 @@
-﻿import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
+import type { GuestMenuItem } from '../../src/types/guest';
 
 type MockMenu = {
   success: boolean;
   message: string;
   data: {
-    outlet: { id: string; name: string; code: string; address: string | null; phone: string | null };
-    table: { id: string; code: string; name: string; capacity: number | null };
-    categories: { categoryId: string | null; categoryName: string | null; items: any[] }[];
+    outlet: {
+      id: string;
+      name: string;
+      code: string;
+      address: string | null;
+      phone: string | null;
+    };
+    table: {
+      id: string;
+      code: string;
+      name: string;
+      capacity: number | null;
+    };
+    categories: Array<{
+      categoryId: string | null;
+      categoryName: string | null;
+      items: GuestMenuItem[];
+    }>;
   };
 };
 
@@ -14,8 +30,19 @@ const mockMenu: MockMenu = {
   success: true,
   message: 'ok',
   data: {
-    outlet: { id: 'o-1', name: 'Outlet Demo', code: 'OUT1', address: null, phone: null },
-    table: { id: 't-1', code: 'T1', name: 'Meja 1', capacity: 4 },
+    outlet: {
+      id: 'o-1',
+      name: 'Outlet Demo',
+      code: 'OUT1',
+      address: null,
+      phone: null,
+    },
+    table: {
+      id: 't-1',
+      code: 'T1',
+      name: 'Meja 1',
+      capacity: 4,
+    },
     categories: [
       {
         categoryId: 'c-1',
@@ -55,6 +82,7 @@ async function mockGuestMenu(page: Page) {
       });
       return;
     }
+
     route.fallback();
   });
 }

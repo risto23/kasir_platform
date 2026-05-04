@@ -8,6 +8,7 @@ import {
   PromoTargetType,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { enforceProductLimit } from '../../middlewares/subscription-limit.middleware';
 import type {
   ProductListQuery,
   ProductParams,
@@ -721,6 +722,11 @@ export async function createProduct(
   businessId: string,
   payload: CreateProductBody,
 ) {
+  await enforceProductLimit({
+    businessId,
+    blockedAction: 'CREATE_PRODUCT',
+  });
+
   const business = await getBusinessOrThrow(businessId);
   const normalizedName = normalizeName(payload.name);
   const normalizedSku = normalizeSku(payload.sku);
@@ -800,7 +806,17 @@ export async function updateProductStatus(
   params: ProductParams,
   payload: UpdateProductStatusBody,
 ) {
-  await ensureProductExists(businessId, params.id);
+  const currentProduct = await ensureProductExists(businessId, params.id);
+
+  if (
+    currentProduct.status !== ProductStatus.ACTIVE &&
+    payload.status === ProductStatus.ACTIVE
+  ) {
+    await enforceProductLimit({
+      businessId,
+      blockedAction: 'ACTIVATE_PRODUCT',
+    });
+  }
 
   return prisma.product.update({
     where: {

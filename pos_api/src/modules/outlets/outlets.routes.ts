@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { businessAccessMiddleware } from '../../middlewares/business-access.middleware';
 import { requireBusinessPermission } from '../../middlewares/require-business-permission.middleware';
+import { requireSubscriptionWriteAccess } from '../../middlewares/subscription-write-access.middleware';
 import {
   createOutletController,
   getOutletDetailController,
@@ -35,6 +36,7 @@ router.post(
   authMiddleware,
   businessAccessMiddleware,
   requireBusinessPermission('OUTLET_CREATE'),
+  requireSubscriptionWriteAccess('CREATE_OUTLET'),
   validateCreateOutlet,
   createOutletController,
 );
@@ -53,6 +55,7 @@ router.put(
   authMiddleware,
   businessAccessMiddleware,
   requireBusinessPermission('OUTLET_UPDATE'),
+  requireSubscriptionWriteAccess('UPDATE_OUTLET'),
   validateOutletIdParam,
   validateUpdateOutlet,
   updateOutletController,
@@ -63,6 +66,7 @@ router.patch(
   authMiddleware,
   businessAccessMiddleware,
   requireBusinessPermission('OUTLET_STATUS_UPDATE'),
+  requireSubscriptionWriteAccess('UPDATE_OUTLET_STATUS'),
   validateOutletIdParam,
   validateUpdateOutletStatus,
   updateOutletStatusController,

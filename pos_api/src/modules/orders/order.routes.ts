@@ -5,6 +5,7 @@ import { authMiddleware } from '../../middlewares/auth.middleware';
 import { businessAccessMiddleware } from '../../middlewares/business-access.middleware';
 import { requireBusinessPermission } from '../../middlewares/require-business-permission.middleware';
 import { requireOutletAccess } from '../../middlewares/require-outlet-access.middleware';
+import { requireSubscriptionWriteAccess } from '../../middlewares/subscription-write-access.middleware';
 import { validate } from '../../middlewares/validate.middleware';
 
 
@@ -143,6 +144,7 @@ router.get(
 router.post(
   '/',
   requireBusinessPermission(BusinessPermissionCode.ORDER_CREATE),
+  requireSubscriptionWriteAccess('CREATE_ORDER'),
   validate(createOrderSchema),
   requireOutletAccess(resolveOutletIdFromCreateOrder),
   createOrderHandler,
@@ -151,6 +153,7 @@ router.post(
 router.post(
   '/:id/items',
   requireBusinessPermission(BusinessPermissionCode.ORDER_UPDATE),
+  requireSubscriptionWriteAccess('ADD_ORDER_ITEM'),
   validate(addOrderItemSchema),
   requireOutletAccess(resolveOutletIdFromAddOrderItem),
   addOrderItemHandler,
@@ -159,6 +162,7 @@ router.post(
 router.put(
   '/:id/items/:itemId',
   requireBusinessPermission(BusinessPermissionCode.ORDER_UPDATE),
+  requireSubscriptionWriteAccess('UPDATE_ORDER_ITEM'),
   validate(updateOrderItemSchema),
   requireOutletAccess(resolveOutletIdFromUpdateOrderItem),
   updateOrderItemHandler,
@@ -167,6 +171,7 @@ router.put(
 router.patch(
   '/:id/status',
   requireBusinessPermission(BusinessPermissionCode.ORDER_STATUS_UPDATE),
+  requireSubscriptionWriteAccess('UPDATE_ORDER_STATUS'),
   validate(updateOrderStatusSchema),
   requireOutletAccess(resolveOutletIdFromUpdateOrderStatus),
   updateOrderStatusHandler,

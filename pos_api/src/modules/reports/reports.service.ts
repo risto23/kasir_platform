@@ -8,6 +8,103 @@ import type {
   SupplierPayablesReportResponse,
 } from './reports.types';
 
+type DateRangeUtc = {
+  dateFrom: string;
+  dateTo: string;
+  timezone: string;
+  startUtc: Date;
+  endUtc: Date;
+};
+
+function normalizeDateInput(value: string): string {
+  const trimmedValue = value.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmedValue)) {
+    return trimmedValue;
+  }
+
+  const parsedDate = new Date(trimmedValue);
+  if (Number.isNaN(parsedDate.getTime())) {
+    throw new Error(`Invalid date input: ${value}`);
+  }
+
+  return parsedDate.toISOString().slice(0, 10);
+}
+
+function getTimeZoneOffsetMinutes(timezone: string, date: Date): number {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    timeZoneName: 'shortOffset',
+    hour: '2-digit',
+  });
+
+  const timeZoneName = formatter
+    .formatToParts(date)
+    .find((part) => part.type === 'timeZoneName')?.value;
+
+  if (!timeZoneName) {
+    throw new Error(`Unable to resolve timezone offset for ${timezone}`);
+  }
+
+  if (timeZoneName === 'GMT' || timeZoneName === 'UTC') {
+    return 0;
+  }
+
+  const match = timeZoneName.match(/^(?:GMT|UTC)([+-])(\d{1,2})(?::?(\d{2}))?$/);
+  if (!match) {
+    throw new Error(`Unsupported timezone offset format: ${timeZoneName}`);
+  }
+
+  const [, sign, hours, minutes] = match;
+  const totalMinutes = Number(hours) * 60 + Number(minutes ?? '0');
+
+  return sign === '+' ? totalMinutes : -totalMinutes;
+}
+
+function createUtcDateForLocalBoundary(
+  dateValue: string,
+  timezone: string,
+  hour: number,
+  minute: number,
+  second: number,
+  millisecond: number,
+): Date {
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const naiveUtcTimestamp = Date.UTC(
+    year,
+    month - 1,
+    day,
+    hour,
+    minute,
+    second,
+    millisecond,
+  );
+  const offsetMinutes = getTimeZoneOffsetMinutes(timezone, new Date(naiveUtcTimestamp));
+
+  return new Date(naiveUtcTimestamp - offsetMinutes * 60_000);
+}
+
+export function buildDateRangeUtc(
+  start: string,
+  end: string,
+  timezone: string,
+): DateRangeUtc {
+  const dateFrom = normalizeDateInput(start);
+  const dateTo = normalizeDateInput(end);
+
+  if (dateFrom > dateTo) {
+    throw new Error('Tanggal mulai tidak boleh lebih besar dari tanggal akhir');
+  }
+
+  return {
+    dateFrom,
+    dateTo,
+    timezone,
+    startUtc: createUtcDateForLocalBoundary(dateFrom, timezone, 0, 0, 0, 0),
+    endUtc: createUtcDateForLocalBoundary(dateTo, timezone, 23, 59, 59, 999),
+  };
+}
+
 function toDate(value: string): Date { return new Date(value + 'T00:00:00.000Z'); }
 function ymd(date: Date): string { return date.toISOString().slice(0,10); }
 function monthKey(date: Date): string { return date.getUTCFullYear() + '-' + String(date.getUTCMonth()+1).padStart(2,'0'); }
@@ -34,15 +131,14 @@ export async function getSalesSummaryService(params: {
   groupBy: 'day'|'week'|'month';
   start: string; end: string;
 }): Promise<SalesSummaryResponse> {
-  const startDate = toDate(params.start);
-  const endDate = toDate(params.end);
+  const dateRange = buildDateRangeUtc(params.start, params.end, 'Asia/Jakarta');
 
   const orders = await prisma.order.findMany({
     where: {
       businessId: params.businessId,
       ...(params.scope === 'outlet' && params.outletId ? { outletId: params.outletId } : {}),
       paymentStatus: PaymentStatus.PAID,
-      createdAt: { gte: startDate, lte: new Date(endDate.getTime() + 86399999) },
+      createdAt: { gte: dateRange.startUtc, lte: dateRange.endUtc },
     },
     select: {
       id: true, totalAmount: true, createdAt: true,
@@ -91,13 +187,12 @@ export async function getSalesSummaryService(params: {
 export async function getOrdersReportService(params: {
   businessId: string; scope: 'business'|'outlet'; outletId?: string | null; start: string; end: string; page: number; perPage: number;
 }): Promise<OrdersReportResponse> {
-  const startDate = toDate(params.start);
-  const endDate = toDate(params.end);
+  const dateRange = buildDateRangeUtc(params.start, params.end, 'Asia/Jakarta');
 
   const where: Prisma.OrderWhereInput = {
     businessId: params.businessId,
     ...(params.scope === 'outlet' && params.outletId ? { outletId: params.outletId } : {}),
-    createdAt: { gte: startDate, lte: new Date(endDate.getTime() + 86399999) },
+    createdAt: { gte: dateRange.startUtc, lte: dateRange.endUtc },
   };
 
   const [total, rows] = await Promise.all([
@@ -117,14 +212,13 @@ export async function getOrdersReportService(params: {
 export async function getItemsReportService(params: {
   businessId: string; scope: 'business'|'outlet'; outletId?: string | null; start: string; end: string; page: number; perPage: number;
 }): Promise<ItemsReportResponse> {
-  const startDate = toDate(params.start);
-  const endDate = toDate(params.end);
+  const dateRange = buildDateRangeUtc(params.start, params.end, 'Asia/Jakarta');
 
   const orders = await prisma.order.findMany({
     where: {
       businessId: params.businessId,
       ...(params.scope === 'outlet' && params.outletId ? { outletId: params.outletId } : {}),
-      createdAt: { gte: startDate, lte: new Date(endDate.getTime() + 86399999) },
+      createdAt: { gte: dateRange.startUtc, lte: dateRange.endUtc },
     },
     select: { id: true },
   });

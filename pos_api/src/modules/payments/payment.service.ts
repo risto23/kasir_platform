@@ -5,6 +5,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { enforceMonthlyTransactionLimit } from '../../middlewares/subscription-limit.middleware';
 import { createReceiptForPaidOrder } from '../receipts/receipt.service';
 
 function toMoneyString(value: Prisma.Decimal | number | string | null | undefined): string {
@@ -96,6 +97,12 @@ export async function createPayment(params: {
     if (amountTenderedDecimal.lessThan(amountPaidDecimal)) {
       throw new Error('Amount tendered tidak boleh lebih kecil dari amount paid');
     }
+
+    await enforceMonthlyTransactionLimit({
+      reader: tx,
+      businessId: params.businessId,
+      blockedAction: 'CREATE_FINAL_PAYMENT',
+    });
 
     const changeAmount = amountTenderedDecimal.minus(amountPaidDecimal);
     const paymentNumber = await generatePaymentNumber(tx);

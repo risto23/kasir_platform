@@ -5,6 +5,7 @@ import { authMiddleware } from '../../middlewares/auth.middleware';
 import { businessAccessMiddleware } from '../../middlewares/business-access.middleware';
 import { requireBusinessPermission } from '../../middlewares/require-business-permission.middleware';
 import { requireOutletAccess } from '../../middlewares/require-outlet-access.middleware';
+import { requireSubscriptionWriteAccess } from '../../middlewares/subscription-write-access.middleware';
 import { validate } from '../../middlewares/validate.middleware';
 
 import {
@@ -26,6 +27,20 @@ function resolveOutletIdFromQueryOrHeader(req: Request): string | null {
   const headerOutletId = req.headers['x-outlet-id'];
   if (typeof headerOutletId === 'string' && headerOutletId.trim() !== '') {
     return headerOutletId.trim();
+  }
+
+  return null;
+}
+
+function resolveOutletIdFromCreatePayment(req: Request): string | null {
+  const parsed = createPaymentSchema.safeParse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  if (parsed.success) {
+    return parsed.data.body.outletId;
   }
 
   return null;
@@ -55,8 +70,9 @@ router.get(
 router.post(
   '/',
   requireBusinessPermission(BusinessPermissionCode.PAYMENT_CREATE),
+  requireSubscriptionWriteAccess('CREATE_PAYMENT'),
   validate(createPaymentSchema),
-  requireOutletAccess((req) => req.body.outletId),
+  requireOutletAccess(resolveOutletIdFromCreatePayment),
   createPaymentHandler,
 );
 

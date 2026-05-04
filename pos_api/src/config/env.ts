@@ -31,4 +31,17 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
   appOrigin: process.env.APP_ORIGIN || 'http://localhost:3000',
   bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 10),
+  subscriptionBillingJobEnabled:
+    process.env.SUBSCRIPTION_BILLING_JOB_ENABLED !== undefined
+      ? process.env.SUBSCRIPTION_BILLING_JOB_ENABLED === 'true'
+      : nodeEnv !== 'test',
+  subscriptionBillingJobIntervalMs: Number(
+    process.env.SUBSCRIPTION_BILLING_JOB_INTERVAL_MS || 60 * 60 * 1000,
+  ),
+  subscriptionBillingRenewalLeadDays: Number(
+    process.env.SUBSCRIPTION_BILLING_RENEWAL_LEAD_DAYS || 7,
+  ),
+  subscriptionBillingGraceDays: Number(
+    process.env.SUBSCRIPTION_BILLING_GRACE_DAYS || 7,
+  ),
 };

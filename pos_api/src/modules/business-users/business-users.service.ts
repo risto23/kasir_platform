@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
+import { enforceBusinessUserLimit } from '../../middlewares/subscription-limit.middleware';
 import type {
   CreateBusinessUserBody,
   ListBusinessUsersQuery,
@@ -322,6 +323,14 @@ export async function createBusinessUser(
   return prisma.$transaction(async (tx) => {
     await ensureOutletsBelongToBusiness(tx, businessId, outletIds);
 
+    if ((payload.status ?? BusinessUserStatus.ACTIVE) === BusinessUserStatus.ACTIVE) {
+      await enforceBusinessUserLimit({
+        reader: tx,
+        businessId,
+        blockedAction: 'CREATE_BUSINESS_USER',
+      });
+    }
+
     const role = await tx.businessRole.findUnique({
       where: {
         code: payload.businessRoleCode,
@@ -472,6 +481,17 @@ export async function updateBusinessUser(
       throw buildHttpError(404, 'Business user tidak ditemukan');
     }
 
+    if (
+      currentMembership.status !== BusinessUserStatus.ACTIVE &&
+      payload.status === BusinessUserStatus.ACTIVE
+    ) {
+      await enforceBusinessUserLimit({
+        reader: tx,
+        businessId,
+        blockedAction: 'ACTIVATE_BUSINESS_USER',
+      });
+    }
+
     if (currentMembership.isPrimary && payload.businessRoleCode !== BusinessRoleCode.OWNER) {
       throw buildHttpError(400, 'Primary owner tidak boleh diubah ke role selain OWNER');
     }
@@ -596,6 +616,16 @@ export async function updateBusinessUserStatus(
 
   if (currentMembership.isPrimary && payload.status === BusinessUserStatus.INACTIVE) {
     throw buildHttpError(400, 'Primary owner tidak boleh dinonaktifkan');
+  }
+
+  if (
+    currentMembership.status !== BusinessUserStatus.ACTIVE &&
+    payload.status === BusinessUserStatus.ACTIVE
+  ) {
+    await enforceBusinessUserLimit({
+      businessId,
+      blockedAction: 'ACTIVATE_BUSINESS_USER',
+    });
   }
 
   const updated = await prisma.businessUser.update({
