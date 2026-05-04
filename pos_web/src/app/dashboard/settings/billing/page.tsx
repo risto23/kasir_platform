@@ -5,6 +5,8 @@ import { getActiveBusinessId, getCachedCurrentUser } from '@/lib/auth';
 import {
   cancelSubscription,
   changeSubscriptionPlan,
+  createSubscriptionPlanAdmin,
+  deactivateSubscriptionPlanAdmin,
   getCurrentSubscription,
   getSubscriptionChangePreview,
   getSubscriptionInvoiceDetail,
@@ -14,6 +16,8 @@ import {
   recordSubscriptionInvoicePayment,
   reactivateSubscription,
   startSubscription,
+  updateSubscriptionPlanAdmin,
+  activateSubscriptionPlanAdmin,
   type CurrentSubscriptionResponse,
   type CurrentSubscriptionUsageResponse,
   type SubscriptionChangePreviewResponse,
@@ -82,6 +86,40 @@ function formatLimit(value: number | null) {
   }
 
   return value.toLocaleString('id-ID');
+}
+
+type SubscriptionPlanAdminBusinessType = 'RESTAURANT' | 'RETAIL' | '';
+
+type SubscriptionPlanAdminFormData = {
+  code: string;
+  name: string;
+  description: string;
+  monthlyPrice: string;
+  currencyCode: string;
+  businessType: SubscriptionPlanAdminBusinessType;
+  isCustomPricing: boolean;
+  isActive: boolean;
+  maxOutlets: string;
+  maxUsers: string;
+  maxProducts: string;
+  maxMonthlyTransactions: string;
+};
+
+function getAdminPlanFormDefault(): SubscriptionPlanAdminFormData {
+  return {
+    code: '',
+    name: '',
+    description: '',
+    monthlyPrice: '0',
+    currencyCode: 'IDR',
+    businessType: '',
+    isCustomPricing: false,
+    isActive: true,
+    maxOutlets: '',
+    maxUsers: '',
+    maxProducts: '',
+    maxMonthlyTransactions: '',
+  };
 }
 
 function formatStatusLabel(value: string) {
@@ -200,6 +238,14 @@ export default function BillingSettingsPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentReferenceNumber, setPaymentReferenceNumber] = useState('');
   const [paymentPaidAt, setPaymentPaidAt] = useState(toDateTimeLocalValue(new Date()));
+  const [adminFormMode, setAdminFormMode] = useState<'create' | 'edit'>('create');
+  const [adminSelectedPlanId, setAdminSelectedPlanId] = useState<string | null>(null);
+  const [adminForm, setAdminForm] = useState<SubscriptionPlanAdminFormData>(
+    getAdminPlanFormDefault,
+  );
+  const [adminSubmitting, setAdminSubmitting] = useState(false);
+  const [adminMessage, setAdminMessage] = useState('');
+  const [adminActionLoadingPlanId, setAdminActionLoadingPlanId] = useState<string | null>(null);
 
   const ownerAccess = useMemo(() => {
     const currentUser = getCachedCurrentUser();
@@ -228,6 +274,141 @@ export default function BillingSettingsPage() {
 
     return currentUser.platformRoles.includes('SUPER_ADMIN');
   }, []);
+
+  function parseNullableNumber(value: string): number | null {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      return null;
+    }
+
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function resetAdminPlanForm() {
+    setAdminForm(getAdminPlanFormDefault());
+    setAdminFormMode('create');
+    setAdminSelectedPlanId(null);
+    setAdminMessage('');
+  }
+
+  function fillAdminPlanForm(plan: SubscriptionPlanSummary) {
+    setAdminFormMode('edit');
+    setAdminSelectedPlanId(plan.id);
+    setAdminMessage('');
+    setAdminForm({
+      code: plan.code,
+      name: plan.name,
+      description: plan.description ?? '',
+      monthlyPrice: String(plan.monthlyPrice),
+      currencyCode: plan.currencyCode,
+      businessType: plan.businessType ?? '',
+      isCustomPricing: plan.isCustomPricing,
+      isActive: plan.isActive,
+      maxOutlets: plan.limits.maxOutlets?.toString() ?? '',
+      maxUsers: plan.limits.maxUsers?.toString() ?? '',
+      maxProducts: plan.limits.maxProducts?.toString() ?? '',
+      maxMonthlyTransactions:
+        plan.limits.maxMonthlyTransactions?.toString() ?? '',
+    });
+  }
+
+  async function handleAdminFormSubmit() {
+    if (!subscriptionManagementAccess) {
+      setAdminMessage('Hanya super admin yang dapat mengelola plan subscription.');
+      return;
+    }
+
+    if (!adminForm.name.trim()) {
+      setAdminMessage('Nama plan harus diisi.');
+      return;
+    }
+
+    if (adminFormMode === 'create' && !adminForm.code.trim()) {
+      setAdminMessage('Kode plan harus diisi.');
+      return;
+    }
+
+    const monthlyPrice = Number(adminForm.monthlyPrice);
+    if (Number.isNaN(monthlyPrice) || monthlyPrice < 0) {
+      setAdminMessage('Monthly price harus angka yang valid dan tidak negatif.');
+      return;
+    }
+
+    const payload = {
+      name: adminForm.name.trim(),
+      description: adminForm.description.trim() || null,
+      monthlyPrice,
+      currencyCode: adminForm.currencyCode.trim().toUpperCase() || 'IDR',
+      businessType: adminForm.businessType || null,
+      isCustomPricing: adminForm.isCustomPricing,
+      isActive: adminForm.isActive,
+      maxOutlets: parseNullableNumber(adminForm.maxOutlets),
+      maxUsers: parseNullableNumber(adminForm.maxUsers),
+      maxProducts: parseNullableNumber(adminForm.maxProducts),
+      maxMonthlyTransactions: parseNullableNumber(adminForm.maxMonthlyTransactions),
+    };
+
+    try {
+      setAdminSubmitting(true);
+      setAdminMessage('');
+
+      if (adminFormMode === 'create') {
+        await createSubscriptionPlanAdmin({
+          ...payload,
+          code: adminForm.code.trim().toUpperCase(),
+        });
+        setAdminMessage('Plan subscription berhasil dibuat.');
+        resetAdminPlanForm();
+      } else if (adminSelectedPlanId) {
+        await updateSubscriptionPlanAdmin(adminSelectedPlanId, payload);
+        setAdminMessage('Plan subscription berhasil diperbarui.');
+      }
+
+      await refreshBillingData(selectedInvoiceId);
+    } catch (error) {
+      setAdminMessage(
+        error instanceof Error
+          ? error.message
+          : 'Gagal menyimpan plan subscription.',
+      );
+    } finally {
+      setAdminSubmitting(false);
+    }
+  }
+
+  async function handleTogglePlanActive(plan: SubscriptionPlanSummary) {
+    if (!subscriptionManagementAccess) {
+      setAdminMessage('Hanya super admin yang dapat mengelola plan subscription.');
+      return;
+    }
+
+    try {
+      setAdminActionLoadingPlanId(plan.id);
+      setAdminMessage('');
+
+      const result = plan.isActive
+        ? await deactivateSubscriptionPlanAdmin(plan.id)
+        : await activateSubscriptionPlanAdmin(plan.id);
+
+      setAdminMessage(
+        `Plan ${result.name} berhasil ${result.isActive ? 'diaktifkan' : 'dinonaktifkan'}.`,
+      );
+
+      await refreshBillingData(selectedInvoiceId);
+      if (adminSelectedPlanId === plan.id) {
+        fillAdminPlanForm(result);
+      }
+    } catch (error) {
+      setAdminMessage(
+        error instanceof Error
+          ? error.message
+          : 'Gagal mengubah status plan subscription.',
+      );
+    } finally {
+      setAdminActionLoadingPlanId(null);
+    }
+  }
 
   async function refreshBillingData(preferredInvoiceId?: string | null) {
     setMessage('');
@@ -913,11 +1094,279 @@ export default function BillingSettingsPage() {
                     {submittingSubscriptionStart ? 'Memproses...' : 'Start Subscription'}
                   </button>
                 ) : null}
+                {subscriptionManagementAccess ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fillAdminPlanForm(plan)}
+                      className="h-10 rounded-2xl border border-slate-300 px-4 text-sm font-semibold text-slate-900 hover:border-slate-900 hover:bg-slate-100"
+                    >
+                      Edit Plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleTogglePlanActive(plan)}
+                      disabled={adminActionLoadingPlanId === plan.id}
+                      className="h-10 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-60"
+                    >
+                      {adminActionLoadingPlanId === plan.id
+                        ? 'Memproses...'
+                        : plan.isActive
+                        ? 'Deactivate'
+                        : 'Activate'}
+                    </button>
+                  </div>
+                ) : null}
               </article>
             );
           })}
         </div>
       </section>
+
+      {subscriptionManagementAccess ? (
+        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Subscription Plan Management
+              </h2>
+              <p className="text-sm text-slate-500">
+                Kelola definisi plan platform untuk harga, limits, dan status aktif.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={resetAdminPlanForm}
+              className="h-11 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white"
+            >
+              Buat Plan Baru
+            </button>
+          </div>
+
+          {adminMessage ? (
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              {adminMessage}
+            </div>
+          ) : null}
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Kode Plan</span>
+                  <input
+                    type="text"
+                    value={adminForm.code}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({ ...prev, code: event.target.value }))
+                    }
+                    disabled={adminFormMode === 'edit'}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
+
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Nama Plan</span>
+                  <input
+                    type="text"
+                    value={adminForm.name}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({ ...prev, name: event.target.value }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-1 text-sm text-slate-700">
+                <span>Deskripsi</span>
+                <textarea
+                  rows={3}
+                  value={adminForm.description}
+                  onChange={(event) =>
+                    setAdminForm((prev) => ({ ...prev, description: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                />
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Business Type</span>
+                  <select
+                    value={adminForm.businessType}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({
+                        ...prev,
+                        businessType:
+                          event.target.value === ''
+                            ? ''
+                            : (event.target.value as 'RETAIL' | 'RESTAURANT'),
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  >
+                    <option value="">All business types</option>
+                    <option value="RETAIL">Retail</option>
+                    <option value="RESTAURANT">Restaurant</option>
+                  </select>
+                </label>
+
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Currency Code</span>
+                  <input
+                    type="text"
+                    value={adminForm.currencyCode}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({ ...prev, currencyCode: event.target.value }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Monthly Price</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={adminForm.monthlyPrice}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({
+                        ...prev,
+                        monthlyPrice: event.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
+
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Custom Pricing</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={adminForm.isCustomPricing}
+                      onChange={(event) =>
+                        setAdminForm((prev) => ({
+                          ...prev,
+                          isCustomPricing: event.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 text-slate-900"
+                    />
+                    <span className="text-sm text-slate-700">Aktifkan pricing custom</span>
+                  </div>
+                </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Max Outlets</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={adminForm.maxOutlets}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({ ...prev, maxOutlets: event.target.value }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
+
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Max Users</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={adminForm.maxUsers}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({ ...prev, maxUsers: event.target.value }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Max Products</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={adminForm.maxProducts}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({ ...prev, maxProducts: event.target.value }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
+
+                <label className="space-y-1 text-sm text-slate-700">
+                  <span>Monthly Transactions</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={adminForm.maxMonthlyTransactions}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({
+                        ...prev,
+                        maxMonthlyTransactions: event.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={adminForm.isActive}
+                    onChange={(event) =>
+                      setAdminForm((prev) => ({ ...prev, isActive: event.target.checked }))
+                    }
+                    className="h-4 w-4 text-slate-900"
+                  />
+                  <span>Plan aktif</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAdminFormSubmit}
+                  disabled={adminSubmitting}
+                  className="h-11 rounded-2xl bg-emerald-600 px-5 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {adminSubmitting
+                    ? 'Memproses...'
+                    : adminFormMode === 'create'
+                    ? 'Simpan Plan'
+                    : 'Perbarui Plan'}
+                </button>
+                {adminFormMode === 'edit' ? (
+                  <button
+                    type="button"
+                    onClick={resetAdminPlanForm}
+                    className="h-11 rounded-2xl border border-slate-300 px-5 text-sm font-semibold text-slate-900"
+                  >
+                    Batal Edit
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              <p className="font-semibold text-slate-900">Petunjuk</p>
+              <p className="mt-3">
+                Buat atau edit plan baru untuk platform subscription. Kode plan harus berupa uppercase dan unik.
+              </p>
+              <p className="mt-3">
+                Jika plan tidak aktif, pemilik business tidak akan dapat memilihnya dari metode perubahan subscription.
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">

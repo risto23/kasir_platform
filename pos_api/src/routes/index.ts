@@ -38,6 +38,7 @@ import auditLogsRoutes from '../modules/audit-logs/audit-logs.routes';
 import restaurantOperationsRoutes from '../modules/restaurant-operations/restaurant-operations.routes';
 import businessFeatureFlagRoutes from '../modules/business-feature-flag/business-feature-flag.routes';
 import subscriptionRoutes from '../modules/subscriptions/subscriptions.routes';
+import subscriptionPlanRoutes from '../modules/subscriptions/subscription-plans.routes';
 
 const router = Router();
 
@@ -64,6 +65,7 @@ router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/subscriptions', subscriptionRoutes);
+router.use('/platform/subscription-plans', subscriptionPlanRoutes);
 
 router.use('/reports', reportsRoutes);
 router.use('/audit-logs', auditLogsRoutes);

@@ -4,6 +4,7 @@ vi.mock('../../src/lib/api', () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
+    patch: vi.fn(),
   },
 }));
 
@@ -15,16 +16,21 @@ import {
   getSubscriptionChangePreview,
   getSubscriptionInvoiceDetail,
   getSubscriptionInvoices,
+  createSubscriptionPlanAdmin,
+  deactivateSubscriptionPlanAdmin,
   getSubscriptionPlans,
   getSubscriptionUsage,
   recordSubscriptionInvoicePayment,
   reactivateSubscription,
   startSubscription,
+  updateSubscriptionPlanAdmin,
+  activateSubscriptionPlanAdmin,
 } from '../../src/lib/subscription';
 
 type ApiMock = {
   get: ReturnType<typeof vi.fn>;
   post: ReturnType<typeof vi.fn>;
+  patch: ReturnType<typeof vi.fn>;
 };
 
 describe('subscription api helpers', () => {
@@ -348,6 +354,155 @@ describe('subscription api helpers', () => {
     });
     expect(preview.changeType).toBe('UPGRADE');
     expect(result.scheduleChange?.status).toBe('APPLIED');
+  });
+
+  it('creates and updates subscription plans with admin endpoints', async () => {
+    apiMock.post.mockResolvedValueOnce({
+      data: {
+        data: {
+          id: 'plan-custom-1',
+          code: 'CUSTOM_PLAN',
+          name: 'Custom Plan',
+          description: 'Plan baru',
+          monthlyPrice: 999000,
+          currencyCode: 'IDR',
+          businessType: 'RETAIL',
+          isCustomPricing: false,
+          isActive: true,
+          limits: {
+            maxOutlets: 5,
+            maxUsers: 20,
+            maxProducts: 1000,
+            maxMonthlyTransactions: 10000,
+          },
+        },
+      },
+    });
+
+    apiMock.patch
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            id: 'plan-custom-1',
+            code: 'CUSTOM_PLAN',
+            name: 'Custom Plan Updated',
+            description: 'Plan diperbarui',
+            monthlyPrice: 1099000,
+            currencyCode: 'IDR',
+            businessType: 'RETAIL',
+            isCustomPricing: false,
+            isActive: true,
+            limits: {
+              maxOutlets: 6,
+              maxUsers: 25,
+              maxProducts: 1200,
+              maxMonthlyTransactions: 12000,
+            },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            id: 'plan-custom-1',
+            code: 'CUSTOM_PLAN',
+            name: 'Custom Plan Updated',
+            description: 'Plan diperbarui',
+            monthlyPrice: 1099000,
+            currencyCode: 'IDR',
+            businessType: 'RETAIL',
+            isCustomPricing: false,
+            isActive: false,
+            limits: {
+              maxOutlets: 6,
+              maxUsers: 25,
+              maxProducts: 1200,
+              maxMonthlyTransactions: 12000,
+            },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            id: 'plan-custom-1',
+            code: 'CUSTOM_PLAN',
+            name: 'Custom Plan Updated',
+            description: 'Plan diperbarui',
+            monthlyPrice: 1099000,
+            currencyCode: 'IDR',
+            businessType: 'RETAIL',
+            isCustomPricing: false,
+            isActive: true,
+            limits: {
+              maxOutlets: 6,
+              maxUsers: 25,
+              maxProducts: 1200,
+              maxMonthlyTransactions: 12000,
+            },
+          },
+        },
+      });
+
+    const createResult = await createSubscriptionPlanAdmin({
+      code: 'CUSTOM_PLAN',
+      name: 'Custom Plan',
+      description: 'Plan baru',
+      monthlyPrice: 999000,
+      currencyCode: 'IDR',
+      businessType: 'RETAIL',
+      isCustomPricing: false,
+      isActive: true,
+      maxOutlets: 5,
+      maxUsers: 20,
+      maxProducts: 1000,
+      maxMonthlyTransactions: 10000,
+    });
+
+    const updateResult = await updateSubscriptionPlanAdmin('plan-custom-1', {
+      name: 'Custom Plan Updated',
+      description: 'Plan diperbarui',
+      monthlyPrice: 1099000,
+      maxOutlets: 6,
+      maxUsers: 25,
+      maxProducts: 1200,
+      maxMonthlyTransactions: 12000,
+    });
+
+    const deactivateResult = await deactivateSubscriptionPlanAdmin('plan-custom-1');
+    const activateResult = await activateSubscriptionPlanAdmin('plan-custom-1');
+
+    expect(apiMock.post).toHaveBeenNthCalledWith(1, '/platform/subscription-plans', {
+      code: 'CUSTOM_PLAN',
+      name: 'Custom Plan',
+      description: 'Plan baru',
+      monthlyPrice: 999000,
+      currencyCode: 'IDR',
+      businessType: 'RETAIL',
+      isCustomPricing: false,
+      isActive: true,
+      maxOutlets: 5,
+      maxUsers: 20,
+      maxProducts: 1000,
+      maxMonthlyTransactions: 10000,
+    });
+
+    expect(apiMock.patch).toHaveBeenNthCalledWith(1, '/platform/subscription-plans/plan-custom-1', {
+      name: 'Custom Plan Updated',
+      description: 'Plan diperbarui',
+      monthlyPrice: 1099000,
+      maxOutlets: 6,
+      maxUsers: 25,
+      maxProducts: 1200,
+      maxMonthlyTransactions: 12000,
+    });
+
+    expect(apiMock.patch).toHaveBeenNthCalledWith(2, '/platform/subscription-plans/plan-custom-1/deactivate', {});
+    expect(apiMock.patch).toHaveBeenNthCalledWith(3, '/platform/subscription-plans/plan-custom-1/activate', {});
+    expect(createResult.code).toBe('CUSTOM_PLAN');
+    expect(updateResult.name).toBe('Custom Plan Updated');
+    expect(deactivateResult.isActive).toBe(false);
+    expect(activateResult.isActive).toBe(true);
   });
 
   it('records manual invoice payment from billing page', async () => {

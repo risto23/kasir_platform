@@ -433,6 +433,194 @@ export async function getSubscriptionPlansByBusinessType(
   return getOrderedPlans(plans).map(mapPlanSummary);
 }
 
+export async function getSubscriptionPlans(): Promise<SubscriptionPlanSummary[]> {
+  const plans = await prisma.plan.findMany({
+    orderBy: {
+      createdAt: 'asc',
+    },
+  });
+
+  return getOrderedPlans(plans).map(mapPlanSummary);
+}
+
+export async function getSubscriptionPlanById(
+  planId: string,
+): Promise<SubscriptionPlanSummary> {
+  const plan = await prisma.plan.findUnique({
+    where: {
+      id: planId,
+    },
+  });
+
+  if (!plan) {
+    throw new Error('Plan subscription tidak ditemukan');
+  }
+
+  return mapPlanSummary(plan);
+}
+
+export async function createSubscriptionPlan(params: {
+  code: string;
+  name: string;
+  description: string | null;
+  monthlyPrice: number;
+  currencyCode: string;
+  businessType: BusinessType | null;
+  maxOutlets: number | null;
+  maxUsers: number | null;
+  maxProducts: number | null;
+  maxMonthlyTransactions: number | null;
+  isCustomPricing: boolean;
+  isActive: boolean;
+}): Promise<SubscriptionPlanSummary> {
+  const existingPlan = await prisma.plan.findFirst({
+    where: {
+      OR: [{ code: params.code }, { name: params.name }],
+    },
+  });
+
+  if (existingPlan) {
+    throw new Error('Code atau nama plan sudah digunakan');
+  }
+
+  const plan = await prisma.plan.create({
+    data: {
+      code: params.code,
+      name: params.name,
+      description: params.description,
+      monthlyPrice: new Prisma.Decimal(params.monthlyPrice),
+      currencyCode: params.currencyCode,
+      businessType: params.businessType,
+      maxOutlets: params.maxOutlets,
+      maxUsers: params.maxUsers,
+      maxProducts: params.maxProducts,
+      maxMonthlyTransactions: params.maxMonthlyTransactions,
+      isCustomPricing: params.isCustomPricing,
+      isActive: params.isActive,
+    },
+  });
+
+  return mapPlanSummary(plan);
+}
+
+export async function updateSubscriptionPlan(params: {
+  planId: string;
+  name?: string;
+  description?: string | null;
+  monthlyPrice?: number;
+  currencyCode?: string;
+  businessType?: BusinessType | null;
+  maxOutlets?: number | null;
+  maxUsers?: number | null;
+  maxProducts?: number | null;
+  maxMonthlyTransactions?: number | null;
+  isCustomPricing?: boolean;
+  isActive?: boolean;
+}): Promise<SubscriptionPlanSummary> {
+  const plan = await prisma.plan.findUnique({
+    where: {
+      id: params.planId,
+    },
+  });
+
+  if (!plan) {
+    throw new Error('Plan subscription tidak ditemukan');
+  }
+
+  const data: {
+    name?: string;
+    description?: string | null;
+    monthlyPrice?: Prisma.Decimal;
+    currencyCode?: string;
+    businessType?: BusinessType | null;
+    maxOutlets?: number | null;
+    maxUsers?: number | null;
+    maxProducts?: number | null;
+    maxMonthlyTransactions?: number | null;
+    isCustomPricing?: boolean;
+    isActive?: boolean;
+  } = {};
+
+  if (params.name !== undefined) {
+    data.name = params.name;
+  }
+
+  if (params.description !== undefined) {
+    data.description = params.description;
+  }
+
+  if (params.monthlyPrice !== undefined) {
+    data.monthlyPrice = new Prisma.Decimal(params.monthlyPrice);
+  }
+
+  if (params.currencyCode !== undefined) {
+    data.currencyCode = params.currencyCode;
+  }
+
+  if (params.businessType !== undefined) {
+    data.businessType = params.businessType;
+  }
+
+  if (params.maxOutlets !== undefined) {
+    data.maxOutlets = params.maxOutlets;
+  }
+
+  if (params.maxUsers !== undefined) {
+    data.maxUsers = params.maxUsers;
+  }
+
+  if (params.maxProducts !== undefined) {
+    data.maxProducts = params.maxProducts;
+  }
+
+  if (params.maxMonthlyTransactions !== undefined) {
+    data.maxMonthlyTransactions = params.maxMonthlyTransactions;
+  }
+
+  if (params.isCustomPricing !== undefined) {
+    data.isCustomPricing = params.isCustomPricing;
+  }
+
+  if (params.isActive !== undefined) {
+    data.isActive = params.isActive;
+  }
+
+  const updatedPlan = await prisma.plan.update({
+    where: {
+      id: params.planId,
+    },
+    data,
+  });
+
+  return mapPlanSummary(updatedPlan);
+}
+
+export async function setSubscriptionPlanActiveStatus(params: {
+  planId: string;
+  isActive: boolean;
+}): Promise<SubscriptionPlanSummary> {
+  const plan = await prisma.plan.findUnique({
+    where: {
+      id: params.planId,
+    },
+  });
+
+  if (!plan) {
+    throw new Error('Plan subscription tidak ditemukan');
+  }
+
+  const updatedPlan = await prisma.plan.update({
+    where: {
+      id: params.planId,
+    },
+    data: {
+      isActive: params.isActive,
+    },
+  });
+
+  return mapPlanSummary(updatedPlan);
+}
+
 export async function getCurrentSubscriptionByBusiness(
   businessId: string,
 ): Promise<CurrentSubscriptionResponse> {

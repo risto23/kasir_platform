@@ -54,6 +54,37 @@ export type SubscriptionPlanSummary = {
   };
 };
 
+export type SubscriptionPlanAdminBusinessType = 'RESTAURANT' | 'RETAIL' | null;
+
+export type CreateSubscriptionPlanRequest = {
+  code: string;
+  name: string;
+  description?: string | null;
+  monthlyPrice: number;
+  currencyCode: string;
+  businessType?: SubscriptionPlanAdminBusinessType;
+  isCustomPricing?: boolean;
+  isActive?: boolean;
+  maxOutlets?: number | null;
+  maxUsers?: number | null;
+  maxProducts?: number | null;
+  maxMonthlyTransactions?: number | null;
+};
+
+export type UpdateSubscriptionPlanRequest = {
+  name?: string;
+  description?: string | null;
+  monthlyPrice?: number;
+  currencyCode?: string;
+  businessType?: SubscriptionPlanAdminBusinessType;
+  isCustomPricing?: boolean;
+  isActive?: boolean;
+  maxOutlets?: number | null;
+  maxUsers?: number | null;
+  maxProducts?: number | null;
+  maxMonthlyTransactions?: number | null;
+};
+
 export type CurrentSubscriptionResponse = {
   subscriptionId: string;
   businessId: string;
@@ -246,6 +277,47 @@ export async function getSubscriptionPlans() {
   const response = await api.get<Envelope<SubscriptionPlanSummary[]>>('/subscriptions/plans');
 
   return unwrapEnvelope(response, 'Subscription plan tidak ditemukan');
+}
+
+export async function createSubscriptionPlanAdmin(
+  payload: CreateSubscriptionPlanRequest,
+) {
+  const response = await api.post<Envelope<SubscriptionPlanSummary>>(
+    '/platform/subscription-plans',
+    payload,
+  );
+
+  return unwrapEnvelope(response, 'Gagal membuat plan subscription');
+}
+
+export async function updateSubscriptionPlanAdmin(
+  planId: string,
+  payload: UpdateSubscriptionPlanRequest,
+) {
+  const response = await api.patch<Envelope<SubscriptionPlanSummary>>(
+    `/platform/subscription-plans/${planId}`,
+    payload,
+  );
+
+  return unwrapEnvelope(response, 'Gagal memperbarui plan subscription');
+}
+
+export async function activateSubscriptionPlanAdmin(planId: string) {
+  const response = await api.patch<Envelope<SubscriptionPlanSummary>>(
+    `/platform/subscription-plans/${planId}/activate`,
+    {},
+  );
+
+  return unwrapEnvelope(response, 'Gagal mengaktifkan plan subscription');
+}
+
+export async function deactivateSubscriptionPlanAdmin(planId: string) {
+  const response = await api.patch<Envelope<SubscriptionPlanSummary>>(
+    `/platform/subscription-plans/${planId}/deactivate`,
+    {},
+  );
+
+  return unwrapEnvelope(response, 'Gagal menonaktifkan plan subscription');
 }
 
 export async function getCurrentSubscription() {
