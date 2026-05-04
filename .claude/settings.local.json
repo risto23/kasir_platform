@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(DATABASE_URL=\"postgresql://placeholder:placeholder@localhost:5432/placeholder\" npx prisma generate)",
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(gh pr create --title 'feat: add email notification when subscription is about to expire' --body ' *)",
+      "PowerShell(Get-Command gh -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" -ErrorAction SilentlyContinue)",
+      "Bash(cmd.exe /c \"where gh\")",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/Risto/scoop/**)",
+      "Bash(cmd.exe /c \"curl --version\")",
+      "Bash(git -C \"C:\\\\Users\\\\Risto\\\\Documents\\\\projek\\\\pos_platform\\\\.claude\\\\worktrees\\\\youthful-albattani-033cb1\" config --get credential.helper)",
+      "Bash(git -C \"C:\\\\Users\\\\Risto\\\\Documents\\\\projek\\\\pos_platform\\\\.claude\\\\worktrees\\\\youthful-albattani-033cb1\" credential fill)"
+    ]
+  }
+}
