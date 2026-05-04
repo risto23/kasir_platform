@@ -44,4 +44,18 @@ export const env = {
   subscriptionBillingGraceDays: Number(
     process.env.SUBSCRIPTION_BILLING_GRACE_DAYS || 7,
   ),
+  subscriptionNotificationJobEnabled:
+    process.env.SUBSCRIPTION_NOTIFICATION_JOB_ENABLED !== undefined
+      ? process.env.SUBSCRIPTION_NOTIFICATION_JOB_ENABLED === 'true'
+      : nodeEnv !== 'test',
+  subscriptionNotificationJobIntervalMs: Number(
+    process.env.SUBSCRIPTION_NOTIFICATION_JOB_INTERVAL_MS || 60 * 60 * 1000,
+  ),
+  smtpHost: process.env.SMTP_HOST || '',
+  smtpPort: Number(process.env.SMTP_PORT || 465),
+  smtpSecure: process.env.SMTP_SECURE !== 'false',
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPassword: process.env.SMTP_PASSWORD || '',
+  smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  appName: process.env.APP_NAME || 'POS Platform',
 };
