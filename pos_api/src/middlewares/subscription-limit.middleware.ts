@@ -144,7 +144,12 @@ async function enforceLimit(params: {
   reader?: LimitReader;
   businessId: string;
   rule: LimitRule;
+  isBypass?: boolean;
 }) {
+  if (params.isBypass) {
+    return;
+  }
+
   const reader = params.reader ?? prisma;
   const subscription = await getActiveSubscriptionByBusiness(reader, params.businessId);
   const limit = subscription.plan[params.rule.limitKey];
@@ -183,12 +188,14 @@ export async function enforceOutletLimit(params: {
   reader?: LimitReader;
   businessId: string;
   blockedAction?: Extract<BlockedAction, 'CREATE_OUTLET' | 'ACTIVATE_OUTLET'>;
+  isBypass?: boolean;
 }) {
   const blockedAction = params.blockedAction ?? 'CREATE_OUTLET';
 
   return enforceLimit({
     reader: params.reader,
     businessId: params.businessId,
+    isBypass: params.isBypass,
     rule: {
       metric: 'OUTLETS',
       limitKey: 'maxOutlets',
@@ -206,12 +213,14 @@ export async function enforceBusinessUserLimit(params: {
     BlockedAction,
     'CREATE_BUSINESS_USER' | 'ACTIVATE_BUSINESS_USER'
   >;
+  isBypass?: boolean;
 }) {
   const blockedAction = params.blockedAction ?? 'CREATE_BUSINESS_USER';
 
   return enforceLimit({
     reader: params.reader,
     businessId: params.businessId,
+    isBypass: params.isBypass,
     rule: {
       metric: 'USERS',
       limitKey: 'maxUsers',
@@ -226,12 +235,14 @@ export async function enforceProductLimit(params: {
   reader?: LimitReader;
   businessId: string;
   blockedAction?: Extract<BlockedAction, 'CREATE_PRODUCT' | 'ACTIVATE_PRODUCT'>;
+  isBypass?: boolean;
 }) {
   const blockedAction = params.blockedAction ?? 'CREATE_PRODUCT';
 
   return enforceLimit({
     reader: params.reader,
     businessId: params.businessId,
+    isBypass: params.isBypass,
     rule: {
       metric: 'PRODUCTS',
       limitKey: 'maxProducts',
@@ -246,12 +257,14 @@ export async function enforceMonthlyTransactionLimit(params: {
   reader?: LimitReader;
   businessId: string;
   blockedAction?: Extract<BlockedAction, 'CREATE_ORDER' | 'CREATE_FINAL_PAYMENT'>;
+  isBypass?: boolean;
 }) {
   const blockedAction = params.blockedAction ?? 'CREATE_ORDER';
 
   return enforceLimit({
     reader: params.reader,
     businessId: params.businessId,
+    isBypass: params.isBypass,
     rule: {
       metric: 'MONTHLY_TRANSACTIONS',
       limitKey: 'maxMonthlyTransactions',

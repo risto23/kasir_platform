@@ -157,9 +157,12 @@ export async function loginService(
     throw new Error('Email atau password salah');
   }
 
+  const platformRoles = user.platformRoles.map((item) => item.platformRole.code);
+
   const token = signAccessToken({
     userId: user.id,
     email: user.email,
+    platformRoles,
   });
 
   await prisma.user.update({
