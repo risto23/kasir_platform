@@ -72,6 +72,15 @@ export function requireFeatureFlag(featureKey: string) {
   };
 }
 
+export function requireFeatureFlagIfScope(scope: string, featureKey: string) {
+  return function scopedFeatureFlagGuard(req: Request, res: Response, next: NextFunction) {
+    if (req.query.scope === scope) {
+      return requireFeatureFlag(featureKey)(req, res, next);
+    }
+    return next();
+  };
+}
+
 export function requireFeatureFlagForOutletParam(featureKey: string, resolveOutletId: (req: Request) => string | null) {
   return async function featureFlagGuard(req: Request, res: Response, next: NextFunction) {
     try {
