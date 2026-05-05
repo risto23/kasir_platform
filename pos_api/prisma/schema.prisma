@@ -58,8 +58,22 @@ model FeatureFlag {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
   businesses  BusinessFeatureFlag[]
+  plans       PlanFeatureFlag[]
 
   @@map("feature_flags")
+}
+
+model PlanFeatureFlag {
+  id            String      @id @default(cuid())
+  planId        String
+  featureFlagId String
+  createdAt     DateTime    @default(now())
+  featureFlag   FeatureFlag @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
+  plan          Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureFlagId])
+  @@index([featureFlagId])
+  @@map("plan_feature_flags")
 }
 
 model Plan {
@@ -79,6 +93,7 @@ model Plan {
   createdAt              DateTime                     @default(now())
   updatedAt              DateTime                     @updatedAt
   subscriptions          BusinessSubscription[]
+  featureFlags           PlanFeatureFlag[]
   scheduleChangesFrom    SubscriptionScheduleChange[] @relation("SubscriptionScheduleChangeFromPlan")
   scheduleChangesTo      SubscriptionScheduleChange[] @relation("SubscriptionScheduleChangeToPlan")
 
