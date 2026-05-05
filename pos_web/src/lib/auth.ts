@@ -286,7 +286,7 @@ export function resolveRouteByRole(user: CurrentUser): string {
     return '/dashboard/inventory';
   }
 
-  return '/dashboard/business';
+  return '/dashboard';
 }
 
 export async function login(email: string, password: string) {
