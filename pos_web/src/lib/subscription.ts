@@ -279,6 +279,14 @@ export async function getSubscriptionPlans() {
   return unwrapEnvelope(response, 'Subscription plan tidak ditemukan');
 }
 
+export async function getSubscriptionPlanAdmin(planId: string) {
+  const response = await api.get<Envelope<SubscriptionPlanSummary>>(
+    `/platform/subscription-plans/${planId}`,
+  );
+
+  return unwrapEnvelope(response, 'Plan subscription tidak ditemukan');
+}
+
 export async function createSubscriptionPlanAdmin(
   payload: CreateSubscriptionPlanRequest,
 ) {
