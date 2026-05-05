@@ -8,21 +8,40 @@ datasource db {
 }
 
 model User {
-  id              String             @id @default(cuid())
-  fullName        String
-  email           String             @unique
-  passwordHash    String
-  status          UserStatus         @default(ACTIVE)
-  lastLoginAt     DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  auditLogs       AuditLog[]         @relation("AuditLogActorUser")
-  businessUsers   BusinessUser[]
-  ownedBusinesses Business[]         @relation("BusinessOwner")
-  platformRoles   UserPlatformRole[]
+  id                String             @id @default(cuid())
+  fullName          String
+  email             String             @unique
+  passwordHash      String
+  status            UserStatus         @default(ACTIVE)
+  lastLoginAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  auditLogs         AuditLog[]         @relation("AuditLogActorUser")
+  businessUsers     BusinessUser[]
+  ownedBusinesses   Business[]         @relation("BusinessOwner")
+  platformRoles     UserPlatformRole[]
+  platformAuditLogs PlatformAuditLog[] @relation("PlatformAuditLogActorUser")
 
   @@index([status])
   @@map("users")
+}
+
+model PlatformAuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  entityLabel String?
+  summary     String?
+  changes     Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actorUser   User?    @relation("PlatformAuditLogActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("platform_audit_logs")
 }
 
 model PlatformRole {
