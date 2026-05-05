@@ -1,5 +1,10 @@
 import { prisma } from '../../config/prisma';
 
+type FeatureFlagClient = Pick<
+  typeof prisma,
+  'featureFlag' | 'planFeatureFlag' | 'businessFeatureFlag'
+>;
+
 export async function listFeatureFlagsService() {
   return prisma.featureFlag.findMany({
     orderBy: {
@@ -50,6 +55,42 @@ export async function getBusinessFeatureFlagsService(businessId: string) {
       enabled: enabledMap.get(flag.key) ?? false,
     })),
   };
+}
+
+export async function syncBusinessFeatureFlags(
+  businessId: string,
+  planId: string,
+  client?: FeatureFlagClient
+): Promise<void> {
+  const db = client ?? prisma;
+
+  const [allFlags, planFlagLinks] = await Promise.all([
+    db.featureFlag.findMany({ select: { id: true } }),
+    db.planFeatureFlag.findMany({
+      where: { planId },
+      select: { featureFlagId: true },
+    }),
+  ]);
+
+  const planFlagIds = new Set(planFlagLinks.map((pf) => pf.featureFlagId));
+
+  for (const flag of allFlags) {
+    const enabled = planFlagIds.has(flag.id);
+    await db.businessFeatureFlag.upsert({
+      where: {
+        businessId_featureFlagId: {
+          businessId,
+          featureFlagId: flag.id,
+        },
+      },
+      create: {
+        businessId,
+        featureFlagId: flag.id,
+        enabled,
+      },
+      update: { enabled },
+    });
+  }
 }
 
 export async function updateBusinessFeatureFlagsService(

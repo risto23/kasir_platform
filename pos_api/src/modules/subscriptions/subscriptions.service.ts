@@ -20,6 +20,7 @@ import type {
   SubscriptionPlanSummary,
 } from './subscriptions.types';
 import { getCurrentUsageSnapshotByBusiness } from './subscription-usage.service';
+import { syncBusinessFeatureFlags } from '../platform-feature-flag/platform-feature-flag.service';
 
 const PLAN_DISPLAY_ORDER = [
   'STARTER',
@@ -897,6 +898,8 @@ export async function changeSubscriptionPlanByBusiness(params: {
         },
       });
 
+      await syncBusinessFeatureFlags(params.businessId, targetPlan.id, tx);
+
       return {
         businessId: params.businessId,
         subscriptionId: subscription.id,
@@ -1123,6 +1126,8 @@ export async function startSubscriptionByBusiness(params: {
         issuedAt: startedAt,
       },
     });
+
+    await syncBusinessFeatureFlags(params.businessId, createdSubscription.planId, tx);
 
     return {
       businessId: params.businessId,
