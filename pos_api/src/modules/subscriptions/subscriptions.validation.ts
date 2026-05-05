@@ -1,7 +1,7 @@
-import { BusinessType, PaymentMethod, PlanCode } from '@prisma/client';
+import { BusinessType, PaymentMethod } from '@prisma/client';
 import { z } from 'zod';
 
-export const subscriptionPlanCodeSchema = z.nativeEnum(PlanCode);
+export const subscriptionPlanCodeSchema = z.string().trim().min(1);
 
 export const subscriptionPlanBusinessTypeSchema = z
   .nativeEnum(BusinessType)
