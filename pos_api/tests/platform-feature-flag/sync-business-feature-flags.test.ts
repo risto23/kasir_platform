@@ -1,15 +1,18 @@
 import { syncBusinessFeatureFlags } from '../../src/modules/platform-feature-flag/platform-feature-flag.service';
 
-type MockClient = {
-  featureFlag: { findMany: jest.Mock };
-  planFeatureFlag: { findMany: jest.Mock };
-  businessFeatureFlag: { upsert: jest.Mock };
+type SyncClient = NonNullable<Parameters<typeof syncBusinessFeatureFlags>[2]>;
+type SyncClientWithOverrideProbe = SyncClient & {
+  businessFeatureFlagOverride: {
+    findUnique: jest.Mock;
+    upsert: jest.Mock;
+    delete: jest.Mock;
+  };
 };
 
 function makeMockClient(
   allFlags: { id: string }[],
   planFlagIds: string[]
-): MockClient {
+): SyncClientWithOverrideProbe {
   return {
     featureFlag: {
       findMany: jest.fn().mockResolvedValue(allFlags),
@@ -19,6 +22,11 @@ function makeMockClient(
     },
     businessFeatureFlag: {
       upsert: jest.fn().mockResolvedValue({}),
+    },
+    businessFeatureFlagOverride: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+      delete: jest.fn(),
     },
   };
 }
@@ -33,7 +41,7 @@ describe('syncBusinessFeatureFlags', () => {
       ['flag-a', 'flag-b']
     );
 
-    await syncBusinessFeatureFlags(businessId, planId, client as any);
+    await syncBusinessFeatureFlags(businessId, planId, client);
 
     expect(client.businessFeatureFlag.upsert).toHaveBeenCalledTimes(3);
 
@@ -63,7 +71,7 @@ describe('syncBusinessFeatureFlags', () => {
   it('disables all flags when plan has no feature flags', async () => {
     const client = makeMockClient([{ id: 'flag-a' }, { id: 'flag-b' }], []);
 
-    await syncBusinessFeatureFlags(businessId, planId, client as any);
+    await syncBusinessFeatureFlags(businessId, planId, client);
 
     expect(client.businessFeatureFlag.upsert).toHaveBeenCalledTimes(2);
     for (const call of client.businessFeatureFlag.upsert.mock.calls) {
@@ -78,7 +86,7 @@ describe('syncBusinessFeatureFlags', () => {
       ['flag-x', 'flag-y']
     );
 
-    await syncBusinessFeatureFlags(businessId, planId, client as any);
+    await syncBusinessFeatureFlags(businessId, planId, client);
 
     expect(client.businessFeatureFlag.upsert).toHaveBeenCalledTimes(2);
     for (const call of client.businessFeatureFlag.upsert.mock.calls) {
@@ -90,7 +98,7 @@ describe('syncBusinessFeatureFlags', () => {
   it('does nothing when there are no feature flags at all', async () => {
     const client = makeMockClient([], []);
 
-    await syncBusinessFeatureFlags(businessId, planId, client as any);
+    await syncBusinessFeatureFlags(businessId, planId, client);
 
     expect(client.businessFeatureFlag.upsert).not.toHaveBeenCalled();
   });
@@ -98,7 +106,7 @@ describe('syncBusinessFeatureFlags', () => {
   it('passes businessId and featureFlagId correctly in upsert', async () => {
     const client = makeMockClient([{ id: 'flag-z' }], ['flag-z']);
 
-    await syncBusinessFeatureFlags('biz-99', 'plan-99', client as any);
+    await syncBusinessFeatureFlags('biz-99', 'plan-99', client);
 
     expect(client.businessFeatureFlag.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -119,12 +127,22 @@ describe('syncBusinessFeatureFlags', () => {
   it('queries planFeatureFlag with the correct planId', async () => {
     const client = makeMockClient([], []);
 
-    await syncBusinessFeatureFlags(businessId, 'target-plan', client as any);
+    await syncBusinessFeatureFlags(businessId, 'target-plan', client);
 
     expect(client.planFeatureFlag.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { planId: 'target-plan' },
       })
     );
+  });
+
+  it('leaves manual override storage untouched while syncing plan base flags', async () => {
+    const client = makeMockClient([{ id: 'flag-a' }, { id: 'flag-b' }], ['flag-a']);
+
+    await syncBusinessFeatureFlags(businessId, planId, client);
+
+    expect(client.businessFeatureFlagOverride.findUnique).not.toHaveBeenCalled();
+    expect(client.businessFeatureFlagOverride.upsert).not.toHaveBeenCalled();
+    expect(client.businessFeatureFlagOverride.delete).not.toHaveBeenCalled();
   });
 });

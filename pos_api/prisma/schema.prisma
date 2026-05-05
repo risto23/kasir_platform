@@ -17,6 +17,7 @@ model User {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   auditLogs         AuditLog[]         @relation("AuditLogActorUser")
+  businessFeatureFlagOverrides BusinessFeatureFlagOverride[] @relation("BusinessFeatureFlagOverrideActorUser")
   businessUsers     BusinessUser[]
   ownedBusinesses   Business[]         @relation("BusinessOwner")
   platformRoles     UserPlatformRole[]
@@ -77,6 +78,7 @@ model FeatureFlag {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
   businesses  BusinessFeatureFlag[]
+  businessOverrides BusinessFeatureFlagOverride[]
   plans       PlanFeatureFlag[]
 
   @@map("feature_flags")
@@ -131,6 +133,7 @@ model Business {
   updatedAt                   DateTime                     @updatedAt
   auditLogs                   AuditLog[]
   businessFeatures            BusinessFeatureFlag[]
+  featureFlagOverrides        BusinessFeatureFlagOverride[]
   setting                     BusinessSetting?
   subscriptions               BusinessSubscription[]
   businessUsers               BusinessUser[]
@@ -415,6 +418,25 @@ model BusinessFeatureFlag {
   @@unique([businessId, featureFlagId])
   @@index([featureFlagId])
   @@map("business_feature_flags")
+}
+
+model BusinessFeatureFlagOverride {
+  id            String      @id @default(cuid())
+  businessId    String
+  featureFlagId String
+  enabled       Boolean
+  reason        String?
+  actorUserId   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  actorUser     User?       @relation("BusinessFeatureFlagOverrideActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  business      Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  featureFlag   FeatureFlag @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, featureFlagId])
+  @@index([featureFlagId])
+  @@index([actorUserId])
+  @@map("business_feature_flag_overrides")
 }
 
 model Category {
