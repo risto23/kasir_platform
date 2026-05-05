@@ -16,7 +16,28 @@
       "Read(//c/Users/Risto/scoop/**)",
       "Bash(cmd.exe /c \"curl --version\")",
       "Bash(git -C \"C:\\\\Users\\\\Risto\\\\Documents\\\\projek\\\\pos_platform\\\\.claude\\\\worktrees\\\\youthful-albattani-033cb1\" config --get credential.helper)",
-      "Bash(git -C \"C:\\\\Users\\\\Risto\\\\Documents\\\\projek\\\\pos_platform\\\\.claude\\\\worktrees\\\\youthful-albattani-033cb1\" credential fill)"
+      "Bash(git -C \"C:\\\\Users\\\\Risto\\\\Documents\\\\projek\\\\pos_platform\\\\.claude\\\\worktrees\\\\youthful-albattani-033cb1\" credential fill)",
+      "Bash(npm run *)",
+      "Bash(npx jest *)",
+      "Bash(gh pr create --title 'feat: phase16 — auto-sync feature flags on subscription change' --body ' *)",
+      "Bash(xargs basename *)",
+      "Bash(gh pr *)",
+      "Bash(git -C \"C:\\\\Users\\\\Risto\\\\Documents\\\\projek\\\\pos_platform\" log --oneline -3)",
+      "Bash(git -C \"C:\\\\Users\\\\Risto\\\\Documents\\\\projek\\\\pos_platform\" remote get-url origin)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr list --head claude/phase16-plan-feature-flags)",
+      "Bash('/c/Program Files/GitHub CLI/gh.exe' pr create --title 'feat: phase16 — gate report endpoints by plan feature flags' --body ' *)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr list --state all --head claude/phase16-plan-feature-flags)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr view 23 --json url,title,state)",
+      "Bash(xargs grep *)",
+      "Bash(xargs ls *)",
+      "PowerShell(gh pr list --head claude/phase16-plan-feature-flags --json number,url 2>&1)",
+      "Read(//c/Users/Risto/AppData/Local/GitHub CLI//**)",
+      "Read(//c/Users/Risto/**)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr list --head claude/phase16-plan-feature-flags --json number,url,state)",
+      "Bash('/c/Program Files/GitHub CLI/gh.exe' pr create --title 'fix: redirect owner/admin to /dashboard after login' --body ' *)",
+      "Bash(git fetch *)",
+      "PowerShell(gh pr list --head claude/phase16-plan-feature-flags --json url,number 2>&1)",
+      "Bash(where gh *)"
     ]
   }
 }

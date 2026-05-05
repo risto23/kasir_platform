@@ -7,7 +7,107 @@ type FeatureFlagClient = Pick<
   'featureFlag' | 'planFeatureFlag' | 'businessFeatureFlag'
 >;
 
-// ─── existing services (unchanged) ───────────────────────────────────────────
+type EffectiveFeatureFlagSource = 'PLAN' | 'OVERRIDE';
+
+type EffectiveBusinessFeatureFlagItem = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  planEnabled: boolean;
+  overrideEnabled: boolean | null;
+  overrideReason: string | null;
+  source: EffectiveFeatureFlagSource;
+};
+
+function normalizeOverrideReason(reason?: string | null): string | null {
+  const trimmedReason = reason?.trim() ?? '';
+  return trimmedReason.length > 0 ? trimmedReason : null;
+}
+
+function buildEffectiveBusinessFeatureFlagItem(params: {
+  flag: {
+    id: string;
+    key: string;
+    name: string;
+    description: string | null;
+  };
+  planEnabled: boolean;
+  override?: {
+    enabled: boolean;
+    reason: string | null;
+  } | null;
+}): EffectiveBusinessFeatureFlagItem {
+  const overrideEnabled = params.override?.enabled ?? null;
+  const overrideReason = params.override?.reason ?? null;
+
+  return {
+    id: params.flag.id,
+    key: params.flag.key,
+    name: params.flag.name,
+    description: params.flag.description,
+    enabled: overrideEnabled ?? params.planEnabled,
+    planEnabled: params.planEnabled,
+    overrideEnabled,
+    overrideReason,
+    source: params.override ? 'OVERRIDE' : 'PLAN',
+  };
+}
+
+export async function getEffectiveBusinessFeatureFlagState(
+  businessId: string,
+  featureFlagKey: string
+): Promise<EffectiveBusinessFeatureFlagItem | null> {
+  const flag = await prisma.featureFlag.findUnique({
+    where: { key: featureFlagKey },
+    select: {
+      id: true,
+      key: true,
+      name: true,
+      description: true,
+    },
+  });
+
+  if (!flag) {
+    return null;
+  }
+
+  const [baseFlag, overrideFlag] = await Promise.all([
+    prisma.businessFeatureFlag.findUnique({
+      where: {
+        businessId_featureFlagId: {
+          businessId,
+          featureFlagId: flag.id,
+        },
+      },
+      select: { enabled: true },
+    }),
+    prisma.businessFeatureFlagOverride.findUnique({
+      where: {
+        businessId_featureFlagId: {
+          businessId,
+          featureFlagId: flag.id,
+        },
+      },
+      select: {
+        enabled: true,
+        reason: true,
+      },
+    }),
+  ]);
+
+  return buildEffectiveBusinessFeatureFlagItem({
+    flag,
+    planEnabled: baseFlag?.enabled ?? false,
+    override: overrideFlag
+      ? {
+          enabled: overrideFlag.enabled,
+          reason: overrideFlag.reason,
+        }
+      : null,
+  });
+}
 
 export async function listFeatureFlagsService() {
   return prisma.featureFlag.findMany({ orderBy: { key: 'asc' } });
@@ -18,14 +118,28 @@ export async function getBusinessFeatureFlagsService(businessId: string) {
     where: { id: businessId },
     include: {
       businessFeatures: { include: { featureFlag: true } },
+      featureFlagOverrides: {
+        include: {
+          featureFlag: true,
+        },
+      },
     },
   });
 
   if (!business) throw new Error('Business tidak ditemukan');
 
   const allFlags = await prisma.featureFlag.findMany({ orderBy: { key: 'asc' } });
-  const enabledMap = new Map(
-    business.businessFeatures.map((item) => [item.featureFlag.key, item.enabled])
+  const planEnabledMap = new Map(
+    business.businessFeatures.map((item) => [item.featureFlagId, item.enabled])
+  );
+  const overrideMap = new Map(
+    business.featureFlagOverrides.map((item) => [
+      item.featureFlagId,
+      {
+        enabled: item.enabled,
+        reason: item.reason,
+      },
+    ])
   );
 
   return {
@@ -36,13 +150,13 @@ export async function getBusinessFeatureFlagsService(businessId: string) {
       businessType: business.businessType,
       status: business.status,
     },
-    items: allFlags.map((flag) => ({
-      id: flag.id,
-      key: flag.key,
-      name: flag.name,
-      description: flag.description,
-      enabled: enabledMap.get(flag.key) ?? false,
-    })),
+    items: allFlags.map((flag) =>
+      buildEffectiveBusinessFeatureFlagItem({
+        flag,
+        planEnabled: planEnabledMap.get(flag.id) ?? false,
+        override: overrideMap.get(flag.id) ?? null,
+      })
+    ),
   };
 }
 
@@ -100,8 +214,6 @@ export async function updateBusinessFeatureFlagsService(
 
   return getBusinessFeatureFlagsService(businessId);
 }
-
-// ─── plan feature flags ───────────────────────────────────────────────────────
 
 export async function getPlanFeatureFlagsService(planId: string) {
   const plan = await prisma.plan.findUnique({
@@ -220,8 +332,6 @@ export async function getPlansFeatureMatrixService() {
   };
 }
 
-// ─── business feature override ────────────────────────────────────────────────
-
 export async function overrideBusinessFeatureFlagService(
   businessId: string,
   featureFlagKey: string,
@@ -237,15 +347,118 @@ export async function overrideBusinessFeatureFlagService(
   if (!business) throw new Error('Business tidak ditemukan');
   if (!flag) throw new Error('Feature flag tidak ditemukan');
 
-  const existing = await prisma.businessFeatureFlag.findUnique({
-    where: { businessId_featureFlagId: { businessId, featureFlagId: flag.id } },
-  });
-  const previousEnabled = existing?.enabled ?? false;
+  const normalizedReason = normalizeOverrideReason(reason);
 
-  await prisma.businessFeatureFlag.upsert({
+  const [baseFlag, existingOverride] = await Promise.all([
+    prisma.businessFeatureFlag.findUnique({
+      where: { businessId_featureFlagId: { businessId, featureFlagId: flag.id } },
+      select: { enabled: true },
+    }),
+    prisma.businessFeatureFlagOverride.findUnique({
+      where: { businessId_featureFlagId: { businessId, featureFlagId: flag.id } },
+      select: { enabled: true, reason: true },
+    }),
+  ]);
+
+  const planEnabled = baseFlag?.enabled ?? false;
+  const previousOverrideEnabled = existingOverride?.enabled ?? null;
+  const previousOverrideReason = existingOverride?.reason ?? null;
+  const previousEffectiveEnabled = existingOverride?.enabled ?? planEnabled;
+
+  if (enabled === planEnabled) {
+    if (existingOverride) {
+      await prisma.businessFeatureFlagOverride.delete({
+        where: { businessId_featureFlagId: { businessId, featureFlagId: flag.id } },
+      });
+
+      await createAuditLogSafely({
+        businessId,
+        actorUserId,
+        action: 'FEATURE_FLAG_OVERRIDE',
+        entityType: 'BUSINESS_FEATURE_FLAG',
+        entityId: flag.id,
+        entityLabel: flag.key,
+        summary: `Override fitur "${flag.name}" dihapus dan kembali mengikuti plan`,
+        changes: {
+          before: {
+            planEnabled,
+            overrideEnabled: previousOverrideEnabled,
+            overrideReason: previousOverrideReason,
+            enabled: previousEffectiveEnabled,
+          },
+          after: {
+            planEnabled,
+            overrideEnabled: null,
+            overrideReason: null,
+            enabled: planEnabled,
+          },
+        },
+        metadata: {
+          operation: 'REMOVE',
+          featureFlagKey: flag.key,
+          reason: normalizedReason,
+        },
+      });
+    }
+
+    const effectiveFlag = buildEffectiveBusinessFeatureFlagItem({
+      flag,
+      planEnabled,
+      override: null,
+    });
+
+    return {
+      business: { id: business.id, name: business.name },
+      flag: { id: flag.id, key: flag.key, name: flag.name },
+      enabled: effectiveFlag.enabled,
+      reason: effectiveFlag.overrideReason,
+      planEnabled: effectiveFlag.planEnabled,
+      overrideEnabled: effectiveFlag.overrideEnabled,
+      overrideReason: effectiveFlag.overrideReason,
+      source: effectiveFlag.source,
+    };
+  }
+
+  if (
+    existingOverride &&
+    existingOverride.enabled === enabled &&
+    (existingOverride.reason ?? null) === normalizedReason
+  ) {
+    const effectiveFlag = buildEffectiveBusinessFeatureFlagItem({
+      flag,
+      planEnabled,
+      override: {
+        enabled: existingOverride.enabled,
+        reason: existingOverride.reason,
+      },
+    });
+
+    return {
+      business: { id: business.id, name: business.name },
+      flag: { id: flag.id, key: flag.key, name: flag.name },
+      enabled: effectiveFlag.enabled,
+      reason: effectiveFlag.overrideReason,
+      planEnabled: effectiveFlag.planEnabled,
+      overrideEnabled: effectiveFlag.overrideEnabled,
+      overrideReason: effectiveFlag.overrideReason,
+      source: effectiveFlag.source,
+    };
+  }
+
+  await prisma.businessFeatureFlagOverride.upsert({
     where: { businessId_featureFlagId: { businessId, featureFlagId: flag.id } },
-    create: { businessId, featureFlagId: flag.id, enabled },
-    update: { enabled },
+    create: {
+      businessId,
+      featureFlagId: flag.id,
+      enabled,
+      reason: normalizedReason,
+      actorUserId: actorUserId ?? null,
+    },
+    update: {
+      enabled,
+      reason: normalizedReason,
+      actorUserId: actorUserId ?? null,
+    },
   });
 
   await createAuditLogSafely({
@@ -255,20 +468,48 @@ export async function overrideBusinessFeatureFlagService(
     entityType: 'BUSINESS_FEATURE_FLAG',
     entityId: flag.id,
     entityLabel: flag.key,
-    summary: `Fitur "${flag.name}" di-${enabled ? 'aktifkan' : 'nonaktifkan'} secara manual`,
-    changes: { before: { enabled: previousEnabled }, after: { enabled } },
-    metadata: { reason: reason ?? null, featureFlagKey: flag.key },
+    summary: `Override fitur "${flag.name}" ${existingOverride ? 'diperbarui' : 'dibuat'}`,
+    changes: {
+      before: {
+        planEnabled,
+        overrideEnabled: previousOverrideEnabled,
+        overrideReason: previousOverrideReason,
+        enabled: previousEffectiveEnabled,
+      },
+      after: {
+        planEnabled,
+        overrideEnabled: enabled,
+        overrideReason: normalizedReason,
+        enabled,
+      },
+    },
+    metadata: {
+      operation: existingOverride ? 'UPDATE' : 'CREATE',
+      featureFlagKey: flag.key,
+      reason: normalizedReason,
+    },
+  });
+
+  const effectiveFlag = buildEffectiveBusinessFeatureFlagItem({
+    flag,
+    planEnabled,
+    override: {
+      enabled,
+      reason: normalizedReason,
+    },
   });
 
   return {
     business: { id: business.id, name: business.name },
     flag: { id: flag.id, key: flag.key, name: flag.name },
-    enabled,
-    reason: reason ?? null,
+    enabled: effectiveFlag.enabled,
+    reason: effectiveFlag.overrideReason,
+    planEnabled: effectiveFlag.planEnabled,
+    overrideEnabled: effectiveFlag.overrideEnabled,
+    overrideReason: effectiveFlag.overrideReason,
+    source: effectiveFlag.source,
   };
 }
-
-// ─── businesses feature summary ───────────────────────────────────────────────
 
 export async function getBusinessesFeatureSummaryService() {
   const businesses = await prisma.business.findMany({
@@ -316,8 +557,6 @@ export async function getBusinessesFeatureSummaryService() {
   });
 }
 
-// ─── platform audit logs ──────────────────────────────────────────────────────
-
 export async function getPlatformAuditLogsService(opts?: {
   entityType?: string;
   entityId?: string;
@@ -350,8 +589,6 @@ export async function getPlatformAuditLogsService(opts?: {
       : null,
   }));
 }
-
-// ─── business feature flag audit logs ────────────────────────────────────────
 
 export async function getBusinessFeatureFlagAuditLogsService(
   businessId: string,

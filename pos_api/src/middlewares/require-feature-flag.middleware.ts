@@ -1,32 +1,18 @@
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma';
+import { getEffectiveBusinessFeatureFlagState } from '../modules/platform-feature-flag/platform-feature-flag.service';
 
-async function isFeatureEnabledForBusiness(businessId: string, featureKey: string): Promise<boolean> {
-  const flag = await prisma.featureFlag.findUnique({
-    where: { key: featureKey },
-    select: { id: true },
-  });
-
-  if (!flag) {
-    return false;
-  }
-
-  const mapping = await prisma.businessFeatureFlag.findUnique({
-    where: {
-      businessId_featureFlagId: {
-        businessId,
-        featureFlagId: flag.id,
-      },
-    },
-    select: { enabled: true },
-  });
-
-  return Boolean(mapping?.enabled);
+async function isFeatureEnabledForBusiness(
+  businessId: string,
+  featureKey: string
+): Promise<boolean> {
+  const featureState = await getEffectiveBusinessFeatureFlagState(businessId, featureKey);
+  return featureState?.enabled ?? false;
 }
 
 async function isOutletFeatureEnabled(
   outletId: string,
-  featureKey: string,
+  featureKey: string
 ): Promise<boolean> {
   if (featureKey !== 'GUEST_QR') {
     return true;
@@ -61,7 +47,9 @@ export function requireFeatureFlag(featureKey: string) {
 
       const enabled = await isFeatureEnabledForBusiness(businessId, featureKey);
       if (!enabled) {
-        return res.status(403).json({ success: false, message: `Fitur ${featureKey} tidak aktif untuk business ini` });
+        return res
+          .status(403)
+          .json({ success: false, message: `Fitur ${featureKey} tidak aktif untuk business ini` });
       }
 
       return next();
@@ -81,7 +69,10 @@ export function requireFeatureFlagIfScope(scope: string, featureKey: string) {
   };
 }
 
-export function requireFeatureFlagForOutletParam(featureKey: string, resolveOutletId: (req: Request) => string | null) {
+export function requireFeatureFlagForOutletParam(
+  featureKey: string,
+  resolveOutletId: (req: Request) => string | null
+) {
   return async function featureFlagGuard(req: Request, res: Response, next: NextFunction) {
     try {
       const outletId = resolveOutletId(req);
@@ -100,7 +91,9 @@ export function requireFeatureFlagForOutletParam(featureKey: string, resolveOutl
 
       const enabled = await isFeatureEnabledForBusiness(outlet.businessId, featureKey);
       if (!enabled) {
-        return res.status(403).json({ success: false, message: `Fitur ${featureKey} tidak aktif untuk business ini` });
+        return res
+          .status(403)
+          .json({ success: false, message: `Fitur ${featureKey} tidak aktif untuk business ini` });
       }
 
       const outletEnabled = await isOutletFeatureEnabled(outletId, featureKey);
