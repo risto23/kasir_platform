@@ -14,14 +14,13 @@ import {
   PromoStatus,
   PromoTargetType,
   SubscriptionStatus,
-  PlanCode,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 type SeedPlanInput = {
-  code: PlanCode;
+  code: string;
   name: string;
   description: string;
   monthlyPrice: number;
