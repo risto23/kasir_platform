@@ -435,3 +435,50 @@ export async function getSupplierPayablesReportService(params: {
   };
 }
 
+// ── CSV builders ──────────────────────────────────────────────────────────────
+
+function escapeCsv(val: unknown): string {
+  const s = String(val ?? '');
+  return s.includes(',') || s.includes('"') || s.includes('\n')
+    ? `"${s.replace(/"/g, '""')}"`
+    : s;
+}
+
+function toCsv(headers: string[], rows: (string | number)[][]): string {
+  return [headers, ...rows]
+    .map((row) => row.map(escapeCsv).join(','))
+    .join('\n');
+}
+
+export function buildSalesSummaryCsv(data: SalesSummaryResponse): string {
+  const headers = ['key', 'label', 'orders', 'revenue', 'avgOrder'];
+  const rows = data.buckets.map((b) => [b.key, b.label, b.orders, b.revenue, b.avgOrder]);
+  return toCsv(headers, rows);
+}
+
+export function buildOrdersReportCsv(data: OrdersReportResponse): string {
+  const headers = ['orderNumber', 'outletName', 'totalAmount', 'paymentStatus', 'status', 'createdAt'];
+  const rows = data.items.map((r) => [r.orderNumber, r.outletName ?? '', r.totalAmount, r.paymentStatus, r.status, r.createdAt]);
+  return toCsv(headers, rows);
+}
+
+export function buildItemsReportCsv(data: ItemsReportResponse): string {
+  const headers = ['productName', 'quantity', 'revenue'];
+  const rows = data.items.map((r) => [r.productName, r.quantity, r.revenue]);
+  return toCsv(headers, rows);
+}
+
+export function buildSupplierPayablesCsv(data: SupplierPayablesReportResponse): string {
+  const headers = [
+    'invoiceNumber', 'supplierName', 'supplierCode', 'outletName',
+    'invoiceDate', 'dueDate', 'daysOverdue',
+    'grandTotal', 'paidAmount', 'outstandingAmount', 'status',
+  ];
+  const rows = data.items.map((r) => [
+    r.invoiceNumber, r.supplierName, r.supplierCode, r.outletName,
+    r.invoiceDate, r.dueDate ?? '', r.daysOverdue,
+    r.grandTotal, r.paidAmount, r.outstandingAmount, r.status,
+  ]);
+  return toCsv(headers, rows);
+}
+
