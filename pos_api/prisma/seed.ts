@@ -126,6 +126,22 @@ async function assignRolePermissions(
   }
 }
 
+async function upsertFeatureFlag(key: string, name: string, description: string) {
+  return prisma.featureFlag.upsert({
+    where: { key },
+    update: { name, description },
+    create: { key, name, description },
+  });
+}
+
+async function assignPlanFeature(planId: string, featureFlagId: string) {
+  return prisma.planFeatureFlag.upsert({
+    where: { planId_featureFlagId: { planId, featureFlagId } },
+    update: {},
+    create: { planId, featureFlagId },
+  });
+}
+
 async function enableFeatureFlag(
   businessId: string,
   key: string,
@@ -133,18 +149,7 @@ async function enableFeatureFlag(
   description: string,
   enabled = true,
 ) {
-  const featureFlag = await prisma.featureFlag.upsert({
-    where: { key },
-    update: {
-      name,
-      description,
-    },
-    create: {
-      key,
-      name,
-      description,
-    },
-  });
+  const featureFlag = await upsertFeatureFlag(key, name, description);
 
   await prisma.businessFeatureFlag.upsert({
     where: {
@@ -1983,6 +1988,63 @@ async function main() {
     ],
     skipDuplicates: true,
   });
+
+  // ── Feature flag registry ─────────────────────────────────────────────────
+  const ffBusinessMgmt      = await upsertFeatureFlag('BUSINESS_MANAGEMENT',      'Business Management',      'Kelola business');
+  const ffOutletMgmt        = await upsertFeatureFlag('OUTLET_MANAGEMENT',        'Outlet Management',        'Kelola outlet');
+  const ffBasicDashboard    = await upsertFeatureFlag('BASIC_DASHBOARD',          'Basic Dashboard',          'Dashboard dasar');
+  const ffCategoryMgmt      = await upsertFeatureFlag('CATEGORY_MANAGEMENT',      'Category Management',      'Kelola kategori');
+  const ffProductMgmt       = await upsertFeatureFlag('PRODUCT_MANAGEMENT',       'Product Management',       'Kelola product/menu');
+  const ffGuestQr           = await upsertFeatureFlag('GUEST_QR',                 'Guest QR',                 'Modul QR tamu untuk pemesanan tanpa login');
+  const ffTableMgmt         = await upsertFeatureFlag('TABLE_MANAGEMENT',         'Table Management',         'Kelola meja outlet');
+  const ffKitchenDisplay    = await upsertFeatureFlag('KITCHEN_DISPLAY',          'Kitchen Display',          'Modul kitchen display untuk restaurant');
+  const ffReportSalesSummary  = await upsertFeatureFlag('REPORT_SALES_SUMMARY',     'Laporan Ringkasan Penjualan', 'Ringkasan total penjualan per periode');
+  const ffReportSalesMulti    = await upsertFeatureFlag('REPORT_SALES_MULTI_OUTLET','Laporan Penjualan Multi-Outlet', 'Perbandingan penjualan antar outlet');
+  const ffReportOrders        = await upsertFeatureFlag('REPORT_ORDERS',            'Laporan Order',            'Riwayat dan detail order per periode');
+  const ffReportItems         = await upsertFeatureFlag('REPORT_ITEMS',             'Laporan Item Terjual',     'Analisis item/menu terlaris per periode');
+  const ffReportSupplierPayables = await upsertFeatureFlag('REPORT_SUPPLIER_PAYABLES', 'Laporan Hutang Supplier', 'Rekap outstanding hutang ke supplier');
+  const ffReportExport        = await upsertFeatureFlag('REPORT_EXPORT',            'Export Laporan',           'Export laporan ke CSV/Excel');
+
+  // ── Plan feature matrix ───────────────────────────────────────────────────
+  // Legend: features listed per plan are the ones INCLUDED in that plan.
+  //
+  // | Feature                    | STARTER | BASIC | RESTAURANT | RETAIL_PRO | BUSINESS | ENTERPRISE |
+  // |----------------------------|---------|-------|------------|------------|----------|------------|
+  // | BUSINESS_MANAGEMENT        |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | OUTLET_MANAGEMENT          |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | BASIC_DASHBOARD            |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | CATEGORY_MANAGEMENT        |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | PRODUCT_MANAGEMENT         |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | GUEST_QR                   |         |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | TABLE_MANAGEMENT           |         |       |     ✓      |            |    ✓     |     ✓      |
+  // | KITCHEN_DISPLAY            |         |       |     ✓      |            |    ✓     |     ✓      |
+  // | REPORT_SALES_SUMMARY       |         |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | REPORT_SALES_MULTI_OUTLET  |         |       |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | REPORT_ORDERS              |         |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | REPORT_ITEMS               |         |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | REPORT_SUPPLIER_PAYABLES   |         |       |            |     ✓      |    ✓     |     ✓      |
+  // | REPORT_EXPORT              |         |       |            |            |    ✓     |     ✓      |
+
+  const baseFeatures = [ffBusinessMgmt, ffOutletMgmt, ffBasicDashboard, ffCategoryMgmt, ffProductMgmt];
+  const reportBasic  = [ffReportSalesSummary, ffReportOrders, ffReportItems];
+  const reportMulti  = [ffReportSalesMulti];
+  const reportAdvanced = [ffReportSupplierPayables];
+  const reportExport = [ffReportExport];
+
+  const planMatrix: Record<string, typeof baseFeatures> = {
+    [starterPlan.id]:     [...baseFeatures],
+    [basicPlan.id]:       [...baseFeatures, ffGuestQr, ...reportBasic],
+    [restaurantPlan.id]:  [...baseFeatures, ffGuestQr, ffTableMgmt, ffKitchenDisplay, ...reportBasic, ...reportMulti],
+    [retailProPlan.id]:   [...baseFeatures, ffGuestQr, ...reportBasic, ...reportMulti, ...reportAdvanced],
+    [businessPlan.id]:    [...baseFeatures, ffGuestQr, ffTableMgmt, ffKitchenDisplay, ...reportBasic, ...reportMulti, ...reportAdvanced, ...reportExport],
+    [enterprisePlan.id]:  [...baseFeatures, ffGuestQr, ffTableMgmt, ffKitchenDisplay, ...reportBasic, ...reportMulti, ...reportAdvanced, ...reportExport],
+  };
+
+  for (const [planId, features] of Object.entries(planMatrix)) {
+    for (const ff of features) {
+      await assignPlanFeature(planId, ff.id);
+    }
+  }
 
   await prisma.subscriptionUsageMonthly.upsert({
     where: {
