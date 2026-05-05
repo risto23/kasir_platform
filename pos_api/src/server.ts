@@ -5,8 +5,10 @@ import { startSubscriptionNotificationJob } from './jobs/subscription-notificati
 
 console.log('[server.ts] starting server');
 
-app.listen(env.port, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${env.port}`);
+const host = process.env.HOST || '0.0.0.0';
+
+app.listen(env.port, host, () => {
+  console.log(`Server running on http://${host}:${env.port}`);
   startSubscriptionRenewalJob();
   startSubscriptionNotificationJob();
 });
