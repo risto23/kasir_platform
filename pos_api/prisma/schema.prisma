@@ -64,7 +64,7 @@ model FeatureFlag {
 
 model Plan {
   id                     String                       @id @default(cuid())
-  code                   PlanCode                     @unique
+  code                   String                       @unique
   name                   String
   description            String?
   monthlyPrice           Decimal                      @db.Decimal(14, 2)
@@ -1385,11 +1385,3 @@ enum SubscriptionScheduleChangeStatus {
   REJECTED
 }
 
-enum PlanCode {
-  STARTER
-  BASIC
-  RESTAURANT
-  RETAIL_PRO
-  BUSINESS
-  ENTERPRISE
-}
