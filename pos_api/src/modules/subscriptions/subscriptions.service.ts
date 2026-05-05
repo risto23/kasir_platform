@@ -272,11 +272,11 @@ async function getBusinessTypeByBusinessId(businessId: string) {
 
 async function getTargetPlanByCode(params: {
   businessType: BusinessType;
-  targetstring: string;
+  targetPlanCode: string;
 }) {
   const plan = await prisma.plan.findFirst({
     where: {
-      code: params.targetstring,
+      code: params.targetPlanCode,
       isActive: true,
       OR: [{ businessType: null }, { businessType: params.businessType }],
     },
@@ -753,7 +753,7 @@ export async function getSubscriptionInvoiceDetailByBusiness(params: {
 
 async function getPlanChangePreviewInternal(params: {
   businessId: string;
-  targetstring: string;
+  targetPlanCode: string;
 }): Promise<SubscriptionChangePreviewResponse> {
   const [subscription, usageResponse, businessType] = await Promise.all([
     getActiveSubscriptionByBusiness(params.businessId),
@@ -768,7 +768,7 @@ async function getPlanChangePreviewInternal(params: {
   const currentPlan = mapPlanSummary(subscription.plan);
   const targetPlan = await getTargetPlanByCode({
     businessType,
-    targetstring: params.targetstring,
+    targetPlanCode: params.targetPlanCode,
   });
 
   if (currentPlan.code === targetPlan.code) {
@@ -811,18 +811,18 @@ async function getPlanChangePreviewInternal(params: {
 
 export async function getSubscriptionChangePreviewByBusiness(params: {
   businessId: string;
-  targetstring: string;
+  targetPlanCode: string;
 }): Promise<SubscriptionChangePreviewResponse> {
   return getPlanChangePreviewInternal(params);
 }
 
 export async function changeSubscriptionPlanByBusiness(params: {
   businessId: string;
-  targetstring: string;
+  targetPlanCode: string;
 }): Promise<SubscriptionPlanChangeResultResponse> {
   const preview = await getPlanChangePreviewInternal({
     businessId: params.businessId,
-    targetstring: params.targetstring,
+    targetPlanCode: params.targetPlanCode,
   });
   const businessType = await getBusinessTypeByBusinessId(params.businessId);
 
@@ -853,7 +853,7 @@ export async function changeSubscriptionPlanByBusiness(params: {
 
     const targetPlan = await tx.plan.findFirst({
       where: {
-        code: params.targetstring,
+        code: params.targetPlanCode,
         isActive: true,
         OR: [{ businessType: null }, { businessType }],
       },
@@ -1033,7 +1033,7 @@ export async function reactivateSubscriptionByBusiness(params: {
 
 export async function startSubscriptionByBusiness(params: {
   businessId: string;
-  targetstring: string;
+  targetPlanCode: string;
 }): Promise<SubscriptionStartResponse> {
   const [activeSubscription, latestSubscription, businessType] = await Promise.all([
     getActiveSubscriptionByBusiness(params.businessId),
@@ -1063,7 +1063,7 @@ export async function startSubscriptionByBusiness(params: {
 
   const targetPlan = await getTargetPlanByCode({
     businessType,
-    targetstring: params.targetstring,
+    targetPlanCode: params.targetPlanCode,
   });
   const startedAt = new Date();
   const { currentPeriodStart, currentPeriodEnd } = calculateCurrentBillingPeriod(startedAt);
