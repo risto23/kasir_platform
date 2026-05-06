@@ -9,6 +9,7 @@ import {
 export type AuthUserPayload = {
   userId: string;
   email: string;
+  platformRoles?: PlatformRoleCode[];
 };
 
 export type BusinessMembershipAccess = {
