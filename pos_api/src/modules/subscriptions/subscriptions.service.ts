@@ -755,6 +755,7 @@ export async function getSubscriptionInvoiceDetailByBusiness(params: {
 async function getPlanChangePreviewInternal(params: {
   businessId: string;
   targetPlanCode: string;
+  forceImmediate?: boolean;
 }): Promise<SubscriptionChangePreviewResponse> {
   const [subscription, usageResponse, businessType] = await Promise.all([
     getActiveSubscriptionByBusiness(params.businessId),
@@ -780,7 +781,8 @@ async function getPlanChangePreviewInternal(params: {
     currentPlan,
     targetPlan,
   });
-  const isImmediate = changeType === SubscriptionScheduleChangeType.UPGRADE;
+  const isImmediate =
+    params.forceImmediate === true || changeType === SubscriptionScheduleChangeType.UPGRADE;
   const effectiveAt = isImmediate
     ? new Date().toISOString()
     : subscription.currentPeriodEnd.toISOString();
@@ -791,6 +793,11 @@ async function getPlanChangePreviewInternal(params: {
           targetPlan,
         })
       : [];
+
+  const noteForDowngrade =
+    params.forceImmediate === true
+      ? 'Downgrade dipaksa diterapkan langsung oleh super admin.'
+      : 'Downgrade dijadwalkan pada akhir periode aktif saat ini.';
 
   return {
     businessId: params.businessId,
@@ -804,15 +811,16 @@ async function getPlanChangePreviewInternal(params: {
     usage: usageResponse.usage,
     violations,
     canProceed: violations.length === 0,
-    note: isImmediate
+    note: isImmediate && changeType === SubscriptionScheduleChangeType.UPGRADE
       ? 'Upgrade diterapkan langsung tanpa mengubah periode billing berjalan.'
-      : 'Downgrade dijadwalkan pada akhir periode aktif saat ini.',
+      : noteForDowngrade,
   };
 }
 
 export async function getSubscriptionChangePreviewByBusiness(params: {
   businessId: string;
   targetPlanCode: string;
+  forceImmediate?: boolean;
 }): Promise<SubscriptionChangePreviewResponse> {
   return getPlanChangePreviewInternal(params);
 }
@@ -820,10 +828,12 @@ export async function getSubscriptionChangePreviewByBusiness(params: {
 export async function changeSubscriptionPlanByBusiness(params: {
   businessId: string;
   targetPlanCode: string;
+  forceImmediate?: boolean;
 }): Promise<SubscriptionPlanChangeResultResponse> {
   const preview = await getPlanChangePreviewInternal({
     businessId: params.businessId,
     targetPlanCode: params.targetPlanCode,
+    forceImmediate: params.forceImmediate,
   });
   const businessType = await getBusinessTypeByBusinessId(params.businessId);
 
@@ -944,7 +954,9 @@ export async function changeSubscriptionPlanByBusiness(params: {
         status: scheduledChange.status,
         effectiveAt: scheduledChange.effectiveAt.toISOString(),
       },
-      message: 'Downgrade plan berhasil dijadwalkan pada akhir periode aktif.',
+      message: params.forceImmediate
+        ? 'Downgrade plan berhasil diterapkan langsung oleh super admin.'
+        : 'Downgrade plan berhasil dijadwalkan pada akhir periode aktif.',
     };
   });
 }

@@ -202,6 +202,13 @@ export default function BillingSettingsPage() {
   const [paymentReferenceNumber, setPaymentReferenceNumber] = useState('');
   const [paymentPaidAt, setPaymentPaidAt] = useState(toDateTimeLocalValue(new Date()));
 
+  const [forceImmediate, setForceImmediate] = useState(false);
+
+  const isSuperAdmin = useMemo(() => {
+    const currentUser = getCachedCurrentUser();
+    return Boolean(currentUser?.platformRoles.includes('SUPER_ADMIN'));
+  }, []);
+
   const ownerAccess = useMemo(() => {
     const currentUser = getCachedCurrentUser();
     if (!currentUser) {
@@ -338,7 +345,10 @@ export default function BillingSettingsPage() {
     setPaymentPaidAt(toDateTimeLocalValue(new Date()));
   }, [selectedInvoiceDetail]);
 
-  async function handlePreviewPlan(targetPlanCode: SubscriptionPlanSummary['code']) {
+  async function handlePreviewPlan(
+    targetPlanCode: SubscriptionPlanSummary['code'],
+    overrideForceImmediate?: boolean,
+  ) {
     if (currentSubscription?.status === 'CANCELLED') {
       setPlanMessage(
         'Subscription yang sudah cancelled tidak bisa dipreview untuk perubahan plan dari halaman ini.',
@@ -350,7 +360,8 @@ export default function BillingSettingsPage() {
     try {
       setLoadingPlanPreview(true);
       setPlanMessage('');
-      const preview = await getSubscriptionChangePreview(targetPlanCode);
+      const fi = overrideForceImmediate ?? forceImmediate;
+      const preview = await getSubscriptionChangePreview(targetPlanCode, isSuperAdmin ? fi : false);
       setPlanPreview(preview);
     } catch (error) {
       setPlanMessage(
@@ -359,6 +370,13 @@ export default function BillingSettingsPage() {
       setPlanPreview(null);
     } finally {
       setLoadingPlanPreview(false);
+    }
+  }
+
+  async function handleToggleForceImmediate(checked: boolean) {
+    setForceImmediate(checked);
+    if (planPreview) {
+      await handlePreviewPlan(planPreview.targetPlan.code, checked);
     }
   }
 
@@ -380,6 +398,7 @@ export default function BillingSettingsPage() {
 
       const result: SubscriptionPlanChangeResultResponse = await changeSubscriptionPlan(
         planPreview.targetPlan.code,
+        isSuperAdmin ? forceImmediate : false,
       );
 
       await refreshBillingData(selectedInvoiceId);
@@ -1026,6 +1045,23 @@ export default function BillingSettingsPage() {
               <p className="text-sm font-medium text-slate-900">{planPreview.note}</p>
             </div>
 
+            {isSuperAdmin && planPreview.changeType === 'DOWNGRADE' && (
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={forceImmediate}
+                  onChange={(e) => { void handleToggleForceImmediate(e.target.checked); }}
+                  className="h-4 w-4 accent-amber-600"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-amber-900">Force apply sekarang (Super Admin)</p>
+                  <p className="text-xs text-amber-700">
+                    Downgrade diterapkan langsung tanpa menunggu akhir periode.
+                  </p>
+                </div>
+              </label>
+            )}
+
             {planPreview.violations.length > 0 ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
                 <p className="text-sm font-semibold text-rose-800">
@@ -1056,6 +1092,7 @@ export default function BillingSettingsPage() {
                 onClick={() => {
                   setPlanPreview(null);
                   setPlanMessage('');
+                  setForceImmediate(false);
                 }}
                 className="h-11 rounded-2xl border border-slate-300 px-5 text-sm font-semibold text-slate-700"
               >
