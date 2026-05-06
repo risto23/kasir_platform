@@ -40,7 +40,7 @@ const remotePatterns = [
   );
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['192.168.88.213', 'localhost', '127.0.0.1'],
+  allowedDevOrigins: ['192.168.88.247', 'localhost', '127.0.0.1'],
   // allowedDevOrigins: ['192.168.1.3'],
   images: {
     remotePatterns,
