@@ -56,10 +56,15 @@ export const subscriptionPlanIdParamSchema = z.object({
 
 export const subscriptionChangePreviewQuerySchema = z.object({
   targetPlanCode: subscriptionPlanCodeSchema,
+  forceImmediate: z.preprocess(
+    (val) => val === 'true' || val === true,
+    z.boolean(),
+  ).optional().default(false),
 });
 
 export const subscriptionChangePlanBodySchema = z.object({
   targetPlanCode: subscriptionPlanCodeSchema,
+  forceImmediate: z.boolean().optional().default(false),
 });
 
 export const subscriptionStartBodySchema = z.object({

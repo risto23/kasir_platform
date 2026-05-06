@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { PlatformRoleCode } from '@prisma/client';
 import { errorResponse, successResponse } from '../../utils/api-response';
 import { recordSubscriptionInvoicePayment } from './subscription-billing.service';
 import {
@@ -139,9 +140,11 @@ export async function getSubscriptionChangePreviewController(
   try {
     const businessAccess = getBusinessAccessOrThrow(req);
     const parsed = subscriptionChangePreviewQuerySchema.parse(req.query);
+    const isSuperAdmin = req.authUser?.platformRoles?.includes(PlatformRoleCode.SUPER_ADMIN) ?? false;
     const result = await getSubscriptionChangePreviewByBusiness({
       businessId: businessAccess.businessId,
       targetPlanCode: parsed.targetPlanCode,
+      forceImmediate: isSuperAdmin ? parsed.forceImmediate : false,
     });
 
     return res.json(successResponse('Subscription plan change preview loaded', result));
@@ -156,9 +159,11 @@ export async function changeSubscriptionPlanController(req: Request, res: Respon
   try {
     const businessAccess = getBusinessAccessOrThrow(req);
     const parsed = subscriptionChangePlanBodySchema.parse(req.body);
+    const isSuperAdmin = req.authUser?.platformRoles?.includes(PlatformRoleCode.SUPER_ADMIN) ?? false;
     const result = await changeSubscriptionPlanByBusiness({
       businessId: businessAccess.businessId,
       targetPlanCode: parsed.targetPlanCode,
+      forceImmediate: isSuperAdmin ? parsed.forceImmediate : false,
     });
 
     return res.json(successResponse('Subscription plan change saved', result));
