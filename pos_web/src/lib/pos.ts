@@ -1,6 +1,6 @@
 import { api } from './api';
 import { getActiveBusinessId, getCachedCurrentUser } from './auth';
-import type {  PosAddOrderItemPayload,  PosAppliedPromo,  PosCartItem,  PosChargeItem,  PosCreateOrderPayload,  PosCreatePaymentPayload,  PosHistoryItem,  PosHistoryResponse,  PosListMeta,  PosOrderQueue,  PosOrderSource,  PosOrderItemResponse,  PosOrderResponse,  PosOutletItem,  PosOutletListResponse,  PosPaymentMethod,  PosPaymentResponse,  PosProductItem,  PosProductListResponse,  PosReceiptContentSnapshot,  PosReceiptItemSnapshot,  PosReceiptPayload,  PosReceiptResponse,  PosSettingsChargeRule,  PosSettingsChargesResponse,  PosTableItem,  PosTableListResponse,  PosUpdateOrderItemPayload,} from '@/types/pos';
+import type {  PosAddOrderItemPayload,  PosAppliedPromo,  PosCartItem,  PosChargeItem,  PosCreateOrderPayload,  PosCreatePaymentPayload,  PosHistoryItem,  PosHistoryResponse,  PosListMeta,  PosOrderQueue,  PosOrderSource,  PosOrderItemResponse,  PosOrderResponse,  PosOutletItem,  PosOutletListResponse,  PosPaymentMethod,  PosPaymentResponse,  PosProductItem,  PosProductListResponse,  PosReceiptContentSnapshot,  PosReceiptItemSnapshot,  PosReceiptPayload,  PosReceiptResponse,  PosSettingsChargeRule,  PosSettingsChargesResponse,  PosTableItem,  PosTableListResponse,  PosUpdateOrderItemPayload,  PosOutletPaymentMethod,  PosSurchargeRule,} from '@/types/pos';
 import type { BusinessMembership, CurrentUser } from '@/types/auth';
 type ApiEnvelope<T> = {  success?: boolean;
   message?: string;
@@ -135,11 +135,14 @@ type ReceiptSnapshotApiRow = {  orderId: string;
   outletName: string;
   outletAddress?: string | null;
   tableName?: string | null;
+  customerName?: string | null;
+  cashierName?: string | null;
   notes?: string | null;
   subtotal?: string | number | null;
   discountAmount?: string | number | null;
   taxAmount?: string | number | null;
   serviceChargeAmount?: string | number | null;
+  surchargeAmount?: string | number | null;
   totalAmount?: string | number | null;
   items?: ReceiptItemApiRow[];
 };
@@ -265,7 +268,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {  return ty
   const lineTotal = toNumber(row.lineTotal);
   return {    id: row.id,    productName: row.productName,    productCode: row.productCode ?? null,    productSku: row.productSku ?? null,    productBarcode: row.productBarcode ?? null,    quantity,    unitPrice,    lineSubtotal,    lineDiscountAmount,    lineTotal,    note: row.note ?? null,    status: row.status ?? 'PENDING',    qty: quantity,    price: unitPrice,    subtotal: lineSubtotal,  };
 }function mapReceiptSnapshot(  row: ReceiptSnapshotApiRow | null | undefined,): PosReceiptContentSnapshot | null {  if (!row) {    return null;
-  }  return {    orderId: row.orderId,    orderNumber: row.orderNumber,    businessName: row.businessName,    outletName: row.outletName,    outletAddress: row.outletAddress ?? null,    tableName: row.tableName ?? null,    notes: row.notes ?? null,    subtotal: toNumber(row.subtotal),    discountAmount: toNumber(row.discountAmount),    taxAmount: toNumber(row.taxAmount),    serviceChargeAmount: toNumber(row.serviceChargeAmount),    totalAmount: toNumber(row.totalAmount),    items: Array.isArray(row.items) ? row.items.map(mapReceiptItem) : [],  };
+  }  return {    orderId: row.orderId,    orderNumber: row.orderNumber,    businessName: row.businessName,    outletName: row.outletName,    outletAddress: row.outletAddress ?? null,    tableName: row.tableName ?? null,    customerName: row.customerName ?? null,    cashierName: row.cashierName ?? null,    notes: row.notes ?? null,    subtotal: toNumber(row.subtotal),    discountAmount: toNumber(row.discountAmount),    taxAmount: toNumber(row.taxAmount),    serviceChargeAmount: toNumber(row.serviceChargeAmount),    surchargeAmount: toNumber(row.surchargeAmount),    totalAmount: toNumber(row.totalAmount),    items: Array.isArray(row.items) ? row.items.map(mapReceiptItem) : [],  };
 }function mapReceipt(row: ReceiptApiRow): PosReceiptResponse {  const snapshot = mapReceiptSnapshot(row.contentSnapshot);
   return {    id: row.id,    receiptNumber: row.receiptNumber,    paymentId: row.payment?.id ?? null,    orderId: row.order?.id ?? snapshot?.orderId ?? '',    businessId: row.businessId,    outletId: row.outletId,    businessName: row.businessName ?? snapshot?.businessName ?? null,    outletName: row.outletName ?? snapshot?.outletName ?? null,    outletAddress: row.outletAddress ?? snapshot?.outletAddress ?? null,    issuedAt: row.issuedAt,    printedAt: row.printedAt ?? null,    createdAt: row.issuedAt,    contentSnapshot: snapshot,    order: row.order      ? {          id: row.order.id,          orderNumber: row.order.orderNumber,          status: row.order.status,          paymentStatus: row.order.paymentStatus,          subtotal: toNumber(row.order.subtotal),          discountAmount: toNumber(row.order.discountAmount),          taxAmount: toNumber(row.order.taxAmount),          serviceChargeAmount: toNumber(row.order.serviceChargeAmount),          totalAmount: toNumber(row.order.totalAmount),        }      : undefined,    payment: row.payment      ? {          id: row.payment.id,          paymentNumber: row.payment.paymentNumber,          method: row.payment.method,          status: row.payment.status,          amountPaid: toNumber(row.payment.amountPaid),          amountTendered: toNumber(row.payment.amountTendered),          changeAmount: toNumber(row.payment.changeAmount),          paidAt: row.payment.paidAt ?? null,        }      : null,    receiptNo: row.receiptNumber,    total: toNumber(row.order?.totalAmount ?? snapshot?.totalAmount ?? 0),  };
 }function mapHistoryItem(row: OrderApiRow): PosHistoryItem {  const mapped = mapOrder(row);
@@ -340,7 +343,7 @@ export async function getPosTables(outletId: string): Promise<PosTableListRespon
   const meta = extractListMeta(response.data.meta, response.data.data);
   return {    items: rows.map(mapTable),    meta,  };
 }
-export async function createOrder(  payload: PosCreateOrderPayload,): Promise<PosOrderResponse> {  const response = await api.post<ApiEnvelope<unknown>>(    '/orders',    {      outletId: payload.outletId,      tableId: payload.tableId,      notes: payload.notes,      items: payload.items,    },    {      headers: buildScopedHeaders(payload.outletId),    },  );
+export async function createOrder(  payload: PosCreateOrderPayload,): Promise<PosOrderResponse> {  const response = await api.post<ApiEnvelope<unknown>>(    '/orders',    {      outletId: payload.outletId,      tableId: payload.tableId,      customerName: payload.customerName,      notes: payload.notes,      items: payload.items,    },    {      headers: buildScopedHeaders(payload.outletId),    },  );
   const orderRow = extractOrderApiRow(response.data.data);
   if (!orderRow) {    throw new Error('Response order kosong');
   }  return mapOrder(orderRow);
@@ -368,20 +371,8 @@ export async function getOutletOrderHistory(  params: OrderHistoryParams,): Prom
   return {    items: rows.map(mapHistoryItem),    meta,  };
 }
 export async function createPayment(payload: PosCreatePaymentPayload): Promise<PosPaymentResponse> {
-  let amountPaid = payload.amountPaid ?? payload.amount ?? 0;
-
-  let amountTendered = payload.amountTendered ?? amountPaid;
-
-  try {
-    if (payload.orderId && payload.outletId) {
-      const latest = await getOrderDetail(payload.orderId, payload.outletId);
-
-      amountPaid = latest.totalAmount;
-
-      if (amountTendered < amountPaid) amountTendered = amountPaid;
-
-    }
-  } catch { /* fallback to given values */ }
+  const amountPaid = payload.amountPaid ?? payload.amount ?? 0;
+  const amountTendered = payload.amountTendered ?? amountPaid;
   const response = await api.post<ApiEnvelope<PaymentApiRow>>(    '/payments',    {      orderId: payload.orderId,      outletId: payload.outletId,      method: payload.method,      amountPaid,      amountTendered,      note: payload.note,    },    {      headers: buildScopedHeaders(payload.outletId),    },  );
   if (!response.data.data) {    throw new Error('Response payment kosong');
   }  return mapPayment(response.data.data);
@@ -417,6 +408,32 @@ export async function getReceiptByOrderId(  orderId: string,  outletId?: string,
   if (!response.data.data) {    throw new Error('Receipt order tidak ditemukan');
   }  return mapReceipt(response.data.data);
 }
+export function calculatePosSurcharge(amount: number, rules: PosSurchargeRule[]): number {
+  if (!rules.length) return 0;
+  const sorted = [...rules].sort((a, b) => a.minAmount - b.minAmount);
+  let rule: PosSurchargeRule | undefined;
+  for (const r of sorted) {
+    if (amount >= r.minAmount && (r.maxAmount === null || amount < r.maxAmount)) {
+      rule = r;
+    }
+  }
+  if (!rule) return 0;
+  if (rule.type === 'PERCENTAGE') return Math.round((amount * rule.value) / 100);
+  return rule.value;
+}
+
+export async function getOutletPaymentMethods(outletId: string): Promise<PosOutletPaymentMethod[]> {
+  const response = await api.get<ApiEnvelope<PosOutletPaymentMethod[]>>(
+    `/outlets/${outletId}/payment-methods`,
+    {
+      params: { activeOnly: 'true' },
+      headers: buildScopedHeaders(outletId),
+    },
+  );
+  const data = response.data.data;
+  return Array.isArray(data) ? data : [];
+}
+
 export async function getPosChargeSettings(outletId?: string): Promise<PosSettingsChargesResponse> {
   const resolvedOutletId = (outletId && outletId.trim())
     || (typeof window !== 'undefined' ? (window.localStorage.getItem('activeOutletId') || '').trim() : '');

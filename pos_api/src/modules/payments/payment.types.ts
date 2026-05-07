@@ -1,9 +1,9 @@
-import { PaymentMethod, PaymentStatus } from '@prisma/client';
+import { PaymentStatus } from '@prisma/client';
 
 export type CreatePaymentBody = {
   orderId: string;
   outletId: string;
-  method: PaymentMethod;
+  method: string;
   amountPaid: number;
   amountTendered?: number;
   note?: string;
@@ -30,7 +30,7 @@ export type CreatePaymentInput = {
   outletId: string;
   businessUserId: string;
   orderId: string;
-  method: PaymentMethod;
+  method: string;
   amountPaid: number;
   amountTendered?: number;
   note?: string;
@@ -42,11 +42,12 @@ export type PaymentSummaryDto = {
   orderId: string;
   businessId: string;
   outletId: string;
-  method: PaymentMethod;
+  method: string;
   status: PaymentStatus;
   amountPaid: string;
   amountTendered: string;
   changeAmount: string;
+  surchargeAmount: string;
   note: string | null;
   paidAt: string | null;
   createdAt: string;
@@ -66,11 +67,12 @@ export type PaymentCreateResultDto = {
   orderId: string;
   businessId: string;
   outletId: string;
-  method: PaymentMethod;
+  method: string;
   status: PaymentStatus;
   amountPaid: string;
   amountTendered: string;
   changeAmount: string;
+  surchargeAmount: string;
   note: string | null;
   paidAt: string | null;
   receiptId: string;

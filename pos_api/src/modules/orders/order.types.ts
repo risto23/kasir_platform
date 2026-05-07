@@ -2,7 +2,6 @@ import {
   BusinessType,
   OrderItemStatus,
   OrderStatus,
-  PaymentMethod,
   PaymentStatus,
 } from '@prisma/client';
 
@@ -55,6 +54,7 @@ export type CreateOrderInput = {
   outletId: string;
   businessUserId: string;
   tableId?: string;
+  customerName?: string;
   notes?: string;
   items?: CreateOrderItemInput[];
 };
@@ -62,6 +62,7 @@ export type CreateOrderInput = {
 export type CreateOrderBody = {
   outletId: string;
   tableId?: string;
+  customerName?: string;
   notes?: string;
   items?: CreateOrderItemInput[];
 };
@@ -123,6 +124,7 @@ export type OrderSummaryDto = {
   paymentStatus: PaymentStatus;
   tableId: string | null;
   tableName: string | null;
+  customerName: string | null;
   notes: string | null;
   subtotal: string;
   discountAmount: string;
@@ -163,4 +165,4 @@ export type OrderDetailDto = OrderSummaryDto & {
   items: OrderItemDto[];
 };
 
-export type PaymentMethodValue = PaymentMethod;
+export type PaymentMethodValue = string;

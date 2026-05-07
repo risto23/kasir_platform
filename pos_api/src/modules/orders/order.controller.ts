@@ -227,6 +227,7 @@ export async function createOrderHandler(
       outletId: body.outletId,
       businessUserId,
       tableId: body.tableId,
+      customerName: body.customerName,
       notes: body.notes,
       items: body.items,
     });

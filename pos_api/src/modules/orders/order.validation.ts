@@ -40,6 +40,7 @@ export const createOrderSchema = z.object({
   body: z.object({
     outletId: cuidSchema,
     tableId: cuidSchema.optional(),
+    customerName: z.string().trim().max(100).optional(),
     notes: z.string().trim().max(500).optional(),
     items: z
       .array(

@@ -1,4 +1,3 @@
-import { PaymentMethod } from '@prisma/client';
 import { z } from 'zod';
 
 const cuidSchema = z.string().cuid();
@@ -7,7 +6,7 @@ export const createPaymentSchema = z.object({
   body: z.object({
     orderId: cuidSchema,
     outletId: cuidSchema,
-    method: z.nativeEnum(PaymentMethod),
+    method: z.string().trim().min(1),
     amountPaid: z.coerce.number().positive(),
     amountTendered: z.coerce.number().positive().optional(),
     note: z.string().trim().max(500).optional(),
