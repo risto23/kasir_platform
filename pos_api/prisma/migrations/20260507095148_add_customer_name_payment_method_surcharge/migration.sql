@@ -12,8 +12,8 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- DropIndex
-DROP INDEX "plans_name_key";
+-- DropIndex (idempotent)
+DROP INDEX IF EXISTS "plans_name_key";
 
 -- AlterTable
 ALTER TABLE "orders" ADD COLUMN     "customerName" TEXT;
