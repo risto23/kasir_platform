@@ -1,8 +1,16 @@
--- CreateEnum
-CREATE TYPE "PosChargeType" AS ENUM ('PERCENTAGE', 'FIXED_AMOUNT');
+-- CreateEnum (idempotent)
+DO $$ BEGIN
+    CREATE TYPE "PosChargeType" AS ENUM ('PERCENTAGE', 'FIXED_AMOUNT');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- CreateEnum
-CREATE TYPE "RoundingMethod" AS ENUM ('NONE', 'NEAREST', 'CEIL', 'FLOOR');
+-- CreateEnum (idempotent)
+DO $$ BEGIN
+    CREATE TYPE "RoundingMethod" AS ENUM ('NONE', 'NEAREST', 'CEIL', 'FLOOR');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- DropIndex
 DROP INDEX "plans_name_key";
