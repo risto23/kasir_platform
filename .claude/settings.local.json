@@ -37,7 +37,21 @@
       "Bash('/c/Program Files/GitHub CLI/gh.exe' pr create --title 'fix: redirect owner/admin to /dashboard after login' --body ' *)",
       "Bash(git fetch *)",
       "PowerShell(gh pr list --head claude/phase16-plan-feature-flags --json url,number 2>&1)",
-      "Bash(where gh *)"
+      "Bash(where gh *)",
+      "PowerShell(gh pr list --head claude/phase16-plan-feature-flags --json number,url --jq '.[0].url')",
+      "PowerShell(Get-Command gh -ErrorAction SilentlyContinue; where.exe gh 2>$null; & \"$env:LOCALAPPDATA\\\\GitHub CLI\\\\gh.exe\" --version 2>$null; & \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" --version 2>$null; & \"C:\\\\Program Files \\(x86\\)\\\\GitHub CLI\\\\gh.exe\" --version 2>$null)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "PowerShell(gh pr list --head claude/phase16-plan-feature-flags --repo risto23/pos_platform 2>&1)",
+      "Bash(ssh -o ConnectTimeout=10 ubuntu@pos.ristocodes.web.id \"echo connected\")",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
+      "Bash(psql \"postgresql://pos_user:pos_password_123@localhost:5432/postgres\" -c \"CREATE DATABASE pos_platform_shadow;\")",
+      "Bash(psql -h localhost -U pos_user -d postgres -c \"CREATE DATABASE pos_platform_shadow;\")",
+      "Bash(powershell -Command \"& 'C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\createdb.exe' -h localhost -U pos_user pos_platform_shadow\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(where createdb *)",
+      "Bash(where psql *)",
+      "Bash(PGPASSWORD=pos_password_123 createdb -h localhost -U pos_user pos_platform_shadow)",
+      "Bash(where gh.exe)"
     ]
   }
 }
