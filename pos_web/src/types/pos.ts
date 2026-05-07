@@ -15,12 +15,7 @@ export type PosPaymentStatus =
   | 'CANCELLED'
   | 'REFUNDED';
 
-export type PosPaymentMethod =
-  | 'CASH'
-  | 'QRIS'
-  | 'TRANSFER'
-  | 'CARD'
-  | 'OTHER';
+export type PosPaymentMethod = string;
 
 export type PosOrderQueue =
   | 'CASHIER_ACTIVE'
@@ -255,11 +250,14 @@ export type PosReceiptContentSnapshot = {
   outletName: string;
   outletAddress: string | null;
   tableName: string | null;
+  customerName?: string | null;
+  cashierName?: string | null;
   notes: string | null;
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
   serviceChargeAmount: number;
+  surchargeAmount?: number | null;
   totalAmount: number;
   items: PosReceiptItemSnapshot[];
 };
@@ -333,9 +331,28 @@ export type PosCreateOrderItemPayload = {
   note?: string;
 };
 
+export type PosSurchargeRule = {
+  minAmount: number;
+  maxAmount: number | null;
+  type: 'PERCENTAGE' | 'FLAT';
+  value: number;
+};
+
+export type PosOutletPaymentMethod = {
+  id: string;
+  outletId: string;
+  businessId: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+  surchargeRules: PosSurchargeRule[];
+  sortOrder: number;
+};
+
 export type PosCreateOrderPayload = {
   outletId: string;
   tableId?: string;
+  customerName?: string;
   notes?: string;
   items?: PosCreateOrderItemPayload[];
 };

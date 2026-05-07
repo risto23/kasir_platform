@@ -144,6 +144,7 @@ model Business {
   inventoryMovements          InventoryMovement[]
   orders                      Order[]
   outletPosChargeRules        OutletPosChargeRule[]
+  outletPaymentMethods        OutletPaymentMethod[]
   outlets                     Outlet[]
   payments                    Payment[]
   products                    Product[]
@@ -308,6 +309,7 @@ model Outlet {
   inventoryMovements     InventoryMovement[]
   orders                 Order[]
   outletPosChargeRules   OutletPosChargeRule[]
+  paymentMethods         OutletPaymentMethod[]
   receiptSetting         OutletReceiptSetting?
   roundingSetting        OutletRoundingSetting?
   setting                OutletSetting?
@@ -868,6 +870,25 @@ model OutletTable {
   @@map("outlet_tables")
 }
 
+model OutletPaymentMethod {
+  id             String   @id @default(cuid())
+  businessId     String
+  outletId       String
+  name           String
+  code           String
+  isActive       Boolean  @default(true)
+  surchargeRules Json?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet         Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, code])
+  @@index([outletId, isActive])
+  @@map("outlet_payment_methods")
+}
+
 model Order {
   id                      String        @id @default(cuid())
   businessId              String
@@ -875,6 +896,7 @@ model Order {
   createdByBusinessUserId String
   tableId                 String?
   orderNumber             String        @unique
+  customerName            String?
   notes                   String?
   status                  OrderStatus   @default(DRAFT)
   paymentStatus           PaymentStatus @default(UNPAID)
@@ -938,11 +960,12 @@ model Payment {
   outletId                 String
   receivedByBusinessUserId String
   paymentNumber            String        @unique
-  method                   PaymentMethod @default(CASH)
+  method                   String        @default("CASH")
   status                   PaymentStatus @default(PAID)
   amountPaid               Decimal       @db.Decimal(14, 2)
   amountTendered           Decimal?      @db.Decimal(14, 2)
   changeAmount             Decimal       @default(0) @db.Decimal(14, 2)
+  surchargeAmount          Decimal?      @db.Decimal(14, 2)
   note                     String?
   paidAt                   DateTime?
   cancelledAt              DateTime?

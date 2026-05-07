@@ -36,6 +36,7 @@ import reportsRoutes from '../modules/reports/reports.routes';
 import auditLogsRoutes from '../modules/audit-logs/audit-logs.routes';
 
 import restaurantOperationsRoutes from '../modules/restaurant-operations/restaurant-operations.routes';
+import outletPaymentMethodRoutes from '../modules/outlet-payment-methods/outlet-payment-methods.routes';
 import businessFeatureFlagRoutes from '../modules/business-feature-flag/business-feature-flag.routes';
 import subscriptionRoutes from '../modules/subscriptions/subscriptions.routes';
 import subscriptionPlanRoutes from '../modules/subscriptions/subscription-plans.routes';
@@ -73,6 +74,7 @@ router.use('/settings', posSettingsRoutes);
 router.use('/settings', businessSettingsRoutes);
 router.use('/settings', outletSettingsRoutes);
 router.use('/settings', receiptSettingsRoutes);
+router.use('/outlets', outletPaymentMethodRoutes);
 router.use('/receipts', receiptRoutes);
 
 // public guest routes harus dipasang lebih dulu

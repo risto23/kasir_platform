@@ -143,10 +143,6 @@ async function ensureTableIsValidForOrder(
     throw new Error('Retail tidak menggunakan meja pada transaksi');
   }
 
-  if (businessType === BusinessType.RESTAURANT && !tableId) {
-    throw new Error('Transaksi restaurant wajib memilih meja');
-  }
-
   if (!tableId) {
     return null;
   }
@@ -461,6 +457,7 @@ function mapOrderSummary(order: {
   paymentStatus: PaymentStatus;
   tableId: string | null;
   table: { name: string } | null;
+  customerName: string | null;
   notes: string | null;
   subtotal: Prisma.Decimal;
   discountAmount: Prisma.Decimal;
@@ -485,6 +482,7 @@ function mapOrderSummary(order: {
     paymentStatus: order.paymentStatus,
     tableId: order.tableId,
     tableName: order.table?.name ?? null,
+    customerName: order.customerName,
     notes: order.notes,
     subtotal: toMoneyString(order.subtotal),
     discountAmount: toMoneyString(order.discountAmount),
@@ -769,6 +767,7 @@ export async function createOrder(input: CreateOrderInput) {
         createdByBusinessUserId: input.businessUserId,
         tableId: input.tableId ?? null,
         orderNumber,
+        customerName: input.customerName?.trim() || null,
         notes: input.notes?.trim() || null,
         status: OrderStatus.DRAFT,
         paymentStatus: PaymentStatus.UNPAID,

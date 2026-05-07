@@ -48,22 +48,8 @@ function getReceiptItems(
 }
 
 function getPaymentMethodLabel(method: string | null | undefined): string {
-  if (!method) {
-    return '-';
-  }
-
-  switch (method) {
-    case 'CASH':
-      return 'Cash';
-    case 'QRIS':
-      return 'QRIS';
-    case 'TRANSFER':
-      return 'Transfer';
-    case 'CARD':
-      return 'Card';
-    default:
-      return method;
-  }
+  if (!method) return '-';
+  return method;
 }
 
 function getItemName(item: ReceiptItemSnapshot): string {
@@ -135,7 +121,9 @@ export default function ReceiptPrint({
     '-';
 
   const paymentMethod = getPaymentMethodLabel(receipt?.payment?.method);
-  const cashierLabel = '-';
+  const cashierLabel = receipt?.contentSnapshot?.cashierName || '-';
+  const tableName = receipt?.contentSnapshot?.tableName || null;
+  const customerName = receipt?.contentSnapshot?.customerName || null;
 
   const subtotal = normalizeNumber(
     receipt?.contentSnapshot?.subtotal ??
@@ -160,6 +148,8 @@ export default function ReceiptPrint({
       receipt?.order?.serviceChargeAmount ??
       0,
   );
+
+  const surchargeAmount = normalizeNumber(receipt?.contentSnapshot?.surchargeAmount ?? 0);
 
   const total = normalizeNumber(
     receipt?.contentSnapshot?.totalAmount ??
@@ -235,6 +225,20 @@ export default function ReceiptPrint({
                 {formatReceiptDateTime(receipt?.issuedAt || receipt?.createdAt)}
               </span>
             </div>
+
+            {tableName ? (
+              <div className="mt-1 flex items-start justify-between gap-3">
+                <span className="text-slate-500">Meja</span>
+                <span className="text-right text-slate-900">{tableName}</span>
+              </div>
+            ) : null}
+
+            {customerName ? (
+              <div className="mt-1 flex items-start justify-between gap-3">
+                <span className="text-slate-500">Pelanggan</span>
+                <span className="text-right text-slate-900">{customerName}</span>
+              </div>
+            ) : null}
 
             <div className="mt-1 flex items-start justify-between gap-3">
               <span className="text-slate-500">Metode</span>
@@ -315,11 +319,11 @@ export default function ReceiptPrint({
               </div>
             ) : null}
 
-            {serviceChargeAmount > 0 ? (
+            {serviceChargeAmount + surchargeAmount > 0 ? (
               <div className="mt-1 flex items-center justify-between">
                 <span className="text-slate-500">Service Charge</span>
                 <span className="text-slate-900">
-                  {formatReceiptCurrency(serviceChargeAmount)}
+                  {formatReceiptCurrency(serviceChargeAmount + surchargeAmount)}
                 </span>
               </div>
             ) : null}

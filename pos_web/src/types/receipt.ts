@@ -13,12 +13,7 @@ export type ReceiptPaymentStatus =
   | 'CANCELLED'
   | 'REFUNDED';
 
-export type ReceiptPaymentMethod =
-  | 'CASH'
-  | 'QRIS'
-  | 'TRANSFER'
-  | 'CARD'
-  | 'OTHER';
+export type ReceiptPaymentMethod = string;
 
 export type ReceiptItemSnapshot = {
   id: string;
@@ -55,11 +50,14 @@ export type ReceiptContentSnapshot = {
   showOutletAddress?: boolean;
   showOutletPhone?: boolean;
   tableName: string | null;
+  customerName?: string | null;
+  cashierName?: string | null;
   notes: string | null;
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
   serviceChargeAmount: number;
+  surchargeAmount?: number | null;
   totalAmount: number;
   items: ReceiptItemSnapshot[];
 };
