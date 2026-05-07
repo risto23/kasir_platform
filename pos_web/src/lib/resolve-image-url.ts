@@ -1,5 +1,8 @@
 import { API_ORIGIN } from '@/lib/api-config';
 
+const uploadsOrigin =
+  (process.env.NEXT_PUBLIC_UPLOADS_ORIGIN ?? '').replace(/\/$/, '') || API_ORIGIN;
+
 export function resolveImageUrl(imageUrl?: string | null) {
   if (!imageUrl) {
     return '';
@@ -14,8 +17,8 @@ export function resolveImageUrl(imageUrl?: string | null) {
   }
 
   if (imageUrl.startsWith('/')) {
-    return `${API_ORIGIN}${imageUrl}`;
+    return `${uploadsOrigin}${imageUrl}`;
   }
 
-  return `${API_ORIGIN}/${imageUrl}`;
+  return `${uploadsOrigin}/${imageUrl}`;
 }
