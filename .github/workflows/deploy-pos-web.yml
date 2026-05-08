@@ -58,6 +58,10 @@ jobs:
             -e "ssh -i /tmp/vps_key -o StrictHostKeyChecking=no" \
             pos_web/public/ \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/pos_platform/pos_web/public/
+          rsync -avz --delete \
+            -e "ssh -i /tmp/vps_key -o StrictHostKeyChecking=no" \
+            pos_web/node_modules/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/pos_platform/pos_web/node_modules/
           rm -f /tmp/vps_key
 
       - name: Restart PM2
