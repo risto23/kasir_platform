@@ -440,8 +440,21 @@ export default function PosCashierPage() {
     () => calculateGrandTotal(subtotal, charges),
     [subtotal, charges],
   );
+
+  const selectedPaymentMethodConfig = useMemo(
+    () => outletPaymentMethods.find((m) => m.code === paymentMethod) ?? null,
+    [outletPaymentMethods, paymentMethod],
+  );
+
+  // Surcharge is calculated on pre-rounding total so rounding applies to the final amount
+  const paymentSurcharge = useMemo(
+    () => calculatePosSurcharge(grandTotal, selectedPaymentMethodConfig?.surchargeRules ?? []),
+    [grandTotal, selectedPaymentMethodConfig],
+  );
+
+  // Rounding is applied after surcharge so the customer-facing total is always a round number
   const roundingCalc = useMemo(() => {
-    const base = grandTotal;
+    const base = grandTotal + paymentSurcharge;
     const r = roundingSetting;
     if (!r || !r.enabled || !r.unit || r.method === 'NONE') {
       return { roundedTotal: base, roundingAmount: 0 };
@@ -454,7 +467,9 @@ export default function PosCashierPage() {
     else if (r.method === 'FLOOR') rounded = Math.floor(q) * unit;
     const roundingAmount = rounded - base;
     return { roundedTotal: rounded, roundingAmount };
-  }, [grandTotal, roundingSetting]);
+  }, [grandTotal, paymentSurcharge, roundingSetting]);
+
+  const grandTotalWithSurcharge = roundingCalc.roundedTotal;
 
   const selectedOutlet = useMemo(
     () => outlets.find((item) => item.id === selectedOutletId) || null,
@@ -464,21 +479,6 @@ export default function PosCashierPage() {
   const totalItems = useMemo(
     () => cart.reduce((sum, item) => sum + item.qty, 0),
     [cart],
-  );
-
-  const selectedPaymentMethodConfig = useMemo(
-    () => outletPaymentMethods.find((m) => m.code === paymentMethod) ?? null,
-    [outletPaymentMethods, paymentMethod],
-  );
-
-  const paymentSurcharge = useMemo(
-    () => calculatePosSurcharge(roundingCalc.roundedTotal, selectedPaymentMethodConfig?.surchargeRules ?? []),
-    [roundingCalc.roundedTotal, selectedPaymentMethodConfig],
-  );
-
-  const grandTotalWithSurcharge = useMemo(
-    () => roundingCalc.roundedTotal + paymentSurcharge,
-    [roundingCalc.roundedTotal, paymentSurcharge],
   );
 
   const baseCartProductMap = useMemo(() => {
@@ -925,7 +925,7 @@ export default function PosCashierPage() {
         });
       }
 
-      const totalToPay = roundingCalc.roundedTotal + paymentSurcharge;
+      const totalToPay = roundingCalc.roundedTotal;
       await createPayment({
         orderId: order.id,
         outletId: selectedOutletId,
@@ -968,7 +968,15 @@ export default function PosCashierPage() {
       setQueueMessage('');
       const queueMethodConfig = outletPaymentMethods.find((m) => m.code === queuePaymentMethod) ?? null;
       const queueSurcharge = calculatePosSurcharge(selectedQueueOrder.totalAmount, queueMethodConfig?.surchargeRules ?? []);
-      const queueTotalToPay = selectedQueueOrder.totalAmount + queueSurcharge;
+      const queuePreRound = selectedQueueOrder.totalAmount + queueSurcharge;
+      let queueTotalToPay = queuePreRound;
+      if (roundingSetting?.enabled && roundingSetting.unit > 1 && roundingSetting.method !== 'NONE') {
+        const unit = Math.max(1, Math.floor(roundingSetting.unit));
+        const q = queuePreRound / unit;
+        if (roundingSetting.method === 'NEAREST') queueTotalToPay = Math.round(q) * unit;
+        else if (roundingSetting.method === 'CEIL') queueTotalToPay = Math.ceil(q) * unit;
+        else if (roundingSetting.method === 'FLOOR') queueTotalToPay = Math.floor(q) * unit;
+      }
       await createPayment({
         orderId: selectedQueueOrder.id,
         outletId: selectedOutletId,
@@ -1582,22 +1590,22 @@ export default function PosCashierPage() {
                     ))}
 
                     
-                    {roundingSetting?.enabled ? (
+                    {paymentSurcharge > 0 ? (
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500">Pembulatan</span>
-                        <span className="font-semibold text-slate-900">
-                          {formatCurrency(roundingCalc.roundingAmount)}
+                        <span className="text-slate-500">
+                          Service Charge
+                        </span>
+                        <span className="font-semibold text-amber-700">
+                          +{formatCurrency(paymentSurcharge)}
                         </span>
                       </div>
                     ) : null}
 
-                    {paymentSurcharge > 0 ? (
+                    {roundingSetting?.enabled && roundingCalc.roundingAmount !== 0 ? (
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500">
-                          Biaya {selectedPaymentMethodConfig?.name ?? paymentMethod}
-                        </span>
-                        <span className="font-semibold text-amber-700">
-                          +{formatCurrency(paymentSurcharge)}
+                        <span className="text-slate-500">Pembulatan</span>
+                        <span className="font-semibold text-slate-900">
+                          {roundingCalc.roundingAmount > 0 ? '+' : ''}{formatCurrency(roundingCalc.roundingAmount)}
                         </span>
                       </div>
                     ) : null}
