@@ -1,4 +1,4 @@
-import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, OrderType, PaymentStatus } from '@prisma/client';
 import { z } from 'zod';
 
 const cuidSchema = z.string().cuid();
@@ -7,6 +7,7 @@ export const orderListQueueSchema = z.enum([
   'CASHIER_ACTIVE',
   'CASHIER_UNPAID',
   'GUEST_WAITING_PAYMENT',
+  'DINE_IN_OPEN',
 ]);
 
 export const orderSourceFilterSchema = z.enum(['ALL', 'GUEST', 'STAFF']);
@@ -39,6 +40,7 @@ export const getOrderByIdSchema = z.object({
 export const createOrderSchema = z.object({
   body: z.object({
     outletId: cuidSchema,
+    orderType: z.nativeEnum(OrderType).optional(),
     tableId: cuidSchema.optional(),
     customerName: z.string().trim().max(100).optional(),
     notes: z.string().trim().max(500).optional(),

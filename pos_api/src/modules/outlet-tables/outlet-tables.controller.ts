@@ -4,6 +4,7 @@ import {
   createOutletTable,
   getOutletTableById,
   listOutletTables,
+  listTableOccupancy,
   updateOutletTable,
 } from './outlet-tables.service';
 import {
@@ -136,6 +137,27 @@ export async function updateOutletTableHandler(
     return res.status(200).json({
       success: true,
       message: 'Meja outlet berhasil diperbarui.',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listTableOccupancyHandler(
+  req: BusinessRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const businessId = getBusinessId(req);
+    const { outletId } = parseOutletIdParams(req.validatedParams ?? req.params);
+
+    const data = await listTableOccupancy(businessId, outletId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Status meja berhasil diambil.',
       data,
     });
   } catch (error) {

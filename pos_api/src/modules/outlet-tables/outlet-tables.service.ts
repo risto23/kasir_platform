@@ -1,4 +1,4 @@
-import { Prisma, BusinessType } from '@prisma/client';
+import { Prisma, BusinessType, OrderStatus, OrderType, PaymentStatus } from '@prisma/client';
 
 import {prisma} from '../../config/prisma';
 
@@ -7,6 +7,7 @@ import type {
   OutletTableListItem,
   OutletTablesListQuery,
   OutletTablesListResponse,
+  TableOccupancyItem,
   UpdateOutletTableInput,
 } from './outlet-tables.types';
 
@@ -211,6 +212,69 @@ export async function createOutletTable(
   });
 
   return mapTable(created);
+}
+
+export async function listTableOccupancy(
+  businessId: string,
+  outletId: string,
+): Promise<TableOccupancyItem[]> {
+  await ensureRestaurantOutlet(businessId, outletId);
+
+  const tables = await prisma.outletTable.findMany({
+    where: {
+      outletId,
+      status: 'ACTIVE',
+    },
+    include: {
+      orders: {
+        where: {
+          orderType: OrderType.DINE_IN,
+          status: {
+            in: [
+              OrderStatus.DRAFT,
+              OrderStatus.SUBMITTED,
+              OrderStatus.IN_PROGRESS,
+              OrderStatus.READY,
+            ],
+          },
+          paymentStatus: PaymentStatus.UNPAID,
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          paymentStatus: true,
+          totalAmount: true,
+          customerName: true,
+          submittedAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 1,
+      },
+    },
+    orderBy: [{ code: 'asc' }, { name: 'asc' }],
+  });
+
+  return tables.map((table) => {
+    const activeOrder = table.orders[0] ?? null;
+    return {
+      ...mapTable(table),
+      isOccupied: activeOrder !== null,
+      activeOrder: activeOrder
+        ? {
+            id: activeOrder.id,
+            orderNumber: activeOrder.orderNumber,
+            status: activeOrder.status,
+            paymentStatus: activeOrder.paymentStatus,
+            totalAmount: activeOrder.totalAmount.toFixed(2),
+            customerName: activeOrder.customerName,
+            submittedAt: activeOrder.submittedAt?.toISOString() ?? null,
+          }
+        : null,
+    };
+  });
 }
 
 export async function updateOutletTable(

@@ -1,6 +1,6 @@
 import { api } from './api';
 import { getActiveBusinessId, getCachedCurrentUser } from './auth';
-import type {  PosAddOrderItemPayload,  PosAppliedPromo,  PosCartItem,  PosChargeItem,  PosCreateOrderPayload,  PosCreatePaymentPayload,  PosHistoryItem,  PosHistoryResponse,  PosListMeta,  PosOrderQueue,  PosOrderSource,  PosOrderItemResponse,  PosOrderResponse,  PosOutletItem,  PosOutletListResponse,  PosPaymentMethod,  PosPaymentResponse,  PosProductItem,  PosProductListResponse,  PosReceiptContentSnapshot,  PosReceiptItemSnapshot,  PosReceiptPayload,  PosReceiptResponse,  PosSettingsChargeRule,  PosSettingsChargesResponse,  PosTableItem,  PosTableListResponse,  PosUpdateOrderItemPayload,  PosOutletPaymentMethod,  PosSurchargeRule,} from '@/types/pos';
+import type {  PosAddOrderItemPayload,  PosAppliedPromo,  PosCartItem,  PosChargeItem,  PosCreateOrderPayload,  PosCreatePaymentPayload,  PosHistoryItem,  PosHistoryResponse,  PosListMeta,  PosOrderQueue,  PosOrderSource,  PosOrderStatus,  PosOrderItemResponse,  PosOrderResponse,  PosOrderType,  PosOutletItem,  PosOutletListResponse,  PosPaymentMethod,  PosPaymentResponse,  PosProductItem,  PosProductListResponse,  PosReceiptContentSnapshot,  PosReceiptItemSnapshot,  PosReceiptPayload,  PosReceiptResponse,  PosSettingsChargeRule,  PosSettingsChargesResponse,  PosTableItem,  PosTableListResponse,  TableOccupancyItem,  PosUpdateOrderItemPayload,  PosOutletPaymentMethod,  PosSurchargeRule,} from '@/types/pos';
 import type { BusinessMembership, CurrentUser } from '@/types/auth';
 type ApiEnvelope<T> = {  success?: boolean;
   message?: string;
@@ -75,8 +75,10 @@ type OrderApiRow = {  id: string;
   outletId: string;
   outletName?: string | null;
   businessType?: 'RETAIL' | 'RESTAURANT';
+  orderType?: PosOrderType | null;
   tableId?: string | null;
   tableName?: string | null;
+  customerName?: string | null;
   orderNumber: string;
   status: PosOrderResponse['status'];
   paymentStatus: PosOrderResponse['paymentStatus'];
@@ -256,7 +258,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {  return ty
   const taxAmount = toNumber(row.taxAmount);
   const serviceChargeAmount = toNumber(row.serviceChargeAmount);
   const totalAmount = toNumber(row.totalAmount);
-  return {    id: row.id,    businessId: row.businessId,    outletId: row.outletId,    outletName: row.outletName ?? null,    businessType: row.businessType,    tableId: row.tableId ?? null,    tableName: row.tableName ?? null,    orderNumber: row.orderNumber,    status: row.status,    paymentStatus: row.paymentStatus,    notes: row.notes ?? null,    subtotal,    discountAmount,    taxAmount,    serviceChargeAmount,    totalAmount,    createdAt: row.createdAt,    updatedAt: row.updatedAt,    submittedAt: row.submittedAt ?? null,    completedAt: row.completedAt ?? null,    cancelledAt: row.cancelledAt ?? null,    itemCount: row.itemCount ?? (row.items?.length ?? 0),    items: Array.isArray(row.items)      ? row.items.map((item) => mapOrderItem(item, row.id))      : undefined,    isGuestOrder: row.isGuestOrder === true || row.orderSource === 'GUEST',    orderSource: row.orderSource === 'GUEST' ? 'GUEST' : 'STAFF',    orderNo: row.orderNumber,    note: row.notes ?? null,    total: totalAmount,  };
+  return {    id: row.id,    businessId: row.businessId,    outletId: row.outletId,    outletName: row.outletName ?? null,    businessType: row.businessType,    orderType: row.orderType ?? 'QUICK_SERVICE',    tableId: row.tableId ?? null,    tableName: row.tableName ?? null,    customerName: row.customerName ?? null,    orderNumber: row.orderNumber,    status: row.status,    paymentStatus: row.paymentStatus,    notes: row.notes ?? null,    subtotal,    discountAmount,    taxAmount,    serviceChargeAmount,    totalAmount,    createdAt: row.createdAt,    updatedAt: row.updatedAt,    submittedAt: row.submittedAt ?? null,    completedAt: row.completedAt ?? null,    cancelledAt: row.cancelledAt ?? null,    itemCount: row.itemCount ?? (row.items?.length ?? 0),    items: Array.isArray(row.items)      ? row.items.map((item) => mapOrderItem(item, row.id))      : undefined,    isGuestOrder: row.isGuestOrder === true || row.orderSource === 'GUEST',    orderSource: row.orderSource === 'GUEST' ? 'GUEST' : 'STAFF',    orderNo: row.orderNumber,    note: row.notes ?? null,    total: totalAmount,  };
 }function mapPayment(row: PaymentApiRow): PosPaymentResponse {  const amountPaid = toNumber(row.amountPaid);
   const amountTendered = toNumber(row.amountTendered);
   const changeAmount = toNumber(row.changeAmount);
@@ -343,7 +345,7 @@ export async function getPosTables(outletId: string): Promise<PosTableListRespon
   const meta = extractListMeta(response.data.meta, response.data.data);
   return {    items: rows.map(mapTable),    meta,  };
 }
-export async function createOrder(  payload: PosCreateOrderPayload,): Promise<PosOrderResponse> {  const response = await api.post<ApiEnvelope<unknown>>(    '/orders',    {      outletId: payload.outletId,      tableId: payload.tableId,      customerName: payload.customerName,      notes: payload.notes,      items: payload.items,    },    {      headers: buildScopedHeaders(payload.outletId),    },  );
+export async function createOrder(  payload: PosCreateOrderPayload,): Promise<PosOrderResponse> {  const response = await api.post<ApiEnvelope<unknown>>(    '/orders',    {      outletId: payload.outletId,      orderType: payload.orderType,      tableId: payload.tableId,      customerName: payload.customerName,      notes: payload.notes,      items: payload.items,    },    {      headers: buildScopedHeaders(payload.outletId),    },  );
   const orderRow = extractOrderApiRow(response.data.data);
   if (!orderRow) {    throw new Error('Response order kosong');
   }  return mapOrder(orderRow);
@@ -432,6 +434,29 @@ export async function getOutletPaymentMethods(outletId: string): Promise<PosOutl
   );
   const data = response.data.data;
   return Array.isArray(data) ? data : [];
+}
+
+export async function getTableOccupancy(outletId: string): Promise<TableOccupancyItem[]> {
+  const response = await api.get<ApiEnvelope<TableOccupancyItem[]>>(
+    `/business/outlets-tables/${outletId}/tables/occupancy`,
+    { headers: buildScopedHeaders(outletId) },
+  );
+  return Array.isArray(response.data.data) ? response.data.data : [];
+}
+
+export async function updateOrderStatus(
+  orderId: string,
+  outletId: string,
+  status: PosOrderStatus,
+): Promise<PosOrderResponse> {
+  const response = await api.patch<ApiEnvelope<unknown>>(
+    `/orders/${orderId}/status`,
+    { outletId, status },
+    { headers: buildScopedHeaders(outletId) },
+  );
+  const orderRow = extractOrderApiRow(response.data.data);
+  if (!orderRow) throw new Error('Response update status order kosong');
+  return mapOrder(orderRow);
 }
 
 export async function getPosChargeSettings(outletId?: string): Promise<PosSettingsChargesResponse> {

@@ -226,6 +226,7 @@ export async function createOrderHandler(
       businessId,
       outletId: body.outletId,
       businessUserId,
+      orderType: body.orderType,
       tableId: body.tableId,
       customerName: body.customerName,
       notes: body.notes,

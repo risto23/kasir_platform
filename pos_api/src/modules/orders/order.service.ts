@@ -2,6 +2,7 @@ import { applyChargesAndRounding, getOutletPosChargeSettings } from '../pos-sett
 import {
   BusinessType,
   OrderStatus,
+  OrderType,
   PaymentStatus,
   Prisma,
   ProductOutletStatus,
@@ -453,6 +454,7 @@ function mapOrderSummary(order: {
   orderNumber: string;
   businessId: string;
   outletId: string;
+  orderType: OrderType;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   tableId: string | null;
@@ -478,6 +480,7 @@ function mapOrderSummary(order: {
     orderNumber: order.orderNumber,
     businessId: order.businessId,
     outletId: order.outletId,
+    orderType: order.orderType,
     status: order.status,
     paymentStatus: order.paymentStatus,
     tableId: order.tableId,
@@ -638,6 +641,19 @@ export async function listOrders(params: ListOrdersInput) {
     where.paymentStatus = PaymentStatus.UNPAID;
   }
 
+  if (params.queue === 'DINE_IN_OPEN') {
+    where.orderType = OrderType.DINE_IN;
+    where.status = {
+      in: [
+        OrderStatus.DRAFT,
+        OrderStatus.SUBMITTED,
+        OrderStatus.IN_PROGRESS,
+        OrderStatus.READY,
+      ],
+    };
+    where.paymentStatus = PaymentStatus.UNPAID;
+  }
+
   if (params.status) {
     where.status = params.status;
   }
@@ -765,6 +781,7 @@ export async function createOrder(input: CreateOrderInput) {
         businessId: input.businessId,
         outletId: input.outletId,
         createdByBusinessUserId: input.businessUserId,
+        orderType: input.orderType ?? OrderType.QUICK_SERVICE,
         tableId: input.tableId ?? null,
         orderNumber,
         customerName: input.customerName?.trim() || null,
@@ -815,6 +832,7 @@ export async function addOrderItem(input: AddOrderItemInput) {
       },
       select: {
         id: true,
+        orderType: true,
         status: true,
       },
     });
@@ -823,8 +841,17 @@ export async function addOrderItem(input: AddOrderItemInput) {
       throw new Error('Order tidak ditemukan');
     }
 
-    if (order.status !== OrderStatus.DRAFT) {
-      throw new Error('Hanya order draft yang bisa ditambah item');
+    const isDineIn = order.orderType === OrderType.DINE_IN;
+    const addableStatuses: OrderStatus[] = isDineIn
+      ? [OrderStatus.DRAFT, OrderStatus.SUBMITTED, OrderStatus.IN_PROGRESS]
+      : [OrderStatus.DRAFT];
+
+    if (!addableStatuses.includes(order.status)) {
+      throw new Error(
+        isDineIn
+          ? 'Item hanya bisa ditambah saat order masih berlangsung (draft/submitted/in progress)'
+          : 'Hanya order draft yang bisa ditambah item',
+      );
     }
 
     await createSingleOrderItem(tx, {
@@ -858,6 +885,7 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
       },
       select: {
         id: true,
+        orderType: true,
         status: true,
       },
     });
@@ -866,8 +894,17 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
       throw new Error('Order tidak ditemukan');
     }
 
-    if (order.status !== OrderStatus.DRAFT) {
-      throw new Error('Hanya order draft yang bisa diubah');
+    const isDineIn = order.orderType === OrderType.DINE_IN;
+    const editableStatuses: OrderStatus[] = isDineIn
+      ? [OrderStatus.DRAFT, OrderStatus.SUBMITTED, OrderStatus.IN_PROGRESS]
+      : [OrderStatus.DRAFT];
+
+    if (!editableStatuses.includes(order.status)) {
+      throw new Error(
+        isDineIn
+          ? 'Item hanya bisa diubah saat order masih berlangsung (draft/submitted/in progress)'
+          : 'Hanya order draft yang bisa diubah',
+      );
     }
 
     const item = await tx.orderItem.findFirst({

@@ -2,13 +2,15 @@ import {
   BusinessType,
   OrderItemStatus,
   OrderStatus,
+  OrderType,
   PaymentStatus,
 } from '@prisma/client';
 
 export type OrderListQueue =
   | 'CASHIER_ACTIVE'
   | 'CASHIER_UNPAID'
-  | 'GUEST_WAITING_PAYMENT';
+  | 'GUEST_WAITING_PAYMENT'
+  | 'DINE_IN_OPEN';
 
 export type OrderSourceFilter = 'ALL' | 'GUEST' | 'STAFF';
 
@@ -53,6 +55,7 @@ export type CreateOrderInput = {
   businessId: string;
   outletId: string;
   businessUserId: string;
+  orderType?: OrderType;
   tableId?: string;
   customerName?: string;
   notes?: string;
@@ -61,6 +64,7 @@ export type CreateOrderInput = {
 
 export type CreateOrderBody = {
   outletId: string;
+  orderType?: OrderType;
   tableId?: string;
   customerName?: string;
   notes?: string;
@@ -120,6 +124,7 @@ export type OrderSummaryDto = {
   orderNumber: string;
   businessId: string;
   outletId: string;
+  orderType: OrderType;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   tableId: string | null;

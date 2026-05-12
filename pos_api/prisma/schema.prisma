@@ -898,6 +898,7 @@ model Order {
   orderNumber             String        @unique
   customerName            String?
   notes                   String?
+  orderType               OrderType     @default(QUICK_SERVICE)
   status                  OrderStatus   @default(DRAFT)
   paymentStatus           PaymentStatus @default(UNPAID)
   subtotal                Decimal       @default(0) @db.Decimal(14, 2)
@@ -1317,6 +1318,11 @@ enum PurchaseReturnStatus {
   DRAFT
   POSTED
   VOID
+}
+
+enum OrderType {
+  QUICK_SERVICE
+  DINE_IN
 }
 
 enum OrderStatus {
