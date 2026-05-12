@@ -11,6 +11,7 @@ import {
   createOutletTableHandler,
   getOutletTableByIdHandler,
   listOutletTablesHandler,
+  listTableOccupancyHandler,
   updateOutletTableHandler,
   updateOutletTableStatusHandler,
 } from './outlet-tables.controller';
@@ -31,10 +32,16 @@ router.use(businessAccessMiddleware);
 
 router.get(
   '/:outletId/tables',
-  
   requireBusinessPermission(BusinessPermissionCode.OUTLET_TABLE_VIEW),
   requireOutletAccess(resolveOutletId),
   listOutletTablesHandler,
+);
+
+router.get(
+  '/:outletId/tables/occupancy',
+  requireBusinessPermission(BusinessPermissionCode.OUTLET_TABLE_VIEW),
+  requireOutletAccess(resolveOutletId),
+  listTableOccupancyHandler,
 );
 
 router.get(
