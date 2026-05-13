@@ -48,15 +48,33 @@ const storage = multer.diskStorage({
   },
 });
 
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+const BLOCKED_EXTENSIONS = new Set([
+  '.sh', '.bash', '.zsh', '.fish',
+  '.js', '.mjs', '.cjs', '.ts',
+  '.php', '.php3', '.php4', '.php5', '.phtml',
+  '.py', '.rb', '.pl', '.lua',
+  '.exe', '.dll', '.so', '.dylib',
+  '.bat', '.cmd', '.ps1', '.vbs',
+  '.jar', '.war', '.class',
+  '.html', '.htm', '.svg', '.xml',
+  '.cgi', '.asp', '.aspx', '.jsp',
+]);
+
 const imageUpload = multer({
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (_req, file, callback) => {
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    const ext = path.extname(file.originalname).toLowerCase();
 
-    if (!allowedMimeTypes.includes(file.mimetype)) {
+    if (BLOCKED_EXTENSIONS.has(ext)) {
+      return callback(new Error('Ekstensi file tidak diizinkan.'));
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       return callback(new Error('File foto produk harus berupa JPG, PNG, atau WEBP.'));
     }
 
