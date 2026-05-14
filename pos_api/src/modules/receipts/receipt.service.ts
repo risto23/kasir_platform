@@ -81,7 +81,7 @@ export async function createReceiptForPaidOrder(params: {
             select: {
               user: {
                 select: {
-                  name: true,
+                  fullName: true,
                   email: true,
                 },
               },
@@ -148,7 +148,7 @@ export async function createReceiptForPaidOrder(params: {
         showOutletPhone: order.outlet.receiptSetting?.showOutletPhone ?? true,
         tableName: order.table?.name ?? null,
         customerName: order.customerName ?? null,
-        cashierName: order.payments[0]?.receivedByBusinessUser?.user?.name ?? null,
+        cashierName: order.payments[0]?.receivedByBusinessUser?.user?.fullName ?? null,
         notes: order.notes,
         subtotal: toMoneyString(order.subtotal),
         discountAmount: toMoneyString(order.discountAmount),
