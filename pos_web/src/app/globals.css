@@ -28,12 +28,27 @@ body {
 @media print {
   @page {
     size: 58mm auto;
-    margin: 0;
+    margin: 2mm;
   }
 
   body {
     background: #ffffff;
     margin: 0;
     padding: 0;
+    width: 58mm;
+  }
+
+  /* collapse flex layout so receipt fills full width */
+  .min-h-screen {
+    display: block !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  main > div {
+    max-width: 100% !important;
+    padding: 0 !important;
   }
 }
