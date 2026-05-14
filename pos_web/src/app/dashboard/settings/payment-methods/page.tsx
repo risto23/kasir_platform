@@ -280,7 +280,7 @@ export default function PaymentMethodsSettingsPage() {
           </div>
         ) : methods.length === 0 ? (
           <div className="mt-5 rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
-            Belum ada metode pembayaran. Klik "Isi Default" untuk menambahkan CASH, QRIS, Transfer, Card, atau tambahkan manual.
+            Belum ada metode pembayaran. Klik &quot;Isi Default&quot; untuk menambahkan CASH, QRIS, Transfer, Card, atau tambahkan manual.
           </div>
         ) : (
           <div className="mt-5 space-y-3">
@@ -423,7 +423,7 @@ export default function PaymentMethodsSettingsPage() {
 
             {formRules.length === 0 ? (
               <div className="mt-3 rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
-                Tidak ada surcharge. Klik "+ Tambah Tier" untuk menambahkan.
+                Tidak ada surcharge. Klik &quot;+ Tambah Tier&quot; untuk menambahkan.
               </div>
             ) : (
               <div className="mt-3 space-y-3">

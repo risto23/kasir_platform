@@ -8,14 +8,17 @@ import { useParams } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft,
+  faCircleNotch,
   faClockRotateLeft,
   faPrint,
   faReceipt,
   faWallet,
 } from '@fortawesome/free-solid-svg-icons';
+import { faBluetooth } from '@fortawesome/free-brands-svg-icons';
 
 import ReceiptPrint from '@/components/receipt/receipt-print';
 import { getReceiptDetail } from '@/lib/receipt';
+import { useBluetoothPrinter } from '@/hooks/use-bluetooth-printer';
 import type { ReceiptDetailResponse } from '@/types/receipt';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -37,6 +40,14 @@ export default function ReceiptDetailPage() {
   const [receipt, setReceipt] = useState<ReceiptDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const {
+    status: btStatus,
+    error: btError,
+    deviceName,
+    supported: btSupported,
+    connectAndPrint,
+  } = useBluetoothPrinter();
 
   useEffect(() => {
     async function loadReceipt() {
@@ -89,6 +100,33 @@ export default function ReceiptDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 print:hidden">
+            {btSupported && (
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  type="button"
+                  onClick={() => receipt && connectAndPrint(receipt)}
+                  disabled={btStatus === 'connecting' || btStatus === 'printing' || !receipt}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {btStatus === 'connecting' || btStatus === 'printing' ? (
+                    <FontAwesomeIcon icon={faCircleNotch} className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FontAwesomeIcon icon={faBluetooth} className="h-4 w-4" />
+                  )}
+                  {btStatus === 'connecting'
+                    ? 'Menghubungkan...'
+                    : btStatus === 'printing'
+                      ? 'Mencetak...'
+                      : btStatus === 'connected'
+                        ? `Print BT (${deviceName ?? 'BT'})`
+                        : 'Print Bluetooth'}
+                </button>
+                {btError && (
+                  <p className="text-xs text-red-600">{btError}</p>
+                )}
+              </div>
+            )}
+
             <Link
               href="/dashboard/payments/history"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
