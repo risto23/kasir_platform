@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   connectBluetoothPrinter,
   printReceiptBluetooth,
@@ -15,9 +15,12 @@ export function useBluetoothPrinter() {
   const [status, setStatus] = useState<PrinterStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string | null>(null);
+  const [supported, setSupported] = useState(false);
   const connRef = useRef<BluetoothPrinterConnection | null>(null);
 
-  const supported = isBluetoothSupported();
+  useEffect(() => {
+    setSupported(isBluetoothSupported());
+  }, []);
 
   const connect = useCallback(async () => {
     setStatus('connecting');
