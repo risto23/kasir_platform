@@ -1,10 +1,12 @@
 'use client';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPrint } from '@fortawesome/free-solid-svg-icons';
+import { faBluetooth } from '@fortawesome/free-brands-svg-icons';
+import { faPrint, faCircleNotch, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 
 import type { ReceiptDetailResponse, ReceiptItemSnapshot } from '@/types/receipt';
 import { formatReceiptCurrency, formatReceiptDateTime } from '@/lib/receipt';
+import { useBluetoothPrinter } from '@/hooks/use-bluetooth-printer';
 
 type ReceiptPrintProps = {
   receipt: ReceiptDetailResponse | null | undefined;
@@ -76,6 +78,15 @@ export default function ReceiptPrint({
   receipt,
   showPrintButton = true,
 }: ReceiptPrintProps) {
+  const {
+    status: btStatus,
+    error: btError,
+    deviceName,
+    supported: btSupported,
+    disconnect,
+    connectAndPrint,
+  } = useBluetoothPrinter();
+
   const items = getReceiptItems(receipt);
 
   const businessName =
@@ -170,10 +181,59 @@ export default function ReceiptPrint({
     window.print();
   }
 
+  async function handleBluetoothAction() {
+    if (!receipt) return;
+    await connectAndPrint(receipt);
+  }
+
+  const btLabel = (() => {
+    if (btStatus === 'connecting') return 'Menghubungkan...';
+    if (btStatus === 'printing') return 'Mencetak...';
+    if (btStatus === 'connected') return `Print (${deviceName ?? 'BT'})`;
+    return 'Print Bluetooth';
+  })();
+
+  const btBusy = btStatus === 'connecting' || btStatus === 'printing';
+
   return (
     <div className="mx-auto max-w-[420px]">
       {showPrintButton ? (
-        <div className="mb-4 flex justify-end print:hidden">
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2 print:hidden">
+          {btSupported ? (
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleBluetoothAction}
+                  disabled={btBusy || !receipt}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {btBusy ? (
+                    <FontAwesomeIcon icon={faCircleNotch} className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FontAwesomeIcon icon={faBluetooth} className="h-4 w-4" />
+                  )}
+                  {btLabel}
+                </button>
+                {btStatus === 'connected' ? (
+                  <button
+                    type="button"
+                    onClick={disconnect}
+                    className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-300 px-3 text-sm text-slate-600 transition hover:bg-slate-100"
+                  >
+                    Putus
+                  </button>
+                ) : null}
+              </div>
+              {btError ? (
+                <p className="flex items-center gap-1 text-xs text-red-600">
+                  <FontAwesomeIcon icon={faTriangleExclamation} className="h-3 w-3" />
+                  {btError}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <button
             type="button"
             onClick={handlePrint}
@@ -186,7 +246,7 @@ export default function ReceiptPrint({
       ) : null}
 
       <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
-        <div className="mx-auto w-full max-w-[280px] text-[11px] leading-5 text-slate-700">
+        <div className="mx-auto w-full max-w-[280px] text-[11px] leading-5 text-slate-700 print:max-w-full print:text-[10px]">
           <div className="border-b border-dashed border-slate-300 pb-4 text-center">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
