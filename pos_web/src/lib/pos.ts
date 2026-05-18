@@ -372,7 +372,7 @@ export async function removeOrderItem(
   const response = await api.delete<ApiEnvelope<unknown>>(
     `/orders/${orderId}/items/${itemId}`,
     {
-      data: { outletId },
+      params: { outletId },
       headers: buildScopedHeaders(outletId),
     },
   );
