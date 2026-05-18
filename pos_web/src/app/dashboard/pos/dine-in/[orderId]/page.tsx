@@ -27,6 +27,8 @@ import {
   getOrderDetail,
   getOutletPaymentMethods,
   getPosProducts,
+  removeOrderItem,
+  updateOrderItem,
   updateOrderStatus,
 } from '@/lib/pos';
 import { getReceiptByOrderId } from '@/lib/receipt';
@@ -234,6 +236,8 @@ export default function DineInOrderPage() {
   const [showPayment, setShowPayment] = useState(false);
 
   const [addingProductId, setAddingProductId] = useState<string | null>(null);
+  const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
   const [statusChanging, setStatusChanging] = useState(false);
 
   const [receipt, setReceipt] = useState<ReceiptDetailResponse | null>(null);
@@ -306,6 +310,34 @@ export default function DineInOrderPage() {
       alert(err instanceof Error ? err.message : 'Gagal menambah item');
     } finally {
       setAddingProductId(null);
+    }
+  }
+
+  async function handleUpdateQty(itemId: string, currentQty: number, delta: number) {
+    if (!order) return;
+    const newQty = currentQty + delta;
+    if (newQty < 1) return;
+    setUpdatingItemId(itemId);
+    try {
+      const updated = await updateOrderItem(order.id, itemId, { outletId, quantity: newQty });
+      setOrder(updated);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal mengubah jumlah');
+    } finally {
+      setUpdatingItemId(null);
+    }
+  }
+
+  async function handleRemoveItem(itemId: string) {
+    if (!order) return;
+    setRemovingItemId(itemId);
+    try {
+      const updated = await removeOrderItem(order.id, itemId, outletId);
+      setOrder(updated);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal menghapus item');
+    } finally {
+      setRemovingItemId(null);
     }
   }
 
@@ -474,28 +506,69 @@ export default function DineInOrderPage() {
                 <p className="text-sm">Belum ada item. Pilih produk dari katalog.</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {order.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">{item.productName}</p>
-                      <p className="text-xs text-slate-400">
-                        {formatCurrency(item.unitPrice)} × {item.quantity}
-                      </p>
+              <div className="space-y-3">
+                {order.items.map((item) => {
+                  const isUpdating = updatingItemId === item.id;
+                  const isRemoving = removingItemId === item.id;
+                  const busy = isUpdating || isRemoving;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`py-2 border-b border-slate-100 last:border-0 ${busy ? 'opacity-50' : ''}`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <p className="text-sm font-medium text-slate-800 truncate flex-1">{item.productName}</p>
+                        <p className="text-sm font-semibold text-slate-800 shrink-0">
+                          {formatCurrency(item.lineTotal)}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        {canAddItems ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              disabled={busy}
+                              onClick={() => handleUpdateQty(item.id, Number(item.quantity), -1)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40"
+                            >
+                              <FontAwesomeIcon icon={faMinus} className="h-3 w-3" />
+                            </button>
+                            <span className="w-8 text-center text-sm font-semibold text-slate-800">
+                              {item.quantity}
+                            </span>
+                            <button
+                              disabled={busy}
+                              onClick={() => handleUpdateQty(item.id, Number(item.quantity), 1)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40"
+                            >
+                              <FontAwesomeIcon icon={faPlus} className="h-3 w-3" />
+                            </button>
+                            <span className="ml-1 text-xs text-slate-400">
+                              × {formatCurrency(item.unitPrice)}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400">
+                            {formatCurrency(item.unitPrice)} × {item.quantity}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          {item.lineDiscountAmount > 0 && (
+                            <p className="text-xs text-red-400">-{formatCurrency(item.lineDiscountAmount)}</p>
+                          )}
+                          {canAddItems && (
+                            <button
+                              disabled={busy}
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 disabled:opacity-40"
+                            >
+                              <FontAwesomeIcon icon={faTrashCan} className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-slate-800">
-                        {formatCurrency(item.lineTotal)}
-                      </p>
-                      {item.lineDiscountAmount > 0 && (
-                        <p className="text-xs text-red-400">-{formatCurrency(item.lineDiscountAmount)}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

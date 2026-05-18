@@ -14,6 +14,7 @@ import {
   createOrderHandler,
   getOrderByIdHandler,
   listOrdersHandler,
+  removeOrderItemHandler,
   updateOrderItemHandler,
   updateOrderStatusHandler,
 } from './order.controller';
@@ -166,6 +167,13 @@ router.put(
   validate(updateOrderItemSchema),
   requireOutletAccess(resolveOutletIdFromUpdateOrderItem),
   updateOrderItemHandler,
+);
+
+router.delete(
+  '/:id/items/:itemId',
+  requireBusinessPermission(BusinessPermissionCode.ORDER_UPDATE),
+  requireOutletAccess(resolveOutletIdFromUpdateOrderItem),
+  removeOrderItemHandler,
 );
 
 router.patch(

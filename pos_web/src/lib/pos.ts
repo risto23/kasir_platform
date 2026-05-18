@@ -362,6 +362,22 @@ export async function updateOrderItem(  orderId: string,  itemId: string,  paylo
   if (!orderRow) {    throw new Error('Response update item order kosong');
   }  return mapOrder(orderRow);
 }
+export async function removeOrderItem(
+  orderId: string,
+  itemId: string,
+  outletId: string,
+): Promise<PosOrderResponse> {
+  const response = await api.delete<ApiEnvelope<unknown>>(
+    `/orders/${orderId}/items/${itemId}`,
+    {
+      data: { outletId },
+      headers: buildScopedHeaders(outletId),
+    },
+  );
+  const orderRow = extractOrderApiRow(response.data.data);
+  if (!orderRow) throw new Error('Response hapus item order kosong');
+  return mapOrder(orderRow);
+}
 export async function getOrderDetail(  orderId: string,  outletId: string,): Promise<PosOrderResponse> {  const response = await api.get<ApiEnvelope<unknown>>(`/orders/${orderId}`, {    params: {      outletId,    },    headers: buildScopedHeaders(outletId),  });
   const orderRow = extractOrderApiRow(response.data.data);
   if (!orderRow) {    throw new Error('Detail order tidak ditemukan');
