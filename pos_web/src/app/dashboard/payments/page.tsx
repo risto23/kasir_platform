@@ -300,7 +300,7 @@ export default function PaymentHistoryPage() {
               <option value="">Pilih outlet</option>
               {outlets.map((outlet) => (
                 <option key={outlet.id} value={outlet.id}>
-                  {outlet.name}
+                  {outlet.name} ({outlet.code})
                 </option>
               ))}
             </select>
