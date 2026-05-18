@@ -1025,20 +1025,17 @@ export async function removeOrderItem(input: {
       new Prisma.Decimal(0),
     );
 
-    const outlet = await ensureOutletBelongsToBusiness(tx, input.businessId, input.outletId);
-    const chargeSettings = await getOutletPosChargeSettings(input.outletId);
-    const { totalAmount, taxAmount, serviceChargeAmount, roundingAmount } =
-      await applyChargesAndRounding(lineTotal, chargeSettings, outlet.business.businessType);
+    const { charges, rounding } = await getOutletPosChargeSettings(input.outletId);
+    const applied = applyChargesAndRounding(lineTotal, charges, rounding);
 
     await tx.order.update({
       where: { id: input.orderId },
       data: {
         subtotal: toMoneyString(subtotal),
         discountAmount: toMoneyString(discountAmount),
-        taxAmount: toMoneyString(taxAmount),
-        serviceChargeAmount: toMoneyString(serviceChargeAmount),
-        roundingAmount: toMoneyString(roundingAmount),
-        totalAmount: toMoneyString(totalAmount),
+        taxAmount: toMoneyString(applied.taxAmount),
+        serviceChargeAmount: toMoneyString(applied.serviceChargeAmount),
+        totalAmount: toMoneyString(applied.grandTotal),
         itemCount: remaining.length,
       },
     });
