@@ -80,6 +80,7 @@ type OutletListEnvelope = {
 type ParsedMembershipOutlet = {
   id: string;
   name: string;
+  code: string;
 };
 
 type ParsedMembership = {
@@ -141,12 +142,13 @@ function getAllowedOutletsValue(
 
       const id = getStringValue(item, 'id');
       const name = getStringValue(item, 'name');
+      const code = getStringValue(item, 'code') ?? '';
 
       if (!id || !name) {
         return null;
       }
 
-      return { id, name };
+      return { id, name, code };
     })
     .filter((item): item is ParsedMembershipOutlet => item !== null);
 }
@@ -269,10 +271,10 @@ function buildFallbackOutletsFromMembership(
   membership: ParsedMembership,
 ): PosOutletItem[] {
   if (membership.allowedOutlets.length > 0) {
-    return membership.allowedOutlets.map((item, index) => ({
+    return membership.allowedOutlets.map((item) => ({
       id: item.id,
       businessId,
-      code: `OUTLET-${String(index + 1).padStart(2, '0')}`,
+      code: item.code,
       name: item.name,
       address: '',
       phone: '',
@@ -308,20 +310,6 @@ async function getPosOutletsForCurrentUser(
 
   if (membership.hasAllOutletAccess) {
     return getManagedOutlets(businessId);
-  }
-
-  // Fetch real outlet data from API and filter by allowed IDs so cashier
-  // sees the actual outlet name and code (e.g. RESTO-01) instead of a
-  // generated placeholder like OUTLET-01.
-  try {
-    const allOutlets = await getManagedOutlets(businessId);
-    const allowedSet = new Set(membership.allowedOutletIds);
-    const filtered = allOutlets.filter((o) => allowedSet.has(o.id));
-    if (filtered.length > 0) {
-      return filtered;
-    }
-  } catch {
-    // fall through to session-based fallback
   }
 
   return buildFallbackOutletsFromMembership(businessId, membership);

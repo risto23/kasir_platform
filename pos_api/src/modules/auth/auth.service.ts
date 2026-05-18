@@ -37,6 +37,8 @@ async function findUserWithAuthAccessByEmail(email: string) {
               outlet: {
                 select: {
                   id: true,
+                  name: true,
+                  code: true,
                   status: true,
                 },
               },
@@ -90,6 +92,8 @@ async function findUserWithAuthAccessById(userId: string) {
               outlet: {
                 select: {
                   id: true,
+                  name: true,
+                  code: true,
                   status: true,
                 },
               },
