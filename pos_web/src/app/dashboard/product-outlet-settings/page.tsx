@@ -113,12 +113,13 @@ export default function ProductOutletSettingsPage() {
       const response = await api.get('/business/products', {
         params: {
           status: 'ACTIVE',
-          limit: 100,
+          perPage: 100,
         },
       });
 
-      const payload: ProductListResponse = response.data.data;
-      setProducts(payload?.items || []);
+      const raw = response.data.data;
+      const items: Product[] = Array.isArray(raw) ? raw : (raw?.items ?? []);
+      setProducts(items);
     } catch {
       setProducts([]);
     }
