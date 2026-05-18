@@ -307,8 +307,8 @@ export async function removeOrderItemHandler(
 ) {
   try {
     const businessId = getBusinessIdFromRequest(req);
-    const orderId = req.params.id;
-    const itemId = req.params.itemId;
+    const orderId = String(req.params.id);
+    const itemId = String(req.params.itemId);
     const outletId =
       (req.body as { outletId?: string })?.outletId ||
       (typeof req.headers['x-outlet-id'] === 'string' ? req.headers['x-outlet-id'] : '');
