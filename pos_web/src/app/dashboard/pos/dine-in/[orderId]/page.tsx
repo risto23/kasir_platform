@@ -263,10 +263,10 @@ export default function DineInOrderPage() {
   async function loadProducts() {
     setProductsLoading(true);
     try {
-      const data = await getPosProducts({ outletId, perPage: 200, status: 'ACTIVE' });
+      const data = await getPosProducts({ outletId, perPage: 100, status: 'ACTIVE' });
       setProducts(data.items);
-    } catch {
-      // silent
+    } catch (err) {
+      console.error('Gagal memuat produk:', err);
     } finally {
       setProductsLoading(false);
     }
