@@ -310,6 +310,20 @@ async function getPosOutletsForCurrentUser(
     return getManagedOutlets(businessId);
   }
 
+  // Fetch real outlet data from API and filter by allowed IDs so cashier
+  // sees the actual outlet name and code (e.g. RESTO-01) instead of a
+  // generated placeholder like OUTLET-01.
+  try {
+    const allOutlets = await getManagedOutlets(businessId);
+    const allowedSet = new Set(membership.allowedOutletIds);
+    const filtered = allOutlets.filter((o) => allowedSet.has(o.id));
+    if (filtered.length > 0) {
+      return filtered;
+    }
+  } catch {
+    // fall through to session-based fallback
+  }
+
   return buildFallbackOutletsFromMembership(businessId, membership);
 }
 
