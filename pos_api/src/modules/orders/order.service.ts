@@ -967,6 +967,90 @@ function validateOrderStatusTransition(current: OrderStatus, next: OrderStatus) 
   }
 }
 
+export async function removeOrderItem(input: {
+  orderId: string;
+  itemId: string;
+  outletId: string;
+  businessId: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findFirst({
+      where: {
+        id: input.orderId,
+        businessId: input.businessId,
+        outletId: input.outletId,
+      },
+      select: { id: true, orderType: true, status: true },
+    });
+
+    if (!order) throw new Error('Order tidak ditemukan');
+
+    const isDineIn = order.orderType === OrderType.DINE_IN;
+    const editableStatuses: OrderStatus[] = isDineIn
+      ? [OrderStatus.DRAFT, OrderStatus.SUBMITTED, OrderStatus.IN_PROGRESS]
+      : [OrderStatus.DRAFT];
+
+    if (!editableStatuses.includes(order.status)) {
+      throw new Error(
+        isDineIn
+          ? 'Item hanya bisa dihapus saat order masih berlangsung'
+          : 'Hanya order draft yang bisa diubah',
+      );
+    }
+
+    const item = await tx.orderItem.findFirst({
+      where: { id: input.itemId, orderId: input.orderId },
+      select: { id: true },
+    });
+
+    if (!item) throw new Error('Item tidak ditemukan');
+
+    await tx.orderItem.delete({ where: { id: input.itemId } });
+
+    const remaining = await tx.orderItem.findMany({
+      where: { orderId: input.orderId },
+      select: { lineTotal: true, lineDiscountAmount: true, unitPrice: true, quantity: true },
+    });
+
+    const subtotal = remaining.reduce(
+      (sum, i) => sum.add(i.unitPrice.mul(new Prisma.Decimal(Number(i.quantity)))),
+      new Prisma.Decimal(0),
+    );
+    const discountAmount = remaining.reduce(
+      (sum, i) => sum.add(i.lineDiscountAmount),
+      new Prisma.Decimal(0),
+    );
+    const lineTotal = remaining.reduce(
+      (sum, i) => sum.add(i.lineTotal),
+      new Prisma.Decimal(0),
+    );
+
+    const outlet = await ensureOutletBelongsToBusiness(tx, input.businessId, input.outletId);
+    const chargeSettings = await getOutletPosChargeSettings(input.outletId);
+    const { totalAmount, taxAmount, serviceChargeAmount, roundingAmount } =
+      await applyChargesAndRounding(lineTotal, chargeSettings, outlet.business.businessType);
+
+    await tx.order.update({
+      where: { id: input.orderId },
+      data: {
+        subtotal: toMoneyString(subtotal),
+        discountAmount: toMoneyString(discountAmount),
+        taxAmount: toMoneyString(taxAmount),
+        serviceChargeAmount: toMoneyString(serviceChargeAmount),
+        roundingAmount: toMoneyString(roundingAmount),
+        totalAmount: toMoneyString(totalAmount),
+        itemCount: remaining.length,
+      },
+    });
+
+    return getOrderByIdInternal(tx, {
+      orderId: input.orderId,
+      businessId: input.businessId,
+      outletId: input.outletId,
+    });
+  });
+}
+
 export async function updateOrderStatus(input: UpdateOrderStatusInput) {
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findFirst({
