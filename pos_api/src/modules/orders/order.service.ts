@@ -286,18 +286,15 @@ async function getProductPricingForOrderItem(
 
   const outletSetting = product.productOutletSettings[0];
 
-  if (!outletSetting) {
-    throw new Error('Product belum memiliki pengaturan outlet');
-  }
-
   if (
-    outletSetting.status !== ProductOutletStatus.ACTIVE ||
-    !outletSetting.isAvailable
+    outletSetting &&
+    (outletSetting.status !== ProductOutletStatus.ACTIVE ||
+      !outletSetting.isAvailable)
   ) {
     throw new Error(`Product ${product.name} tidak tersedia di outlet ini`);
   }
 
-  const unitPrice = outletSetting.priceOverride ?? product.basePrice;
+  const unitPrice = outletSetting?.priceOverride ?? product.basePrice;
   const quantityDecimal = new Prisma.Decimal(quantity);
   const lineSubtotal = unitPrice.mul(quantityDecimal);
 
