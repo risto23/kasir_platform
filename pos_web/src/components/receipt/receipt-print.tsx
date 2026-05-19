@@ -160,7 +160,11 @@ export default function ReceiptPrint({
       0,
   );
 
-  const surchargeAmount = normalizeNumber(receipt?.contentSnapshot?.surchargeAmount ?? 0);
+  const surchargeAmount = normalizeNumber(
+    receipt?.contentSnapshot?.surchargeAmount ??
+      receipt?.payment?.surchargeAmount ??
+      0,
+  );
 
   const total = normalizeNumber(
     receipt?.contentSnapshot?.totalAmount ??
@@ -326,6 +330,8 @@ export default function ReceiptPrint({
                     item.lineTotal ?? item.subtotal ?? item.lineSubtotal,
                   );
 
+                  const lineDiscount = normalizeNumber(item.lineDiscountAmount);
+
                   return (
                     <div key={item.id} className="space-y-1">
                       <div className="font-semibold text-slate-900">
@@ -346,6 +352,13 @@ export default function ReceiptPrint({
                           {formatReceiptCurrency(lineTotal)}
                         </span>
                       </div>
+
+                      {lineDiscount > 0 ? (
+                        <div className="flex items-center justify-between gap-3 text-[10px] text-slate-400">
+                          <span>Diskon</span>
+                          <span>-{formatReceiptCurrency(lineDiscount)}</span>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -379,11 +392,20 @@ export default function ReceiptPrint({
               </div>
             ) : null}
 
-            {serviceChargeAmount + surchargeAmount > 0 ? (
+            {serviceChargeAmount > 0 ? (
               <div className="mt-1 flex items-center justify-between">
                 <span className="text-slate-500">Service Charge</span>
                 <span className="text-slate-900">
-                  {formatReceiptCurrency(serviceChargeAmount + surchargeAmount)}
+                  {formatReceiptCurrency(serviceChargeAmount)}
+                </span>
+              </div>
+            ) : null}
+
+            {surchargeAmount > 0 ? (
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-slate-500">Biaya Layanan</span>
+                <span className="text-slate-900">
+                  {formatReceiptCurrency(surchargeAmount)}
                 </span>
               </div>
             ) : null}

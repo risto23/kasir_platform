@@ -209,6 +209,7 @@ export async function getReceiptById(params: {
           amountPaid: true,
           amountTendered: true,
           changeAmount: true,
+          surchargeAmount: true,
           paidAt: true,
         },
       },
@@ -249,6 +250,7 @@ export async function getReceiptById(params: {
           amountPaid: toMoneyString(receipt.payment.amountPaid),
           amountTendered: toMoneyString(receipt.payment.amountTendered),
           changeAmount: toMoneyString(receipt.payment.changeAmount),
+          surchargeAmount: toMoneyString(receipt.payment.surchargeAmount),
           paidAt: receipt.payment.paidAt ? receipt.payment.paidAt.toISOString() : null,
         }
       : null,
