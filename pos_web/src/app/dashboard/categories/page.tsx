@@ -1,13 +1,15 @@
 // pos_web/src/app/dashboard/categories/page.tsx
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowRight,
   faBan,
+  faChevronLeft,
+  faChevronRight,
   faCircleCheck,
   faDiagramProject,
   faFolderTree,
@@ -16,13 +18,26 @@ import {
   faPlus,
   faRotateRight,
   faShapes,
-  faSitemap,
 } from '@fortawesome/free-solid-svg-icons';
+
+const PER_PAGE = 20;
+
+type PaginationMeta = {
+  page: number;
+  perPage: number;
+  total: number;
+  totalPages: number;
+};
+
+type CategoryStats = {
+  total: number;
+  active: number;
+  inactive: number;
+};
 
 import { api } from '@/lib/api';
 import type {
   Category,
-  CategoryListResponse,
   CategoryStatus,
 } from '@/types/category';
 
@@ -56,13 +71,35 @@ export default function CategoryListPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [stats, setStats] = useState<CategoryStats | null>(null);
 
-  async function fetchData() {
+  async function fetchStats() {
+    try {
+      const [totalRes, activeRes, inactiveRes] = await Promise.all([
+        api.get('/business/categories', { params: { page: 1, perPage: 1 } }),
+        api.get('/business/categories', { params: { page: 1, perPage: 1, status: 'ACTIVE' } }),
+        api.get('/business/categories', { params: { page: 1, perPage: 1, status: 'INACTIVE' } }),
+      ]);
+      const total: number = totalRes.data.meta?.total ?? 0;
+      const active: number = activeRes.data.meta?.total ?? 0;
+      const inactive: number = inactiveRes.data.meta?.total ?? 0;
+      setStats({ total, active, inactive });
+    } catch {
+      // stats are best-effort
+    }
+  }
+
+  async function fetchData(targetPage = page) {
     try {
       setLoading(true);
       setMessage('');
 
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = {
+        page: targetPage,
+        perPage: PER_PAGE,
+      };
 
       if (search.trim()) {
         params.search = search.trim();
@@ -73,10 +110,9 @@ export default function CategoryListPage() {
       }
 
       const response = await api.get('/business/categories', { params });
-      // const payload: CategoryListResponse = response.data.data;
 
-      // setItems(payload?.items || []);
       setItems(response.data.data || []);
+      setMeta(response.data.meta ?? null);
     } catch (error: unknown) {
       setMessage(getMessage(error));
     } finally {
@@ -96,7 +132,8 @@ export default function CategoryListPage() {
         status: newStatus,
       });
 
-      await fetchData();
+      await fetchData(page);
+      void fetchStats();
     } catch (error: unknown) {
       setMessage(getMessage(error));
     } finally {
@@ -113,25 +150,22 @@ export default function CategoryListPage() {
     setSearchInput('');
     setSearch('');
     setStatusFilter('ALL');
+    setPage(1);
+  }
+
+  function handlePageChange(newPage: number) {
+    setPage(newPage);
+    void fetchData(newPage);
   }
 
   useEffect(() => {
-    void fetchData();
-  }, [search, statusFilter]);
+    void fetchStats();
+  }, []);
 
-  const totalCategory = items.length;
-  const activeCategory = useMemo(
-    () => items.filter((item) => item.status === 'ACTIVE').length,
-    [items]
-  );
-  const inactiveCategory = useMemo(
-    () => items.filter((item) => item.status === 'INACTIVE').length,
-    [items]
-  );
-  const rootCategory = useMemo(
-    () => items.filter((item) => !item.parentId).length,
-    [items]
-  );
+  useEffect(() => {
+    setPage(1);
+    void fetchData(1);
+  }, [search, statusFilter]);
 
   return (
     <div className="space-y-5">
@@ -164,31 +198,31 @@ export default function CategoryListPage() {
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Total Category</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-            {loading ? '-' : totalCategory}
+            {stats ? stats.total : '-'}
           </p>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Active</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-600">
-            {loading ? '-' : activeCategory}
+            {stats ? stats.active : '-'}
           </p>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Inactive</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-600">
-            {loading ? '-' : inactiveCategory}
+            {stats ? stats.inactive : '-'}
           </p>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Root Category</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-            {loading ? '-' : rootCategory}
+            -
           </p>
           <p className="mt-2 text-sm text-slate-500">
-            Category tanpa parent category.
+            Gunakan filter untuk melihat per level.
           </p>
         </div>
       </section>
@@ -299,6 +333,21 @@ export default function CategoryListPage() {
           </div>
         ) : (
           <>
+            {meta && (
+              <div className="border-b border-slate-200 px-5 py-3 sm:px-6">
+                <p className="text-sm text-slate-500">
+                  Menampilkan{' '}
+                  <span className="font-medium text-slate-900">
+                    {(meta.page - 1) * meta.perPage + 1}–
+                    {Math.min(meta.page * meta.perPage, meta.total)}
+                  </span>{' '}
+                  dari{' '}
+                  <span className="font-medium text-slate-900">{meta.total}</span>{' '}
+                  category
+                </p>
+              </div>
+            )}
+
             <div className="hidden overflow-x-auto lg:block">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500">
@@ -517,6 +566,72 @@ export default function CategoryListPage() {
                 );
               })}
             </div>
+
+            {meta && meta.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-200 px-5 py-4 sm:px-6">
+                <p className="text-sm text-slate-500">
+                  Halaman {meta.page} dari {meta.totalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={meta.page <= 1}
+                    onClick={() => handlePageChange(meta.page - 1)}
+                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <FontAwesomeIcon icon={faChevronLeft} className="h-3 w-3" />
+                    Prev
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
+                      .filter(
+                        (p) =>
+                          p === 1 ||
+                          p === meta.totalPages ||
+                          Math.abs(p - meta.page) <= 1,
+                      )
+                      .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                          acc.push('ellipsis');
+                        }
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, idx) =>
+                        p === 'ellipsis' ? (
+                          <span key={`ellipsis-${idx}`} className="px-1 text-sm text-slate-400">
+                            …
+                          </span>
+                        ) : (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => handlePageChange(p)}
+                            className={`inline-flex h-9 w-9 items-center justify-center rounded-xl text-sm font-medium transition ${
+                              p === meta.page
+                                ? 'bg-slate-900 text-white'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        ),
+                      )}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={meta.page >= meta.totalPages}
+                    onClick={() => handlePageChange(meta.page + 1)}
+                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Next
+                    <FontAwesomeIcon icon={faChevronRight} className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </section>

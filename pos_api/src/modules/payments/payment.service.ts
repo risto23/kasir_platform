@@ -188,12 +188,14 @@ export async function listPayments(params: {
   perPage: number;
   orderId?: string;
   search?: string;
+  status?: string;
 }) {
   const keyword = params.search?.trim() || params.orderId?.trim() || '';
 
   const where: Prisma.PaymentWhereInput = {
     businessId: params.businessId,
     outletId: params.outletId,
+    ...(params.status ? { status: params.status as PaymentStatus } : {}),
     ...(keyword
       ? {
           OR: [

@@ -132,6 +132,7 @@ export default function PaymentHistoryPage() {
           outletId: selectedOutletId,
           page: 1,
           perPage: 100,
+          status: filterStatus === 'ALL' ? undefined : filterStatus,
         });
 
         setPayments(response.items);
@@ -145,7 +146,7 @@ export default function PaymentHistoryPage() {
     if (!outletLoading) {
       void loadPayments();
     }
-  }, [selectedOutletId, outletLoading]);
+  }, [selectedOutletId, outletLoading, filterStatus]);
 
   async function handleRefresh() {
     if (!selectedOutletId) {
@@ -160,6 +161,7 @@ export default function PaymentHistoryPage() {
         outletId: selectedOutletId,
         page: 1,
         perPage: 100,
+        status: filterStatus === 'ALL' ? undefined : filterStatus,
       });
 
       setPayments(response.items);
@@ -178,16 +180,8 @@ export default function PaymentHistoryPage() {
     }
   }
 
-  const filteredPayments = useMemo(() => {
-    if (filterStatus === 'ALL') {
-      return payments;
-    }
-
-    return payments.filter((item) => item.status === filterStatus);
-  }, [payments, filterStatus]);
-
   const summary = useMemo(() => {
-    return filteredPayments.reduce(
+    return payments.reduce(
       (acc, item) => {
         acc.totalAmount += item.amountPaid;
         acc.totalCount += 1;
@@ -204,7 +198,7 @@ export default function PaymentHistoryPage() {
         totalPaid: 0,
       },
     );
-  }, [filteredPayments]);
+  }, [payments]);
 
   return (
     <div className="space-y-5">
@@ -357,7 +351,7 @@ export default function PaymentHistoryPage() {
               />
             ))}
           </div>
-        ) : filteredPayments.length === 0 ? (
+        ) : payments.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-slate-500 sm:px-6">
             Belum ada histori payment untuk outlet ini.
           </div>
@@ -376,7 +370,7 @@ export default function PaymentHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredPayments.map((item) => (
+                {payments.map((item) => (
                   <tr key={item.id} className="text-sm text-slate-700">
                     <td className="border-b border-slate-100 px-5 py-4 align-top sm:px-6">
                       <div className="font-semibold text-slate-900">{item.paymentNumber}</div>

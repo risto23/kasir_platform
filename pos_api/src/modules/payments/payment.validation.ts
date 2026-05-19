@@ -21,6 +21,7 @@ export const listPaymentsSchema = z.object({
     page: z.coerce.number().int().min(1).optional(),
     perPage: z.coerce.number().int().min(1).max(100).optional(),
     orderId: cuidSchema.optional(),
+    status: z.enum(['UNPAID', 'PAID', 'PARTIAL', 'CANCELLED', 'REFUNDED']).optional(),
   }),
   body: z.object({}).optional(),
   params: z.object({}).optional(),
