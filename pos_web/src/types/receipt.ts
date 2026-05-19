@@ -95,6 +95,7 @@ export type ReceiptDetailResponse = {
     amountPaid: number;
     amountTendered: number;
     changeAmount: number;
+    surchargeAmount?: number;
     paidAt: string | null;
   } | null;
 
