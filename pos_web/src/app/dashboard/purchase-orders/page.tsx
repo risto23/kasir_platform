@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowRight,
+  faChevronLeft,
+  faChevronRight,
   faFileInvoice,
   faMagnifyingGlass,
   faPenToSquare,
@@ -14,6 +16,15 @@ import {
   faStore,
   faTruck,
 } from '@fortawesome/free-solid-svg-icons';
+
+const PER_PAGE = 20;
+
+type PaginationMeta = {
+  page: number;
+  perPage: number;
+  total: number;
+  totalPages: number;
+};
 
 import { api } from '@/lib/api';
 import { getActiveOutletId, setActiveOutletId } from '@/lib/auth';
@@ -85,6 +96,8 @@ export default function PurchaseOrderListPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
 
   async function fetchOutlets() {
     try {
@@ -124,7 +137,7 @@ export default function PurchaseOrderListPage() {
     }
   }
 
-  async function fetchData() {
+  async function fetchData(targetPage = page) {
     if (!selectedOutletId) {
       setItems([]);
       setLoading(false);
@@ -135,20 +148,18 @@ export default function PurchaseOrderListPage() {
       setLoading(true);
       setMessage('');
 
-      const params: Record<string, string> = {
+      const params: Record<string, string | number> = {
         outletId: selectedOutletId,
+        page: targetPage,
+        perPage: PER_PAGE,
       };
 
-      if (search.trim()) {
-        params.search = search.trim();
-      }
-
-      if (statusFilter !== 'ALL') {
-        params.status = statusFilter;
-      }
+      if (search.trim()) params.search = search.trim();
+      if (statusFilter !== 'ALL') params.status = statusFilter;
 
       const response = await api.get('/purchase-orders', { params });
       setItems(Array.isArray(response.data?.data) ? response.data.data : []);
+      setMeta(response.data?.meta ?? null);
     } catch (error: unknown) {
       setMessage(getMessage(error));
     } finally {
@@ -165,13 +176,18 @@ export default function PurchaseOrderListPage() {
     setSearchInput('');
     setSearch('');
     setStatusFilter('ALL');
+    setPage(1);
   }
 
   function handleChangeOutlet(outletId: string) {
     setSelectedOutletId(outletId);
-    if (outletId) {
-      setActiveOutletId(outletId);
-    }
+    setPage(1);
+    if (outletId) setActiveOutletId(outletId);
+  }
+
+  function handlePageChange(newPage: number) {
+    setPage(newPage);
+    void fetchData(newPage);
   }
 
   useEffect(() => {
@@ -179,23 +195,14 @@ export default function PurchaseOrderListPage() {
   }, []);
 
   useEffect(() => {
-    void fetchData();
+    setPage(1);
+    void fetchData(1);
   }, [selectedOutletId, search, statusFilter]);
 
-  const totalPo = items.length;
-  const draftPo = useMemo(
-    () => items.filter((item) => item.status === 'DRAFT').length,
-    [items],
-  );
-  const submittedPo = useMemo(
-    () => items.filter((item) => item.status === 'SUBMITTED').length,
-    [items],
-  );
-  const totalAmount = useMemo(
-    () =>
-      items.reduce((total, item) => total + Number(item.totalAmount || '0'), 0),
-    [items],
-  );
+  const totalPo = meta?.total ?? items.length;
+  const draftPo = items.filter((item) => item.status === 'DRAFT').length;
+  const submittedPo = items.filter((item) => item.status === 'SUBMITTED').length;
+  const totalAmount = items.reduce((sum, item) => sum + Number(item.totalAmount || '0'), 0);
 
   return (
     <div className="space-y-5">
@@ -387,6 +394,18 @@ export default function PurchaseOrderListPage() {
           </div>
         ) : (
           <>
+            {meta && (
+              <div className="border-b border-slate-200 px-5 py-3 sm:px-6">
+                <p className="text-sm text-slate-500">
+                  Menampilkan{' '}
+                  <span className="font-medium text-slate-900">
+                    {(meta.page - 1) * meta.perPage + 1}–{Math.min(meta.page * meta.perPage, meta.total)}
+                  </span>{' '}
+                  dari <span className="font-medium text-slate-900">{meta.total}</span> PO
+                </p>
+              </div>
+            )}
+
             <div className="hidden overflow-x-auto lg:block">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500">
@@ -556,6 +575,30 @@ export default function PurchaseOrderListPage() {
                 </div>
               ))}
             </div>
+
+            {meta && meta.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-200 px-5 py-4 sm:px-6">
+                <p className="text-sm text-slate-500">Halaman {meta.page} dari {meta.totalPages}</p>
+                <div className="flex items-center gap-2">
+                  <button type="button" disabled={meta.page <= 1} onClick={() => handlePageChange(meta.page - 1)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+                    <FontAwesomeIcon icon={faChevronLeft} className="h-3 w-3" />Prev
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === meta.totalPages || Math.abs(p - meta.page) <= 1)
+                      .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => { if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('ellipsis'); acc.push(p); return acc; }, [])
+                      .map((p, idx) => p === 'ellipsis' ? (
+                        <span key={`e-${idx}`} className="px-1 text-sm text-slate-400">…</span>
+                      ) : (
+                        <button key={p} type="button" onClick={() => handlePageChange(p)} className={`inline-flex h-9 w-9 items-center justify-center rounded-xl text-sm font-medium transition ${p === meta.page ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>{p}</button>
+                      ))}
+                  </div>
+                  <button type="button" disabled={meta.page >= meta.totalPages} onClick={() => handlePageChange(meta.page + 1)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+                    Next<FontAwesomeIcon icon={faChevronRight} className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </section>

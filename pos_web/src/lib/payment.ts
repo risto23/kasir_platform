@@ -140,6 +140,7 @@ export async function getPaymentHistory(
       page: params.page ?? 1,
       perPage: params.perPage ?? 20,
       orderId: params.orderId,
+      ...(params.status ? { status: params.status } : {}),
     },
     headers: buildScopedHeaders(params.outletId),
   });
