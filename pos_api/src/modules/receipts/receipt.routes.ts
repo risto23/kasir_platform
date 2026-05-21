@@ -8,6 +8,7 @@ import { requireOutletAccess } from '../../middlewares/require-outlet-access.mid
 import { validate } from '../../middlewares/validate.middleware';
 
 import {
+  deleteReceiptHandler,
   getReceiptByIdHandler,
   getReceiptByOrderIdHandler,
 } from './receipt.controller';
@@ -48,6 +49,13 @@ router.get(
   validate(getReceiptByOrderIdSchema),
   requireOutletAccess(resolveOutletIdFromQueryOrHeader),
   getReceiptByOrderIdHandler,
+);
+
+router.delete(
+  '/:id',
+  requireBusinessPermission(BusinessPermissionCode.PAYMENT_STATUS_UPDATE),
+  requireOutletAccess(resolveOutletIdFromQueryOrHeader),
+  deleteReceiptHandler,
 );
 
 export default router;

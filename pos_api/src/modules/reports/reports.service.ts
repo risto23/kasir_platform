@@ -138,6 +138,7 @@ export async function getSalesSummaryService(params: {
       businessId: params.businessId,
       ...(params.scope === 'outlet' && params.outletId ? { outletId: params.outletId } : {}),
       paymentStatus: PaymentStatus.PAID,
+      payments: { some: { deletedAt: null } },
       createdAt: { gte: dateRange.startUtc, lte: dateRange.endUtc },
     },
     select: {

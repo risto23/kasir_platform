@@ -456,3 +456,13 @@ export async function getPosChargeSettings(outletId?: string): Promise<PosSettin
   return { charges, ...(rounding ? { rounding } : {}) } as PosSettingsChargesResponse;
 }
 
+export async function softDeletePayment(
+  paymentId: string,
+  outletId: string,
+): Promise<void> {
+  await api.delete(`/payments/${paymentId}`, {
+    params: { outletId },
+    headers: buildScopedHeaders(outletId),
+  });
+}
+

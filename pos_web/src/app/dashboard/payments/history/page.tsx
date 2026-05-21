@@ -11,13 +11,14 @@ import {
   faClockRotateLeft,
   faEye,
   faMagnifyingGlass,
-  faPrint,
   faReceipt,
   faRotateRight,
+  faTrash,
+  faTriangleExclamation,
   faWallet,
 } from '@fortawesome/free-solid-svg-icons';
 
-import { formatCurrency, formatDateTime, getPayments, getPosOutlets } from '@/lib/pos';
+import { formatCurrency, formatDateTime, getPayments, getPosOutlets, softDeletePayment } from '@/lib/pos';
 import { getReceiptByOrderId } from '@/lib/receipt';
 import type { PosOutletItem, PosPaymentResponse } from '@/types/pos';
 
@@ -73,7 +74,8 @@ export default function PaymentHistoryPage() {
   const [searchInput, setSearchInput] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [openLoadingId, setOpenLoadingId] = useState('');
-  const [printLoadingId, setPrintLoadingId] = useState('');
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const totalAmount = useMemo(
     () => items.reduce((sum, item) => sum + item.amountPaid, 0),
@@ -185,25 +187,18 @@ export default function PaymentHistoryPage() {
     }
   }
 
-  async function handlePrintReceipt(item: PosPaymentResponse) {
-    if (!selectedOutletId) {
-      setMessage('Pilih outlet aktif terlebih dahulu');
-      return;
-    }
-
+  async function handleDeletePayment() {
+    if (!deleteTargetId || !selectedOutletId) return;
     try {
-      setPrintLoadingId(item.id);
+      setDeleteLoading(true);
       setMessage('');
-
-      const receipt = item.receiptId
-        ? { id: item.receiptId }
-        : await getReceiptByOrderId(item.orderId, selectedOutletId);
-
-      window.open(`/dashboard/receipts/${receipt.id}`, '_blank', 'noopener,noreferrer');
+      await softDeletePayment(deleteTargetId, selectedOutletId);
+      setDeleteTargetId(null);
+      await loadPayments(selectedOutletId, searchKeyword);
     } catch (error: unknown) {
-      setMessage(getErrorMessage(error, 'Receipt untuk payment ini belum tersedia'));
+      setMessage(getErrorMessage(error, 'Gagal menghapus payment'));
     } finally {
-      setPrintLoadingId('');
+      setDeleteLoading(false);
     }
   }
 
@@ -393,12 +388,11 @@ export default function PaymentHistoryPage() {
 
                     <button
                       type="button"
-                      onClick={() => void handlePrintReceipt(item)}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-                      disabled={printLoadingId === item.id}
+                      onClick={() => setDeleteTargetId(item.id)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
                     >
-                      <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
-                      {printLoadingId === item.id ? 'Mencetak...' : 'Print Ulang'}
+                      <FontAwesomeIcon icon={faTrash} className="h-4 w-4" />
+                      Hapus
                     </button>
                   </div>
                 </div>
@@ -420,9 +414,46 @@ export default function PaymentHistoryPage() {
       <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-4 shadow-sm sm:px-6">
         <div className="flex items-center gap-3 text-sm text-slate-500">
           <FontAwesomeIcon icon={faReceipt} className="h-4 w-4 text-slate-400" />
-          Receipt final dibuka dari histori payment atau histori transaksi lalu print ulang dari halaman receipt.
+          Receipt final dibuka dari histori payment atau histori transaksi. Hapus payment untuk menyembunyikan dari histori dan laporan.
         </div>
       </section>
+
+      {deleteTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100">
+                <FontAwesomeIcon icon={faTriangleExclamation} className="h-5 w-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">Hapus payment ini?</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Payment dan struk terkait akan dihapus dari histori dan tidak dihitung di laporan. Tindakan ini tidak dapat dibatalkan.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTargetId(null)}
+                disabled={deleteLoading}
+                className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeletePayment()}
+                disabled={deleteLoading}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+              >
+                <FontAwesomeIcon icon={faTrash} className="h-4 w-4" />
+                {deleteLoading ? 'Menghapus...' : 'Ya, Hapus'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

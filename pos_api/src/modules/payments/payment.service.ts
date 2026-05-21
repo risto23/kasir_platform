@@ -177,6 +177,7 @@ export async function listPayments(params: {
   const where: Prisma.PaymentWhereInput = {
     businessId: params.businessId,
     outletId: params.outletId,
+    deletedAt: null,
     ...(keyword
       ? {
           OR: [
@@ -322,4 +323,39 @@ export async function getPaymentById(params: {
         }
       : null,
   };
+}
+
+export async function softDeletePayment(params: {
+  businessId: string;
+  outletId: string;
+  paymentId: string;
+}) {
+  const payment = await prisma.payment.findFirst({
+    where: {
+      id: params.paymentId,
+      businessId: params.businessId,
+      outletId: params.outletId,
+      deletedAt: null,
+    },
+    select: { id: true, receipt: { select: { id: true } } },
+  });
+
+  if (!payment) throw new Error('Payment tidak ditemukan atau sudah dihapus');
+
+  const now = new Date();
+
+  await prisma.$transaction([
+    prisma.payment.update({
+      where: { id: payment.id },
+      data: { deletedAt: now },
+    }),
+    ...(payment.receipt
+      ? [
+          prisma.receipt.update({
+            where: { id: payment.receipt.id },
+            data: { deletedAt: now },
+          }),
+        ]
+      : []),
+  ]);
 }

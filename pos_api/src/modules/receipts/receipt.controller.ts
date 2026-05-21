@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getReceiptById, getReceiptByOrderId } from './receipt.service';
+import { getReceiptById, getReceiptByOrderId, softDeleteReceipt } from './receipt.service';
 import type {
   GetReceiptParams,
   GetReceiptByOrderParams,
@@ -145,6 +145,28 @@ export async function getReceiptByOrderIdHandler(
       success: true,
       message: 'Receipt order berhasil diambil.',
       data: result,
+    });
+  } catch (error: unknown) {
+    return next(error);
+  }
+}
+
+export async function deleteReceiptHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const businessId = getBusinessIdFromRequest(req);
+    const receiptId = req.params['id'] as string;
+    const query = parseReceiptQueryForById(req);
+    const outletId = getOutletIdFromRequest(req, query);
+
+    await softDeleteReceipt({ businessId, outletId, receiptId });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Receipt berhasil dihapus.',
     });
   } catch (error: unknown) {
     return next(error);
