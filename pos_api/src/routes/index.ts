@@ -21,6 +21,7 @@ import promoRoutes from '../modules/promos/promo.routes';
 import orderRoutes from '../modules/orders/order.routes';
 import paymentRoutes from '../modules/payments/payment.routes';
 import inventoryRoutes from '../modules/inventory/inventory.routes';
+import stockOpnameRoutes from '../modules/stock-opname/stock-opname.routes';
 import kitchenRoutes from '../modules/kitchen/kitchen.routes';
 import receiptRoutes from '../modules/receipts/receipt.routes';
 
@@ -65,6 +66,7 @@ router.use('/promos', promoRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/inventory', inventoryRoutes);
+router.use('/stock-opname', stockOpnameRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/platform/subscription-plans', subscriptionPlanRoutes);
 

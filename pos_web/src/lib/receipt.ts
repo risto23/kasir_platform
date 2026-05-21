@@ -216,6 +216,7 @@ function mapReceipt(row: ReceiptApiRow): ReceiptDetailResponse {
     outletAddress: row.outletAddress ?? snapshot?.outletAddress ?? null,
     issuedAt: row.issuedAt,
     printedAt: row.printedAt ?? null,
+    deletedAt: (row as { deletedAt?: string | null }).deletedAt ?? null,
     createdAt: row.issuedAt,
     contentSnapshot: snapshot,
     order: row.order
@@ -315,4 +316,15 @@ export async function getReceiptByOrderId(
   }
 
   return mapReceipt(response.data.data);
+}
+
+export async function softDeleteReceipt(
+  receiptId: string,
+  outletId?: string,
+): Promise<void> {
+  const resolvedOutletId = resolveOutletId(outletId);
+  await api.delete(`/receipts/${receiptId}`, {
+    params: { outletId: resolvedOutletId },
+    headers: buildScopedHeaders(resolvedOutletId),
+  });
 }

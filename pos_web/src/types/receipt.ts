@@ -74,6 +74,7 @@ export type ReceiptDetailResponse = {
   outletAddress: string | null;
   issuedAt: string;
   printedAt: string | null;
+  deletedAt: string | null;
   createdAt: string;
   contentSnapshot: ReceiptContentSnapshot | null;
   order?: {

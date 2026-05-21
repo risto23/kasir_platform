@@ -10,6 +10,7 @@ import { validate } from '../../middlewares/validate.middleware';
 
 import {
   createPaymentHandler,
+  deletePaymentHandler,
   getPaymentByIdHandler,
   listPaymentsHandler,
 } from './payment.controller';
@@ -74,6 +75,13 @@ router.post(
   validate(createPaymentSchema),
   requireOutletAccess(resolveOutletIdFromCreatePayment),
   createPaymentHandler,
+);
+
+router.delete(
+  '/:id',
+  requireBusinessPermission(BusinessPermissionCode.PAYMENT_STATUS_UPDATE),
+  requireOutletAccess(resolveOutletIdFromQueryOrHeader),
+  deletePaymentHandler,
 );
 
 export default router;

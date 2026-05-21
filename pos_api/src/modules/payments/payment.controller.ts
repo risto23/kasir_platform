@@ -1,6 +1,6 @@
 // pos_api/src/modules/payments/payment.controller.ts
 import type { Request, Response, NextFunction } from 'express';
-import { createPayment, getPaymentById, listPayments } from './payment.service';
+import { createPayment, getPaymentById, listPayments, softDeletePayment } from './payment.service';
 import type {
   CreatePaymentBody,
   GetPaymentParams,
@@ -188,6 +188,34 @@ export async function createPaymentHandler(
       success: true,
       message: 'Pembayaran berhasil dibuat.',
       data: result,
+    });
+  } catch (error: unknown) {
+    return next(error);
+  }
+}
+
+export async function deletePaymentHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const businessId = getBusinessIdFromRequest(req);
+    const paymentId = req.params['id'] as string;
+    const outletId =
+      (req.query['outletId'] as string) ||
+      (req.headers['x-outlet-id'] as string) ||
+      '';
+
+    if (!outletId) {
+      throw createHttpError('outletId wajib diisi', 400);
+    }
+
+    await softDeletePayment({ businessId, outletId, paymentId });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment berhasil dihapus.',
     });
   } catch (error: unknown) {
     return next(error);

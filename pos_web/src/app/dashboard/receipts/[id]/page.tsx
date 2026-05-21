@@ -12,6 +12,7 @@ import {
   faClockRotateLeft,
   faPrint,
   faReceipt,
+  faTriangleExclamation,
   faWallet,
 } from '@fortawesome/free-solid-svg-icons';
 import { faBluetooth } from '@fortawesome/free-brands-svg-icons';
@@ -151,18 +152,31 @@ export default function ReceiptDetailPage() {
               Kembali ke POS
             </Link>
 
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!receipt}
-            >
-              <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
-              Print Ulang
-            </button>
+            {receipt && !receipt.deletedAt && (
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
+                Print Ulang
+              </button>
+            )}
           </div>
         </div>
       </section>
+
+      {receipt?.deletedAt && (
+        <section className="rounded-[28px] border border-rose-200 bg-rose-50 px-5 py-4 shadow-sm sm:px-6">
+          <div className="flex items-center gap-3 text-sm text-rose-700">
+            <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4 shrink-0" />
+            <span>
+              <span className="font-semibold">Receipt ini telah dihapus</span> dan tidak dihitung dalam laporan.
+              Dihapus pada {new Date(receipt.deletedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.
+            </span>
+          </div>
+        </section>
+      )}
 
       {loading ? (
         <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-10 shadow-sm sm:px-6">

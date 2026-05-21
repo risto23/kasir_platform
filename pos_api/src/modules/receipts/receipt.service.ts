@@ -230,6 +230,7 @@ export async function getReceiptById(params: {
     outletAddress: receipt.outletAddress,
     issuedAt: receipt.issuedAt.toISOString(),
     printedAt: receipt.printedAt ? receipt.printedAt.toISOString() : null,
+    deletedAt: receipt.deletedAt ? receipt.deletedAt.toISOString() : null,
     order: {
       id: receipt.order.id,
       orderNumber: receipt.order.orderNumber,
@@ -283,4 +284,39 @@ export async function getReceiptByOrderId(params: {
     outletId: params.outletId,
     receiptId: receipt.id,
   });
+}
+
+export async function softDeleteReceipt(params: {
+  businessId: string;
+  outletId: string;
+  receiptId: string;
+}) {
+  const receipt = await prisma.receipt.findFirst({
+    where: {
+      id: params.receiptId,
+      businessId: params.businessId,
+      outletId: params.outletId,
+      deletedAt: null,
+    },
+    select: { id: true, paymentId: true },
+  });
+
+  if (!receipt) throw new Error('Receipt tidak ditemukan atau sudah dihapus');
+
+  const now = new Date();
+
+  await prisma.$transaction([
+    prisma.receipt.update({
+      where: { id: receipt.id },
+      data: { deletedAt: now },
+    }),
+    ...(receipt.paymentId
+      ? [
+          prisma.payment.update({
+            where: { id: receipt.paymentId },
+            data: { deletedAt: now },
+          }),
+        ]
+      : []),
+  ]);
 }

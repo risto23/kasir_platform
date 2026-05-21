@@ -142,6 +142,7 @@ model Business {
   goodsReceipts               GoodsReceipt[]
   inventoryItems              InventoryItem[]
   inventoryMovements          InventoryMovement[]
+  stockOpnames                StockOpname[]
   orders                      Order[]
   outletPosChargeRules        OutletPosChargeRule[]
   outletPaymentMethods        OutletPaymentMethod[]
@@ -307,6 +308,7 @@ model Outlet {
   goodsReceipts          GoodsReceipt[]
   inventoryItems         InventoryItem[]
   inventoryMovements     InventoryMovement[]
+  stockOpnames           StockOpname[]
   orders                 Order[]
   outletPosChargeRules   OutletPosChargeRule[]
   paymentMethods         OutletPaymentMethod[]
@@ -384,6 +386,8 @@ model BusinessUser {
   businessRole              BusinessRole               @relation(fields: [businessRoleId], references: [id])
   user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdInventoryMovements InventoryMovement[]        @relation("InventoryMovementCreatedByBusinessUser")
+  createdStockOpnames       StockOpname[]              @relation("StockOpnameCreatedBy")
+  finalizedStockOpnames     StockOpname[]              @relation("StockOpnameFinalizedBy")
   createdOrders             Order[]                    @relation("OrderCreatedByBusinessUser")
   receivedPayments          Payment[]                  @relation("PaymentReceivedByBusinessUser")
 
@@ -481,6 +485,7 @@ model Product {
   goodsReceiptItems      GoodsReceiptItem[]
   inventoryItems         InventoryItem[]
   inventoryMovements     InventoryMovement[]
+  stockOpnameItems       StockOpnameItem[]
   orderItems             OrderItem[]
   productOutletSettings  ProductOutletSetting[]
   business               Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -970,6 +975,7 @@ model Payment {
   note                     String?
   paidAt                   DateTime?
   cancelledAt              DateTime?
+  deletedAt                DateTime?
   createdAt                DateTime      @default(now())
   updatedAt                DateTime      @updatedAt
   business                 Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -982,6 +988,7 @@ model Payment {
   @@index([businessId, outletId, status])
   @@index([outletId, paidAt])
   @@index([receivedByBusinessUserId])
+  @@index([deletedAt])
   @@map("payments")
 }
 
@@ -997,6 +1004,7 @@ model Receipt {
   outletAddress   String?
   issuedAt        DateTime
   printedAt       DateTime?
+  deletedAt       DateTime?
   contentSnapshot Json?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -1188,6 +1196,47 @@ model InventoryMovement {
   @@map("inventory_movements")
 }
 
+model StockOpname {
+  id                        String             @id @default(cuid())
+  businessId                String
+  outletId                  String
+  status                    StockOpnameStatus  @default(DRAFT)
+  note                      String?
+  createdByBusinessUserId   String?
+  finalizedByBusinessUserId String?
+  finalizedAt               DateTime?
+  cancelledAt               DateTime?
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+  business                  Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet                    Outlet             @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  createdBy                 BusinessUser?      @relation("StockOpnameCreatedBy", fields: [createdByBusinessUserId], references: [id])
+  finalizedBy               BusinessUser?      @relation("StockOpnameFinalizedBy", fields: [finalizedByBusinessUserId], references: [id])
+  items                     StockOpnameItem[]
+
+  @@index([businessId, outletId])
+  @@index([status])
+  @@map("stock_opnames")
+}
+
+model StockOpnameItem {
+  id            String       @id @default(cuid())
+  stockOpnameId String
+  productId     String
+  systemStock   Decimal      @db.Decimal(14, 3)
+  countedStock  Decimal?     @db.Decimal(14, 3)
+  variance      Decimal?     @db.Decimal(14, 3)
+  note          String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  stockOpname   StockOpname  @relation(fields: [stockOpnameId], references: [id], onDelete: Cascade)
+  product       Product      @relation(fields: [productId], references: [id])
+
+  @@unique([stockOpnameId, productId])
+  @@index([stockOpnameId])
+  @@map("stock_opname_items")
+}
+
 model AuditLog {
   id                  String        @id @default(cuid())
   businessId          String
@@ -1370,6 +1419,14 @@ enum InventoryMovementType {
   OUT
   ADJUSTMENT_IN
   ADJUSTMENT_OUT
+  OPNAME_IN
+  OPNAME_OUT
+}
+
+enum StockOpnameStatus {
+  DRAFT
+  FINALIZED
+  CANCELLED
 }
 
 enum BusinessPermissionCode {
@@ -1415,6 +1472,7 @@ enum BusinessPermissionCode {
   INVENTORY_STOCK_IN
   INVENTORY_STOCK_OUT
   INVENTORY_ADJUST
+  INVENTORY_OPNAME
   REPORT_VIEW
   SUPPLIER_VIEW
   SUPPLIER_CREATE
