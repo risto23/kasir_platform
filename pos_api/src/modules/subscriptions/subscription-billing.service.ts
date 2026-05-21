@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import type { SubscriptionInvoicePaymentResponse } from './subscriptions.types';
+import { syncBusinessFeatureFlags } from '../platform-feature-flag/platform-feature-flag.service';
 
 const DEFAULT_RENEWAL_LEAD_DAYS = 7;
 const DEFAULT_GRACE_DAYS = 7;
@@ -615,6 +616,8 @@ export async function applyScheduledSubscriptionPlanChanges(params?: {
           processedAt: now,
         },
       });
+
+      await syncBusinessFeatureFlags(change.businessId, change.toPlanId, tx);
     });
 
     appliedCount += 1;

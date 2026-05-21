@@ -9,6 +9,7 @@ import {
 export type AuthUserPayload = {
   userId: string;
   email: string;
+  platformRoles?: PlatformRoleCode[];
 };
 
 export type BusinessMembershipAccess = {
@@ -21,6 +22,7 @@ export type BusinessMembershipAccess = {
   isPrimary: boolean;
   hasAllOutletAccess: boolean;
   allowedOutletIds: string[];
+  allowedOutlets: Array<{ id: string; name: string; code: string }>;
   permissions: BusinessPermissionCode[];
 };
 
@@ -57,6 +59,7 @@ export type RequestBusinessAccess = {
   isPrimary: boolean;
   hasAllOutletAccess: boolean;
   allowedOutletIds: string[];
+  allowedOutlets: Array<{ id: string; name: string; code: string }>;
   permissions: BusinessPermissionCode[];
 };
 

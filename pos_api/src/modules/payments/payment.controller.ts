@@ -59,6 +59,7 @@ function parseListPaymentsQuery(req: Request): ListPaymentsQuery {
     page: parsed.query.page ?? 1,
     perPage: parsed.query.perPage ?? 10,
     orderId: parsed.query.orderId,
+    status: parsed.query.status,
   };
 }
 
@@ -122,6 +123,7 @@ export async function listPaymentsHandler(
       page: query.page,
       perPage: query.perPage,
       orderId: query.orderId,
+      status: query.status,
     });
 
     return res.status(200).json({

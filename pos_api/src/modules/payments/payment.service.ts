@@ -1,12 +1,16 @@
 import {
   OrderStatus,
-  PaymentMethod,
   PaymentStatus,
   Prisma,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { enforceMonthlyTransactionLimit } from '../../middlewares/subscription-limit.middleware';
 import { createReceiptForPaidOrder } from '../receipts/receipt.service';
+import {
+  calculateSurcharge,
+  getOutletPaymentMethodByCode,
+  parseSurchargeRules,
+} from '../outlet-payment-methods/outlet-payment-methods.service';
 
 function toMoneyString(value: Prisma.Decimal | number | string | null | undefined): string {
   if (value === null || value === undefined) {
@@ -50,7 +54,7 @@ export async function createPayment(params: {
   outletId: string;
   businessUserId: string;
   orderId: string;
-  method: PaymentMethod;
+  method: string;
   amountPaid: number;
   amountTendered?: number;
   note?: string;
@@ -82,10 +86,21 @@ export async function createPayment(params: {
       throw new Error('Order ini sudah dibayar');
     }
 
-    const amountPaidDecimal = new Prisma.Decimal(params.amountPaid);
-    const totalAmountDecimal = order.totalAmount;
+    // Calculate surcharge based on outlet payment method config
+    const paymentMethodConfig = await getOutletPaymentMethodByCode({
+      businessId: params.businessId,
+      outletId: params.outletId,
+      code: params.method,
+    });
+    const surchargeRules = parseSurchargeRules(paymentMethodConfig?.surchargeRules ?? []);
+    const orderTotalNumber = Number(order.totalAmount.toFixed(2));
+    const surchargeNumber = calculateSurcharge(orderTotalNumber, surchargeRules);
+    const surchargeDecimal = new Prisma.Decimal(surchargeNumber);
+    const totalWithSurcharge = order.totalAmount.plus(surchargeDecimal);
 
-    if (amountPaidDecimal.lessThan(totalAmountDecimal)) {
+    const amountPaidDecimal = new Prisma.Decimal(params.amountPaid);
+
+    if (amountPaidDecimal.lessThan(totalWithSurcharge)) {
       throw new Error('Jumlah pembayaran kurang dari total order');
     }
 
@@ -120,6 +135,7 @@ export async function createPayment(params: {
         amountPaid: amountPaidDecimal,
         amountTendered: amountTenderedDecimal,
         changeAmount,
+        surchargeAmount: surchargeNumber > 0 ? surchargeDecimal : null,
         note: params.note?.trim() || null,
         paidAt,
       },
@@ -156,6 +172,7 @@ export async function createPayment(params: {
       amountPaid: toMoneyString(payment.amountPaid),
       amountTendered: toMoneyString(payment.amountTendered),
       changeAmount: toMoneyString(payment.changeAmount),
+      surchargeAmount: toMoneyString(payment.surchargeAmount),
       note: payment.note,
       paidAt: payment.paidAt ? payment.paidAt.toISOString() : null,
       receiptId: receipt.id,
@@ -171,6 +188,7 @@ export async function listPayments(params: {
   perPage: number;
   orderId?: string;
   search?: string;
+  status?: string;
 }) {
   const keyword = params.search?.trim() || params.orderId?.trim() || '';
 
@@ -178,6 +196,7 @@ export async function listPayments(params: {
     businessId: params.businessId,
     outletId: params.outletId,
     deletedAt: null,
+    ...(params.status ? { status: params.status as PaymentStatus } : {}),
     ...(keyword
       ? {
           OR: [
@@ -246,6 +265,7 @@ export async function listPayments(params: {
       amountPaid: toMoneyString(payment.amountPaid),
       amountTendered: toMoneyString(payment.amountTendered),
       changeAmount: toMoneyString(payment.changeAmount),
+      surchargeAmount: toMoneyString(payment.surchargeAmount),
       note: payment.note,
       paidAt: payment.paidAt ? payment.paidAt.toISOString() : null,
       createdAt: payment.createdAt.toISOString(),
@@ -310,6 +330,7 @@ export async function getPaymentById(params: {
     amountPaid: toMoneyString(payment.amountPaid),
     amountTendered: toMoneyString(payment.amountTendered),
     changeAmount: toMoneyString(payment.changeAmount),
+    surchargeAmount: toMoneyString(payment.surchargeAmount),
     note: payment.note,
     paidAt: payment.paidAt ? payment.paidAt.toISOString() : null,
     createdAt: payment.createdAt.toISOString(),

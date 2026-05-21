@@ -14,6 +14,7 @@ import {
   createOrderHandler,
   getOrderByIdHandler,
   listOrdersHandler,
+  removeOrderItemHandler,
   updateOrderItemHandler,
   updateOrderStatusHandler,
 } from './order.controller';
@@ -106,6 +107,18 @@ function resolveOutletIdFromUpdateOrderItem(req: Request): string | null {
   return null;
 }
 
+function resolveOutletIdFromDeleteOrderItem(req: Request): string | null {
+  const queryOutletId = req.query.outletId;
+  if (typeof queryOutletId === 'string' && queryOutletId.trim() !== '') {
+    return queryOutletId.trim();
+  }
+  const bodyOutletId = (req.body as { outletId?: unknown })?.outletId;
+  if (typeof bodyOutletId === 'string' && bodyOutletId.trim() !== '') {
+    return bodyOutletId.trim();
+  }
+  return getHeaderOutletId(req);
+}
+
 function resolveOutletIdFromUpdateOrderStatus(req: Request): string | null {
   const parsed = updateOrderStatusSchema.safeParse({
     body: req.body,
@@ -166,6 +179,13 @@ router.put(
   validate(updateOrderItemSchema),
   requireOutletAccess(resolveOutletIdFromUpdateOrderItem),
   updateOrderItemHandler,
+);
+
+router.delete(
+  '/:id/items/:itemId',
+  requireBusinessPermission(BusinessPermissionCode.ORDER_UPDATE),
+  requireOutletAccess(resolveOutletIdFromDeleteOrderItem),
+  removeOrderItemHandler,
 );
 
 router.patch(

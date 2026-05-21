@@ -15,17 +15,15 @@ export type PosPaymentStatus =
   | 'CANCELLED'
   | 'REFUNDED';
 
-export type PosPaymentMethod =
-  | 'CASH'
-  | 'QRIS'
-  | 'TRANSFER'
-  | 'CARD'
-  | 'OTHER';
+export type PosPaymentMethod = string;
+
+export type PosOrderType = 'QUICK_SERVICE' | 'DINE_IN';
 
 export type PosOrderQueue =
   | 'CASHIER_ACTIVE'
   | 'CASHIER_UNPAID'
-  | 'GUEST_WAITING_PAYMENT';
+  | 'GUEST_WAITING_PAYMENT'
+  | 'DINE_IN_OPEN';
 
 export type PosOrderSource = 'ALL' | 'GUEST' | 'STAFF';
 
@@ -111,6 +109,21 @@ export type PosTableListResponse = {
   meta?: PosListMeta;
 };
 
+export type TableOccupancyActiveOrder = {
+  id: string;
+  orderNumber: string;
+  status: PosOrderStatus;
+  paymentStatus: PosPaymentStatus;
+  totalAmount: string;
+  customerName: string | null;
+  submittedAt: string | null;
+};
+
+export type TableOccupancyItem = PosTableItem & {
+  isOccupied: boolean;
+  activeOrder: TableOccupancyActiveOrder | null;
+};
+
 export type PosCartItem = {
   lineId: string;
   productId: string;
@@ -176,8 +189,10 @@ export type PosOrderResponse = {
   outletId: string;
   outletName?: string | null;
   businessType?: PosBusinessType;
+  orderType?: PosOrderType;
   tableId: string | null;
   tableName: string | null;
+  customerName: string | null;
   orderNumber: string;
   status: PosOrderStatus;
   paymentStatus: PosPaymentStatus;
@@ -255,11 +270,14 @@ export type PosReceiptContentSnapshot = {
   outletName: string;
   outletAddress: string | null;
   tableName: string | null;
+  customerName?: string | null;
+  cashierName?: string | null;
   notes: string | null;
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
   serviceChargeAmount: number;
+  surchargeAmount?: number | null;
   totalAmount: number;
   items: PosReceiptItemSnapshot[];
 };
@@ -333,9 +351,29 @@ export type PosCreateOrderItemPayload = {
   note?: string;
 };
 
+export type PosSurchargeRule = {
+  minAmount: number;
+  maxAmount: number | null;
+  type: 'PERCENTAGE' | 'FLAT';
+  value: number;
+};
+
+export type PosOutletPaymentMethod = {
+  id: string;
+  outletId: string;
+  businessId: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+  surchargeRules: PosSurchargeRule[];
+  sortOrder: number;
+};
+
 export type PosCreateOrderPayload = {
   outletId: string;
+  orderType?: PosOrderType;
   tableId?: string;
+  customerName?: string;
   notes?: string;
   items?: PosCreateOrderItemPayload[];
 };

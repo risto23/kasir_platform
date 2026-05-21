@@ -76,6 +76,18 @@ export async function createReceiptForPaidOrder(params: {
           createdAt: 'asc',
         },
         take: 1,
+        include: {
+          receivedByBusinessUser: {
+            select: {
+              user: {
+                select: {
+                  fullName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
       },
     },
   });
@@ -135,11 +147,14 @@ export async function createReceiptForPaidOrder(params: {
         showOutletAddress: order.outlet.receiptSetting?.showOutletAddress ?? true,
         showOutletPhone: order.outlet.receiptSetting?.showOutletPhone ?? true,
         tableName: order.table?.name ?? null,
+        customerName: order.customerName ?? null,
+        cashierName: order.payments[0]?.receivedByBusinessUser?.user?.fullName ?? null,
         notes: order.notes,
         subtotal: toMoneyString(order.subtotal),
         discountAmount: toMoneyString(order.discountAmount),
         taxAmount: toMoneyString(order.taxAmount),
         serviceChargeAmount: toMoneyString(order.serviceChargeAmount),
+        surchargeAmount: toMoneyString(order.payments[0]?.surchargeAmount ?? 0),
         totalAmount: toMoneyString(order.totalAmount),
         items: order.items.map((item) => ({
           id: item.id,
@@ -194,6 +209,7 @@ export async function getReceiptById(params: {
           amountPaid: true,
           amountTendered: true,
           changeAmount: true,
+          surchargeAmount: true,
           paidAt: true,
         },
       },
@@ -235,6 +251,7 @@ export async function getReceiptById(params: {
           amountPaid: toMoneyString(receipt.payment.amountPaid),
           amountTendered: toMoneyString(receipt.payment.amountTendered),
           changeAmount: toMoneyString(receipt.payment.changeAmount),
+          surchargeAmount: toMoneyString(receipt.payment.surchargeAmount),
           paidAt: receipt.payment.paidAt ? receipt.payment.paidAt.toISOString() : null,
         }
       : null,

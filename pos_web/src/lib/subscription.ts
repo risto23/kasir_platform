@@ -279,6 +279,22 @@ export async function getSubscriptionPlans() {
   return unwrapEnvelope(response, 'Subscription plan tidak ditemukan');
 }
 
+export async function getSubscriptionPlansAdmin() {
+  const response = await api.get<Envelope<SubscriptionPlanSummary[]>>(
+    '/platform/subscription-plans',
+  );
+
+  return unwrapEnvelope(response, 'Subscription plans tidak ditemukan');
+}
+
+export async function getSubscriptionPlanAdmin(planId: string) {
+  const response = await api.get<Envelope<SubscriptionPlanSummary>>(
+    `/platform/subscription-plans/${planId}`,
+  );
+
+  return unwrapEnvelope(response, 'Plan subscription tidak ditemukan');
+}
+
 export async function createSubscriptionPlanAdmin(
   payload: CreateSubscriptionPlanRequest,
 ) {
@@ -356,12 +372,16 @@ export async function getSubscriptionInvoiceDetail(invoiceId: string) {
   return unwrapEnvelope(response, 'Detail invoice subscription tidak ditemukan');
 }
 
-export async function getSubscriptionChangePreview(targetPlanCode: SubscriptionPlanCode) {
+export async function getSubscriptionChangePreview(
+  targetPlanCode: SubscriptionPlanCode,
+  forceImmediate?: boolean,
+) {
   const response = await api.get<Envelope<SubscriptionChangePreviewResponse>>(
     '/subscriptions/change-preview',
     {
       params: {
         targetPlanCode,
+        ...(forceImmediate ? { forceImmediate: 'true' } : {}),
       },
     },
   );
@@ -369,11 +389,15 @@ export async function getSubscriptionChangePreview(targetPlanCode: SubscriptionP
   return unwrapEnvelope(response, 'Preview perubahan plan tidak ditemukan');
 }
 
-export async function changeSubscriptionPlan(targetPlanCode: SubscriptionPlanCode) {
+export async function changeSubscriptionPlan(
+  targetPlanCode: SubscriptionPlanCode,
+  forceImmediate?: boolean,
+) {
   const response = await api.post<Envelope<SubscriptionPlanChangeResultResponse>>(
     '/subscriptions/change-plan',
     {
       targetPlanCode,
+      ...(forceImmediate ? { forceImmediate: true } : {}),
     },
   );
 

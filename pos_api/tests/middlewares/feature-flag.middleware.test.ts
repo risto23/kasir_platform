@@ -13,6 +13,9 @@ jest.mock('../../src/config/prisma', () => ({
     businessFeatureFlag: {
       findUnique: jest.fn(),
     },
+    businessFeatureFlagOverride: {
+      findUnique: jest.fn(),
+    },
     outlet: {
       findUnique: jest.fn(),
     },
@@ -25,6 +28,9 @@ type PrismaFeatureFlagMock = {
       findUnique: jest.Mock;
     };
     businessFeatureFlag: {
+      findUnique: jest.Mock;
+    };
+    businessFeatureFlagOverride: {
       findUnique: jest.Mock;
     };
     outlet: {
@@ -55,6 +61,7 @@ describe('requireFeatureFlag middleware', () => {
   it('returns 403 when feature flag is disabled', async () => {
     prismaMock.prisma.featureFlag.findUnique.mockResolvedValueOnce({ id: 'flag-1' });
     prismaMock.prisma.businessFeatureFlag.findUnique.mockResolvedValueOnce({ enabled: false });
+    prismaMock.prisma.businessFeatureFlagOverride.findUnique.mockResolvedValueOnce(null);
 
     const middleware = requireFeatureFlag('GUEST_QR');
     const req = createMockRequest({
@@ -74,6 +81,7 @@ describe('requireFeatureFlag middleware', () => {
   it('calls next when feature flag is enabled', async () => {
     prismaMock.prisma.featureFlag.findUnique.mockResolvedValueOnce({ id: 'flag-1' });
     prismaMock.prisma.businessFeatureFlag.findUnique.mockResolvedValueOnce({ enabled: true });
+    prismaMock.prisma.businessFeatureFlagOverride.findUnique.mockResolvedValueOnce(null);
 
     const middleware = requireFeatureFlag('GUEST_QR');
     const req = createMockRequest({
@@ -150,6 +158,7 @@ describe('requireFeatureFlagForOutletParam middleware', () => {
     prismaMock.prisma.outlet.findUnique.mockResolvedValueOnce({ businessId: 'biz-1' });
     prismaMock.prisma.featureFlag.findUnique.mockResolvedValueOnce({ id: 'flag-1' });
     prismaMock.prisma.businessFeatureFlag.findUnique.mockResolvedValueOnce({ enabled: false });
+    prismaMock.prisma.businessFeatureFlagOverride.findUnique.mockResolvedValueOnce(null);
 
     const middleware = requireFeatureFlagForOutletParam('GUEST_QR', () => 'outlet-1');
     const req = createMockRequest() as Request;
@@ -172,6 +181,7 @@ describe('requireFeatureFlagForOutletParam middleware', () => {
       });
     prismaMock.prisma.featureFlag.findUnique.mockResolvedValueOnce({ id: 'flag-1' });
     prismaMock.prisma.businessFeatureFlag.findUnique.mockResolvedValueOnce({ enabled: true });
+    prismaMock.prisma.businessFeatureFlagOverride.findUnique.mockResolvedValueOnce(null);
 
     const middleware = requireFeatureFlagForOutletParam('GUEST_QR', () => 'outlet-1');
     const req = createMockRequest() as Request;
@@ -198,6 +208,7 @@ describe('requireFeatureFlagForOutletParam middleware', () => {
       });
     prismaMock.prisma.featureFlag.findUnique.mockResolvedValueOnce({ id: 'flag-1' });
     prismaMock.prisma.businessFeatureFlag.findUnique.mockResolvedValueOnce({ enabled: true });
+    prismaMock.prisma.businessFeatureFlagOverride.findUnique.mockResolvedValueOnce(null);
 
     const middleware = requireFeatureFlagForOutletParam('GUEST_QR', () => 'outlet-1');
     const req = createMockRequest() as Request;
@@ -208,5 +219,51 @@ describe('requireFeatureFlagForOutletParam middleware', () => {
 
     expect(next).toHaveBeenCalled();
     expect(resp.status).not.toHaveBeenCalled();
+  });
+
+  it('allows access when override enables a feature even if base plan is disabled', async () => {
+    prismaMock.prisma.featureFlag.findUnique.mockResolvedValueOnce({ id: 'flag-1' });
+    prismaMock.prisma.businessFeatureFlag.findUnique.mockResolvedValueOnce({ enabled: false });
+    prismaMock.prisma.businessFeatureFlagOverride.findUnique.mockResolvedValueOnce({
+      enabled: true,
+      reason: 'manual enable',
+    });
+
+    const middleware = requireFeatureFlag('GUEST_QR');
+    const req = createMockRequest({
+      businessAccess: {
+        businessId: 'biz-1',
+      },
+    }) as Request;
+    const resp = createMockResponse();
+    const next = createNext();
+
+    await middleware(req, resp.res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(resp.status).not.toHaveBeenCalled();
+  });
+
+  it('blocks access when override disables a feature even if base plan is enabled', async () => {
+    prismaMock.prisma.featureFlag.findUnique.mockResolvedValueOnce({ id: 'flag-1' });
+    prismaMock.prisma.businessFeatureFlag.findUnique.mockResolvedValueOnce({ enabled: true });
+    prismaMock.prisma.businessFeatureFlagOverride.findUnique.mockResolvedValueOnce({
+      enabled: false,
+      reason: 'manual disable',
+    });
+
+    const middleware = requireFeatureFlag('GUEST_QR');
+    const req = createMockRequest({
+      businessAccess: {
+        businessId: 'biz-1',
+      },
+    }) as Request;
+    const resp = createMockResponse();
+    const next = createNext();
+
+    await middleware(req, resp.res, next);
+
+    expect(resp.statusCode).toBe(403);
+    expect(next).not.toHaveBeenCalled();
   });
 });

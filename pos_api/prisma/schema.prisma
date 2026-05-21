@@ -8,21 +8,41 @@ datasource db {
 }
 
 model User {
-  id              String             @id @default(cuid())
-  fullName        String
-  email           String             @unique
-  passwordHash    String
-  status          UserStatus         @default(ACTIVE)
-  lastLoginAt     DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  auditLogs       AuditLog[]         @relation("AuditLogActorUser")
-  businessUsers   BusinessUser[]
-  ownedBusinesses Business[]         @relation("BusinessOwner")
-  platformRoles   UserPlatformRole[]
+  id                String             @id @default(cuid())
+  fullName          String
+  email             String             @unique
+  passwordHash      String
+  status            UserStatus         @default(ACTIVE)
+  lastLoginAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  auditLogs         AuditLog[]         @relation("AuditLogActorUser")
+  businessFeatureFlagOverrides BusinessFeatureFlagOverride[] @relation("BusinessFeatureFlagOverrideActorUser")
+  businessUsers     BusinessUser[]
+  ownedBusinesses   Business[]         @relation("BusinessOwner")
+  platformRoles     UserPlatformRole[]
+  platformAuditLogs PlatformAuditLog[] @relation("PlatformAuditLogActorUser")
 
   @@index([status])
   @@map("users")
+}
+
+model PlatformAuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  entityLabel String?
+  summary     String?
+  changes     Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actorUser   User?    @relation("PlatformAuditLogActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("platform_audit_logs")
 }
 
 model PlatformRole {
@@ -58,13 +78,28 @@ model FeatureFlag {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
   businesses  BusinessFeatureFlag[]
+  businessOverrides BusinessFeatureFlagOverride[]
+  plans       PlanFeatureFlag[]
 
   @@map("feature_flags")
 }
 
+model PlanFeatureFlag {
+  id            String      @id @default(cuid())
+  planId        String
+  featureFlagId String
+  createdAt     DateTime    @default(now())
+  featureFlag   FeatureFlag @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
+  plan          Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureFlagId])
+  @@index([featureFlagId])
+  @@map("plan_feature_flags")
+}
+
 model Plan {
   id                     String                       @id @default(cuid())
-  code                   PlanCode                     @unique
+  code                   String                       @unique
   name                   String
   description            String?
   monthlyPrice           Decimal                      @db.Decimal(14, 2)
@@ -79,6 +114,7 @@ model Plan {
   createdAt              DateTime                     @default(now())
   updatedAt              DateTime                     @updatedAt
   subscriptions          BusinessSubscription[]
+  featureFlags           PlanFeatureFlag[]
   scheduleChangesFrom    SubscriptionScheduleChange[] @relation("SubscriptionScheduleChangeFromPlan")
   scheduleChangesTo      SubscriptionScheduleChange[] @relation("SubscriptionScheduleChangeToPlan")
 
@@ -97,6 +133,7 @@ model Business {
   updatedAt                   DateTime                     @updatedAt
   auditLogs                   AuditLog[]
   businessFeatures            BusinessFeatureFlag[]
+  featureFlagOverrides        BusinessFeatureFlagOverride[]
   setting                     BusinessSetting?
   subscriptions               BusinessSubscription[]
   businessUsers               BusinessUser[]
@@ -108,6 +145,7 @@ model Business {
   stockOpnames                StockOpname[]
   orders                      Order[]
   outletPosChargeRules        OutletPosChargeRule[]
+  outletPaymentMethods        OutletPaymentMethod[]
   outlets                     Outlet[]
   payments                    Payment[]
   products                    Product[]
@@ -273,6 +311,7 @@ model Outlet {
   stockOpnames           StockOpname[]
   orders                 Order[]
   outletPosChargeRules   OutletPosChargeRule[]
+  paymentMethods         OutletPaymentMethod[]
   receiptSetting         OutletReceiptSetting?
   roundingSetting        OutletRoundingSetting?
   setting                OutletSetting?
@@ -385,6 +424,25 @@ model BusinessFeatureFlag {
   @@unique([businessId, featureFlagId])
   @@index([featureFlagId])
   @@map("business_feature_flags")
+}
+
+model BusinessFeatureFlagOverride {
+  id            String      @id @default(cuid())
+  businessId    String
+  featureFlagId String
+  enabled       Boolean
+  reason        String?
+  actorUserId   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  actorUser     User?       @relation("BusinessFeatureFlagOverrideActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  business      Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  featureFlag   FeatureFlag @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, featureFlagId])
+  @@index([featureFlagId])
+  @@index([actorUserId])
+  @@map("business_feature_flag_overrides")
 }
 
 model Category {
@@ -817,6 +875,25 @@ model OutletTable {
   @@map("outlet_tables")
 }
 
+model OutletPaymentMethod {
+  id             String   @id @default(cuid())
+  businessId     String
+  outletId       String
+  name           String
+  code           String
+  isActive       Boolean  @default(true)
+  surchargeRules Json?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet         Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, code])
+  @@index([outletId, isActive])
+  @@map("outlet_payment_methods")
+}
+
 model Order {
   id                      String        @id @default(cuid())
   businessId              String
@@ -824,7 +901,9 @@ model Order {
   createdByBusinessUserId String
   tableId                 String?
   orderNumber             String        @unique
+  customerName            String?
   notes                   String?
+  orderType               OrderType     @default(QUICK_SERVICE)
   status                  OrderStatus   @default(DRAFT)
   paymentStatus           PaymentStatus @default(UNPAID)
   subtotal                Decimal       @default(0) @db.Decimal(14, 2)
@@ -887,11 +966,12 @@ model Payment {
   outletId                 String
   receivedByBusinessUserId String
   paymentNumber            String        @unique
-  method                   PaymentMethod @default(CASH)
+  method                   String        @default("CASH")
   status                   PaymentStatus @default(PAID)
   amountPaid               Decimal       @db.Decimal(14, 2)
   amountTendered           Decimal?      @db.Decimal(14, 2)
   changeAmount             Decimal       @default(0) @db.Decimal(14, 2)
+  surchargeAmount          Decimal?      @db.Decimal(14, 2)
   note                     String?
   paidAt                   DateTime?
   cancelledAt              DateTime?
@@ -1289,6 +1369,11 @@ enum PurchaseReturnStatus {
   VOID
 }
 
+enum OrderType {
+  QUICK_SERVICE
+  DINE_IN
+}
+
 enum OrderStatus {
   DRAFT
   SUBMITTED
@@ -1443,11 +1528,3 @@ enum SubscriptionScheduleChangeStatus {
   REJECTED
 }
 
-enum PlanCode {
-  STARTER
-  BASIC
-  RESTAURANT
-  RETAIL_PRO
-  BUSINESS
-  ENTERPRISE
-}

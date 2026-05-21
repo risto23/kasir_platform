@@ -2,6 +2,7 @@ import { applyChargesAndRounding, getOutletPosChargeSettings } from '../pos-sett
 import {
   BusinessType,
   OrderStatus,
+  OrderType,
   PaymentStatus,
   Prisma,
   ProductOutletStatus,
@@ -141,10 +142,6 @@ async function ensureTableIsValidForOrder(
 
   if (businessType === BusinessType.RETAIL && tableId) {
     throw new Error('Retail tidak menggunakan meja pada transaksi');
-  }
-
-  if (businessType === BusinessType.RESTAURANT && !tableId) {
-    throw new Error('Transaksi restaurant wajib memilih meja');
   }
 
   if (!tableId) {
@@ -289,18 +286,15 @@ async function getProductPricingForOrderItem(
 
   const outletSetting = product.productOutletSettings[0];
 
-  if (!outletSetting) {
-    throw new Error('Product belum memiliki pengaturan outlet');
-  }
-
   if (
-    outletSetting.status !== ProductOutletStatus.ACTIVE ||
-    !outletSetting.isAvailable
+    outletSetting &&
+    (outletSetting.status !== ProductOutletStatus.ACTIVE ||
+      !outletSetting.isAvailable)
   ) {
     throw new Error(`Product ${product.name} tidak tersedia di outlet ini`);
   }
 
-  const unitPrice = outletSetting.priceOverride ?? product.basePrice;
+  const unitPrice = outletSetting?.priceOverride ?? product.basePrice;
   const quantityDecimal = new Prisma.Decimal(quantity);
   const lineSubtotal = unitPrice.mul(quantityDecimal);
 
@@ -457,10 +451,12 @@ function mapOrderSummary(order: {
   orderNumber: string;
   businessId: string;
   outletId: string;
+  orderType: OrderType;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   tableId: string | null;
   table: { name: string } | null;
+  customerName: string | null;
   notes: string | null;
   subtotal: Prisma.Decimal;
   discountAmount: Prisma.Decimal;
@@ -481,10 +477,12 @@ function mapOrderSummary(order: {
     orderNumber: order.orderNumber,
     businessId: order.businessId,
     outletId: order.outletId,
+    orderType: order.orderType,
     status: order.status,
     paymentStatus: order.paymentStatus,
     tableId: order.tableId,
     tableName: order.table?.name ?? null,
+    customerName: order.customerName,
     notes: order.notes,
     subtotal: toMoneyString(order.subtotal),
     discountAmount: toMoneyString(order.discountAmount),
@@ -640,6 +638,19 @@ export async function listOrders(params: ListOrdersInput) {
     where.paymentStatus = PaymentStatus.UNPAID;
   }
 
+  if (params.queue === 'DINE_IN_OPEN') {
+    where.orderType = OrderType.DINE_IN;
+    where.status = {
+      in: [
+        OrderStatus.DRAFT,
+        OrderStatus.SUBMITTED,
+        OrderStatus.IN_PROGRESS,
+        OrderStatus.READY,
+      ],
+    };
+    where.paymentStatus = PaymentStatus.UNPAID;
+  }
+
   if (params.status) {
     where.status = params.status;
   }
@@ -767,8 +778,10 @@ export async function createOrder(input: CreateOrderInput) {
         businessId: input.businessId,
         outletId: input.outletId,
         createdByBusinessUserId: input.businessUserId,
+        orderType: input.orderType ?? OrderType.QUICK_SERVICE,
         tableId: input.tableId ?? null,
         orderNumber,
+        customerName: input.customerName?.trim() || null,
         notes: input.notes?.trim() || null,
         status: OrderStatus.DRAFT,
         paymentStatus: PaymentStatus.UNPAID,
@@ -816,6 +829,7 @@ export async function addOrderItem(input: AddOrderItemInput) {
       },
       select: {
         id: true,
+        orderType: true,
         status: true,
       },
     });
@@ -824,8 +838,17 @@ export async function addOrderItem(input: AddOrderItemInput) {
       throw new Error('Order tidak ditemukan');
     }
 
-    if (order.status !== OrderStatus.DRAFT) {
-      throw new Error('Hanya order draft yang bisa ditambah item');
+    const isDineIn = order.orderType === OrderType.DINE_IN;
+    const addableStatuses: OrderStatus[] = isDineIn
+      ? [OrderStatus.DRAFT, OrderStatus.SUBMITTED, OrderStatus.IN_PROGRESS]
+      : [OrderStatus.DRAFT];
+
+    if (!addableStatuses.includes(order.status)) {
+      throw new Error(
+        isDineIn
+          ? 'Item hanya bisa ditambah saat order masih berlangsung (draft/submitted/in progress)'
+          : 'Hanya order draft yang bisa ditambah item',
+      );
     }
 
     await createSingleOrderItem(tx, {
@@ -859,6 +882,7 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
       },
       select: {
         id: true,
+        orderType: true,
         status: true,
       },
     });
@@ -867,8 +891,17 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
       throw new Error('Order tidak ditemukan');
     }
 
-    if (order.status !== OrderStatus.DRAFT) {
-      throw new Error('Hanya order draft yang bisa diubah');
+    const isDineIn = order.orderType === OrderType.DINE_IN;
+    const editableStatuses: OrderStatus[] = isDineIn
+      ? [OrderStatus.DRAFT, OrderStatus.SUBMITTED, OrderStatus.IN_PROGRESS]
+      : [OrderStatus.DRAFT];
+
+    if (!editableStatuses.includes(order.status)) {
+      throw new Error(
+        isDineIn
+          ? 'Item hanya bisa diubah saat order masih berlangsung (draft/submitted/in progress)'
+          : 'Hanya order draft yang bisa diubah',
+      );
     }
 
     const item = await tx.orderItem.findFirst({
@@ -932,6 +965,87 @@ function validateOrderStatusTransition(current: OrderStatus, next: OrderStatus) 
   if (!allowed.includes(next)) {
     throw new Error(`Transisi status order ${current} ke ${next} tidak diizinkan`);
   }
+}
+
+export async function removeOrderItem(input: {
+  orderId: string;
+  itemId: string;
+  outletId: string;
+  businessId: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findFirst({
+      where: {
+        id: input.orderId,
+        businessId: input.businessId,
+        outletId: input.outletId,
+      },
+      select: { id: true, orderType: true, status: true },
+    });
+
+    if (!order) throw new Error('Order tidak ditemukan');
+
+    const isDineIn = order.orderType === OrderType.DINE_IN;
+    const editableStatuses: OrderStatus[] = isDineIn
+      ? [OrderStatus.DRAFT, OrderStatus.SUBMITTED, OrderStatus.IN_PROGRESS]
+      : [OrderStatus.DRAFT];
+
+    if (!editableStatuses.includes(order.status)) {
+      throw new Error(
+        isDineIn
+          ? 'Item hanya bisa dihapus saat order masih berlangsung'
+          : 'Hanya order draft yang bisa diubah',
+      );
+    }
+
+    const item = await tx.orderItem.findFirst({
+      where: { id: input.itemId, orderId: input.orderId },
+      select: { id: true },
+    });
+
+    if (!item) throw new Error('Item tidak ditemukan');
+
+    await tx.orderItem.delete({ where: { id: input.itemId } });
+
+    const remaining = await tx.orderItem.findMany({
+      where: { orderId: input.orderId },
+      select: { lineTotal: true, lineDiscountAmount: true, unitPrice: true, quantity: true },
+    });
+
+    const subtotal = remaining.reduce(
+      (sum, i) => sum.add(i.unitPrice.mul(new Prisma.Decimal(Number(i.quantity)))),
+      new Prisma.Decimal(0),
+    );
+    const discountAmount = remaining.reduce(
+      (sum, i) => sum.add(i.lineDiscountAmount),
+      new Prisma.Decimal(0),
+    );
+    const lineTotal = remaining.reduce(
+      (sum, i) => sum.add(i.lineTotal),
+      new Prisma.Decimal(0),
+    );
+
+    const { charges, rounding } = await getOutletPosChargeSettings(input.outletId);
+    const applied = applyChargesAndRounding(lineTotal, charges, rounding);
+
+    await tx.order.update({
+      where: { id: input.orderId },
+      data: {
+        subtotal: toMoneyString(subtotal),
+        discountAmount: toMoneyString(discountAmount),
+        taxAmount: toMoneyString(applied.taxAmount),
+        serviceChargeAmount: toMoneyString(applied.serviceChargeAmount),
+        totalAmount: toMoneyString(applied.grandTotal),
+        itemCount: remaining.length,
+      },
+    });
+
+    return getOrderByIdInternal(tx, {
+      orderId: input.orderId,
+      businessId: input.businessId,
+      outletId: input.outletId,
+    });
+  });
 }
 
 export async function updateOrderStatus(input: UpdateOrderStatusInput) {

@@ -59,6 +59,7 @@ async function buildSuperAdminBusinessAccess(
     isPrimary: false,
     hasAllOutletAccess: true,
     allowedOutletIds: business.outlets.map((item) => item.id),
+    allowedOutlets: [],
     permissions: [] as BusinessPermissionCode[],
   };
 }
@@ -103,6 +104,8 @@ export async function businessAccessMiddleware(
             outlet: {
               select: {
                 id: true,
+                name: true,
+                code: true,
                 status: true,
                 businessId: true,
               },

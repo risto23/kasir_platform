@@ -32,12 +32,14 @@ import {
   addOrderItem,
   buildCharges,
   calculateGrandTotal,
+  calculatePosSurcharge,
   createCartLine,
   createOrder,
   createPayment,
   formatCurrency,
   formatDateTime,
   getOrderDetail,
+  getOutletPaymentMethods,
   getPosChargeSettings,
   getPosProducts,
   getPosTables,
@@ -52,6 +54,7 @@ import type {
   PosOrderQueue,
   PosOrderResponse,
   PosOutletItem,
+  PosOutletPaymentMethod,
   PosPaymentMethod,
   PosProductItem,
   PosReceiptResponse,
@@ -77,6 +80,7 @@ type OutletListEnvelope = {
 type ParsedMembershipOutlet = {
   id: string;
   name: string;
+  code: string;
 };
 
 type ParsedMembership = {
@@ -138,12 +142,13 @@ function getAllowedOutletsValue(
 
       const id = getStringValue(item, 'id');
       const name = getStringValue(item, 'name');
+      const code = getStringValue(item, 'code') ?? '';
 
       if (!id || !name) {
         return null;
       }
 
-      return { id, name };
+      return { id, name, code };
     })
     .filter((item): item is ParsedMembershipOutlet => item !== null);
 }
@@ -212,10 +217,6 @@ function getBusinessType(): PosBusinessType {
   return membership?.businessType === 'RESTAURANT' ? 'RESTAURANT' : 'RETAIL';
 }
 
-function getPaymentMethods(): PosPaymentMethod[] {
-  return ['CASH', 'QRIS', 'TRANSFER', 'CARD'];
-}
-
 function getStorageKey(activeBusinessId: string | null): string {
   return `pos_cart_${activeBusinessId || 'default'}`;
 }
@@ -270,10 +271,10 @@ function buildFallbackOutletsFromMembership(
   membership: ParsedMembership,
 ): PosOutletItem[] {
   if (membership.allowedOutlets.length > 0) {
-    return membership.allowedOutlets.map((item, index) => ({
+    return membership.allowedOutlets.map((item) => ({
       id: item.id,
       businessId,
-      code: `OUTLET-${String(index + 1).padStart(2, '0')}`,
+      code: item.code,
       name: item.name,
       address: '',
       phone: '',
@@ -361,6 +362,8 @@ export default function PosCashierPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
+  const [customerName, setCustomerName] = useState('');
+  const [outletPaymentMethods, setOutletPaymentMethods] = useState<PosOutletPaymentMethod[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('CASH');
   const [paymentNote, setPaymentNote] = useState('');
   const [cartMessage, setCartMessage] = useState('');
@@ -380,6 +383,7 @@ export default function PosCashierPage() {
   const [queuePaymentMethod, setQueuePaymentMethod] =
     useState<PosPaymentMethod>('CASH');
   const [queuePaymentNote, setQueuePaymentNote] = useState('');
+  const [queueCustomerName, setQueueCustomerName] = useState('');
 
   const activeBusinessId =
     typeof window !== 'undefined' ? getActiveBusinessId() : null;
@@ -438,8 +442,21 @@ export default function PosCashierPage() {
     () => calculateGrandTotal(subtotal, charges),
     [subtotal, charges],
   );
+
+  const selectedPaymentMethodConfig = useMemo(
+    () => outletPaymentMethods.find((m) => m.code === paymentMethod) ?? null,
+    [outletPaymentMethods, paymentMethod],
+  );
+
+  // Surcharge is calculated on pre-rounding total so rounding applies to the final amount
+  const paymentSurcharge = useMemo(
+    () => calculatePosSurcharge(grandTotal, selectedPaymentMethodConfig?.surchargeRules ?? []),
+    [grandTotal, selectedPaymentMethodConfig],
+  );
+
+  // Rounding is applied after surcharge so the customer-facing total is always a round number
   const roundingCalc = useMemo(() => {
-    const base = grandTotal;
+    const base = grandTotal + paymentSurcharge;
     const r = roundingSetting;
     if (!r || !r.enabled || !r.unit || r.method === 'NONE') {
       return { roundedTotal: base, roundingAmount: 0 };
@@ -452,7 +469,9 @@ export default function PosCashierPage() {
     else if (r.method === 'FLOOR') rounded = Math.floor(q) * unit;
     const roundingAmount = rounded - base;
     return { roundedTotal: rounded, roundingAmount };
-  }, [grandTotal, roundingSetting]);
+  }, [grandTotal, paymentSurcharge, roundingSetting]);
+
+  const grandTotalWithSurcharge = roundingCalc.roundedTotal;
 
   const selectedOutlet = useMemo(
     () => outlets.find((item) => item.id === selectedOutletId) || null,
@@ -627,6 +646,29 @@ export default function PosCashierPage() {
     }
   }
 
+  async function loadPaymentMethods(outletId: string) {
+    if (!outletId) {
+      setOutletPaymentMethods([]);
+      return;
+    }
+    try {
+      const methods = await getOutletPaymentMethods(outletId);
+      setOutletPaymentMethods(methods);
+      if (methods.length > 0) {
+        setPaymentMethod((prev) => {
+          const exists = methods.some((m) => m.code === prev);
+          return exists ? prev : (methods[0]?.code ?? 'CASH');
+        });
+        setQueuePaymentMethod((prev) => {
+          const exists = methods.some((m) => m.code === prev);
+          return exists ? prev : (methods[0]?.code ?? 'CASH');
+        });
+      }
+    } catch {
+      setOutletPaymentMethods([]);
+    }
+  }
+
   async function loadTables(outletId: string) {
     if (businessType !== 'RESTAURANT' || !outletId) {
       setTables([]);
@@ -734,6 +776,7 @@ export default function PosCashierPage() {
 
     void loadProducts(selectedOutletId);
     void loadTables(selectedOutletId);
+    void loadPaymentMethods(selectedOutletId);
     void loadQueueOrders(selectedOutletId, cashierQueue);
   }, [selectedOutletId, businessType, cashierQueue]);
   useEffect(() => {
@@ -857,11 +900,6 @@ export default function PosCashierPage() {
       return;
     }
 
-    if (businessType === 'RESTAURANT' && !selectedTableId) {
-      setCartMessage('Pilih meja terlebih dahulu untuk transaksi restaurant');
-      return;
-    }
-
     if (cart.length === 0) {
       setCartMessage(`Tambahkan ${productLabelLower} ke cart terlebih dahulu`);
       return;
@@ -877,6 +915,7 @@ export default function PosCashierPage() {
         outletId: selectedOutletId,
         tableId:
           businessType === 'RESTAURANT' ? selectedTableId || undefined : undefined,
+        customerName: customerName.trim() || undefined,
       });
 
       for (const item of cart) {
@@ -888,11 +927,12 @@ export default function PosCashierPage() {
         });
       }
 
+      const totalToPay = roundingCalc.roundedTotal;
       await createPayment({
         orderId: order.id,
         outletId: selectedOutletId,
-        amountPaid: roundingCalc.roundedTotal,
-        amountTendered: roundingCalc.roundedTotal,
+        amountPaid: totalToPay,
+        amountTendered: totalToPay,
         method: paymentMethod,
         note: paymentNote.trim() || undefined,
       });
@@ -901,7 +941,8 @@ export default function PosCashierPage() {
 
       setReceiptResult(receipt);
       clearCart();
-      setPaymentMethod('CASH');
+      setCustomerName('');
+      setPaymentMethod(outletPaymentMethods[0]?.code ?? 'CASH');
       setPaymentNote('');
       await refreshQueue();
 
@@ -927,11 +968,22 @@ export default function PosCashierPage() {
     try {
       setQueueActionLoading(true);
       setQueueMessage('');
-            await createPayment({
-              orderId: selectedQueueOrder.id,
-              outletId: selectedOutletId,
-              amountPaid: selectedQueueOrder.totalAmount,
-              amountTendered: selectedQueueOrder.totalAmount,
+      const queueMethodConfig = outletPaymentMethods.find((m) => m.code === queuePaymentMethod) ?? null;
+      const queueSurcharge = calculatePosSurcharge(selectedQueueOrder.totalAmount, queueMethodConfig?.surchargeRules ?? []);
+      const queuePreRound = selectedQueueOrder.totalAmount + queueSurcharge;
+      let queueTotalToPay = queuePreRound;
+      if (roundingSetting?.enabled && roundingSetting.unit > 1 && roundingSetting.method !== 'NONE') {
+        const unit = Math.max(1, Math.floor(roundingSetting.unit));
+        const q = queuePreRound / unit;
+        if (roundingSetting.method === 'NEAREST') queueTotalToPay = Math.round(q) * unit;
+        else if (roundingSetting.method === 'CEIL') queueTotalToPay = Math.ceil(q) * unit;
+        else if (roundingSetting.method === 'FLOOR') queueTotalToPay = Math.floor(q) * unit;
+      }
+      await createPayment({
+        orderId: selectedQueueOrder.id,
+        outletId: selectedOutletId,
+        amountPaid: queueTotalToPay,
+        amountTendered: queueTotalToPay,
         method: queuePaymentMethod,
         note: queuePaymentNote.trim() || undefined,
       });
@@ -942,8 +994,9 @@ export default function PosCashierPage() {
       );
 
       setReceiptResult(receipt);
-      setQueuePaymentMethod('CASH');
+      setQueuePaymentMethod(outletPaymentMethods[0]?.code ?? 'CASH');
       setQueuePaymentNote('');
+      setQueueCustomerName('');
       await loadQueueOrders(selectedOutletId, cashierQueue);
       await loadQueueOrderDetail(selectedQueueOrder.id, selectedOutletId);
 
@@ -1045,6 +1098,20 @@ export default function PosCashierPage() {
           </div>
         </div>
       </section>
+
+      {businessType === 'RESTAURANT' && (
+        <section className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+          <span className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-center text-sm font-semibold text-white">
+            Quick Service / Take Away
+          </span>
+          <button
+            onClick={() => router.push('/dashboard/pos/dine-in')}
+            className="flex-1 rounded-xl px-4 py-2.5 text-center text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Dine-In
+          </button>
+        </section>
+      )}
 
       {pageMessage ? (
         <section className="rounded-[28px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 shadow-sm sm:px-6">
@@ -1149,20 +1216,34 @@ export default function PosCashierPage() {
 
               <div className="min-w-[180px]">
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Payment Method
+                  Nama Pelanggan
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Opsional"
+                  disabled={!selectedOutletId}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </div>
+
+              <div className="min-w-[180px]">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Metode Bayar
                 </label>
                 <select
                   value={paymentMethod}
-                  onChange={(event) =>
-                    setPaymentMethod(event.target.value as PosPaymentMethod)
-                  }
+                  onChange={(event) => setPaymentMethod(event.target.value)}
                   className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 >
-                  {getPaymentMethods().map((method) => (
-                    <option key={method} value={method}>
-                      {method}
-                    </option>
-                  ))}
+                  {outletPaymentMethods.length > 0
+                    ? outletPaymentMethods.map((m) => (
+                        <option key={m.code} value={m.code}>{m.name}</option>
+                      ))
+                    : ['CASH', 'QRIS', 'TRANSFER', 'CARD'].map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
                 </select>
               </div>
 
@@ -1525,21 +1606,33 @@ export default function PosCashierPage() {
                     ))}
 
                     
-                    {roundingSetting?.enabled ? (
+                    {paymentSurcharge > 0 ? (
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500">Pembulatan</span>
-                        <span className="font-semibold text-slate-900">
-                          {formatCurrency(roundingCalc.roundingAmount)}
+                        <span className="text-slate-500">
+                          Service Charge
+                        </span>
+                        <span className="font-semibold text-amber-700">
+                          +{formatCurrency(paymentSurcharge)}
                         </span>
                       </div>
                     ) : null}
+
+                    {roundingSetting?.enabled && roundingCalc.roundingAmount !== 0 ? (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-500">Pembulatan</span>
+                        <span className="font-semibold text-slate-900">
+                          {roundingCalc.roundingAmount > 0 ? '+' : ''}{formatCurrency(roundingCalc.roundingAmount)}
+                        </span>
+                      </div>
+                    ) : null}
+
                     <div className="border-t border-slate-200 pt-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-slate-600">
                           Grand Total
                         </span>
                         <span className="text-base font-semibold text-slate-900">
-                          {formatCurrency(roundingCalc.roundedTotal)}
+                          {formatCurrency(grandTotalWithSurcharge)}
                         </span>
                       </div>
                     </div>
@@ -1890,11 +1983,13 @@ export default function PosCashierPage() {
                             }
                             className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                           >
-                            {getPaymentMethods().map((method) => (
-                              <option key={method} value={method}>
-                                {method}
-                              </option>
-                            ))}
+                            {outletPaymentMethods.length > 0
+                              ? outletPaymentMethods.map((m) => (
+                                  <option key={m.code} value={m.code}>{m.name}</option>
+                                ))
+                              : ['CASH', 'QRIS', 'TRANSFER', 'CARD'].map((m) => (
+                                  <option key={m} value={m}>{m}</option>
+                                ))}
                           </select>
                         </div>
 
@@ -1954,6 +2049,14 @@ export default function PosCashierPage() {
             >
               <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
               History Payment
+            </Link>
+
+            <Link
+              href="/dashboard/settings/payment-methods"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <FontAwesomeIcon icon={faCreditCard} className="h-4 w-4" />
+              Metode Bayar
             </Link>
           </div>
         </div>

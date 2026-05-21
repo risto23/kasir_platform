@@ -6,12 +6,11 @@ import type {
   SubscriptionInvoiceStatus,
   SubscriptionPaymentStatus,
   SubscriptionStatus,
-  PlanCode,
 } from '@prisma/client';
 
 export type SubscriptionPlanSummary = {
   id: string;
-  code: PlanCode;
+  code: string;
   name: string;
   description: string | null;
   monthlyPrice: number;

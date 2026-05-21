@@ -5,7 +5,6 @@ import {
   SubscriptionScheduleChangeStatus,
   SubscriptionScheduleChangeType,
   SubscriptionStatus,
-  PlanCode,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import type {
@@ -21,6 +20,7 @@ import type {
   SubscriptionPlanSummary,
 } from './subscriptions.types';
 import { getCurrentUsageSnapshotByBusiness } from './subscription-usage.service';
+import { syncBusinessFeatureFlags } from '../platform-feature-flag/platform-feature-flag.service';
 
 const PLAN_DISPLAY_ORDER = [
   'STARTER',
@@ -33,7 +33,7 @@ const PLAN_DISPLAY_ORDER = [
 
 function mapPlanSummary(plan: {
   id: string;
-  code: PlanCode;
+  code: string;
   name: string;
   description: string | null;
   monthlyPrice: unknown;
@@ -65,7 +65,7 @@ function mapPlanSummary(plan: {
   };
 }
 
-function getPlanDisplayOrder(code: PlanCode) {
+function getPlanDisplayOrder(code: string) {
   const index = PLAN_DISPLAY_ORDER.indexOf(code);
 
   if (index >= 0) {
@@ -75,7 +75,7 @@ function getPlanDisplayOrder(code: PlanCode) {
   return PLAN_DISPLAY_ORDER.length + 100;
 }
 
-function getOrderedPlans<T extends { code: PlanCode; name: string }>(plans: T[]): T[] {
+function getOrderedPlans<T extends { code: string; name: string }>(plans: T[]): T[] {
   return plans.sort((left, right) => {
     const leftIndex = getPlanDisplayOrder(left.code);
     const rightIndex = getPlanDisplayOrder(right.code);
@@ -273,7 +273,7 @@ async function getBusinessTypeByBusinessId(businessId: string) {
 
 async function getTargetPlanByCode(params: {
   businessType: BusinessType;
-  targetPlanCode: PlanCode;
+  targetPlanCode: string;
 }) {
   const plan = await prisma.plan.findFirst({
     where: {
@@ -461,7 +461,7 @@ export async function getSubscriptionPlanById(
 }
 
 export async function createSubscriptionPlan(params: {
-  code: PlanCode;
+  code: string;
   name: string;
   description: string | null;
   monthlyPrice: number;
@@ -754,7 +754,8 @@ export async function getSubscriptionInvoiceDetailByBusiness(params: {
 
 async function getPlanChangePreviewInternal(params: {
   businessId: string;
-  targetPlanCode: PlanCode;
+  targetPlanCode: string;
+  forceImmediate?: boolean;
 }): Promise<SubscriptionChangePreviewResponse> {
   const [subscription, usageResponse, businessType] = await Promise.all([
     getActiveSubscriptionByBusiness(params.businessId),
@@ -780,7 +781,8 @@ async function getPlanChangePreviewInternal(params: {
     currentPlan,
     targetPlan,
   });
-  const isImmediate = changeType === SubscriptionScheduleChangeType.UPGRADE;
+  const isImmediate =
+    params.forceImmediate === true || changeType === SubscriptionScheduleChangeType.UPGRADE;
   const effectiveAt = isImmediate
     ? new Date().toISOString()
     : subscription.currentPeriodEnd.toISOString();
@@ -791,6 +793,11 @@ async function getPlanChangePreviewInternal(params: {
           targetPlan,
         })
       : [];
+
+  const noteForDowngrade =
+    params.forceImmediate === true
+      ? 'Downgrade dipaksa diterapkan langsung oleh super admin.'
+      : 'Downgrade dijadwalkan pada akhir periode aktif saat ini.';
 
   return {
     businessId: params.businessId,
@@ -804,26 +811,29 @@ async function getPlanChangePreviewInternal(params: {
     usage: usageResponse.usage,
     violations,
     canProceed: violations.length === 0,
-    note: isImmediate
+    note: isImmediate && changeType === SubscriptionScheduleChangeType.UPGRADE
       ? 'Upgrade diterapkan langsung tanpa mengubah periode billing berjalan.'
-      : 'Downgrade dijadwalkan pada akhir periode aktif saat ini.',
+      : noteForDowngrade,
   };
 }
 
 export async function getSubscriptionChangePreviewByBusiness(params: {
   businessId: string;
-  targetPlanCode: PlanCode;
+  targetPlanCode: string;
+  forceImmediate?: boolean;
 }): Promise<SubscriptionChangePreviewResponse> {
   return getPlanChangePreviewInternal(params);
 }
 
 export async function changeSubscriptionPlanByBusiness(params: {
   businessId: string;
-  targetPlanCode: PlanCode;
+  targetPlanCode: string;
+  forceImmediate?: boolean;
 }): Promise<SubscriptionPlanChangeResultResponse> {
   const preview = await getPlanChangePreviewInternal({
     businessId: params.businessId,
     targetPlanCode: params.targetPlanCode,
+    forceImmediate: params.forceImmediate,
   });
   const businessType = await getBusinessTypeByBusinessId(params.businessId);
 
@@ -898,6 +908,8 @@ export async function changeSubscriptionPlanByBusiness(params: {
         },
       });
 
+      await syncBusinessFeatureFlags(params.businessId, targetPlan.id, tx);
+
       return {
         businessId: params.businessId,
         subscriptionId: subscription.id,
@@ -942,7 +954,9 @@ export async function changeSubscriptionPlanByBusiness(params: {
         status: scheduledChange.status,
         effectiveAt: scheduledChange.effectiveAt.toISOString(),
       },
-      message: 'Downgrade plan berhasil dijadwalkan pada akhir periode aktif.',
+      message: params.forceImmediate
+        ? 'Downgrade plan berhasil diterapkan langsung oleh super admin.'
+        : 'Downgrade plan berhasil dijadwalkan pada akhir periode aktif.',
     };
   });
 }
@@ -1034,7 +1048,7 @@ export async function reactivateSubscriptionByBusiness(params: {
 
 export async function startSubscriptionByBusiness(params: {
   businessId: string;
-  targetPlanCode: PlanCode;
+  targetPlanCode: string;
 }): Promise<SubscriptionStartResponse> {
   const [activeSubscription, latestSubscription, businessType] = await Promise.all([
     getActiveSubscriptionByBusiness(params.businessId),
@@ -1124,6 +1138,8 @@ export async function startSubscriptionByBusiness(params: {
         issuedAt: startedAt,
       },
     });
+
+    await syncBusinessFeatureFlags(params.businessId, createdSubscription.planId, tx);
 
     return {
       businessId: params.businessId,

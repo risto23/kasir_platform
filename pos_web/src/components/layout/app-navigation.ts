@@ -19,6 +19,7 @@ import {
   faTruck,
   faUsers,
   faUtensils,
+  faTableCells,
 } from '@fortawesome/free-solid-svg-icons';
 
 import { getActiveBusinessId } from '@/lib/auth';
@@ -216,6 +217,7 @@ const menuGroups: AppNavGroup[] = [
     items: [
       { href: '/dashboard/businesses', label: 'Businesses', icon: faShop, platformOnly: true },
       { href: '/dashboard/business-types', label: 'Business Types', icon: faLayerGroup, platformOnly: true },
+      { href: '/dashboard/superadmin/plans', label: 'Kelola Paket', icon: faTableCells, platformOnly: true },
     ],
   },
   {

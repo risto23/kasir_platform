@@ -41,6 +41,8 @@ type AuthUserWithAccessRelations = {
     outletAccesses: Array<{
       outlet: {
         id: string;
+        name: string;
+        code: string;
         status: 'ACTIVE' | 'INACTIVE';
       };
     }>;
@@ -87,6 +89,14 @@ export function mapBusinessMembership(
 
   const allowedOutletIds = mapAllowedOutletIds(membership);
 
+  const allowedOutlets = membership.outletAccesses
+    .filter((item) => item.outlet.status === 'ACTIVE')
+    .map((item) => ({
+      id: item.outlet.id,
+      name: item.outlet.name,
+      code: item.outlet.code,
+    }));
+
   return {
     businessUserId: membership.id,
     businessId: membership.business.id,
@@ -100,6 +110,7 @@ export function mapBusinessMembership(
         ? true
         : membership.hasAllOutletAccess,
     allowedOutletIds,
+    allowedOutlets,
     permissions,
   };
 }

@@ -14,14 +14,13 @@ import {
   PromoStatus,
   PromoTargetType,
   SubscriptionStatus,
-  PlanCode,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 type SeedPlanInput = {
-  code: PlanCode;
+  code: string;
   name: string;
   description: string;
   monthlyPrice: number;
@@ -127,44 +126,74 @@ async function assignRolePermissions(
   }
 }
 
-async function enableFeatureFlag(
-  businessId: string,
-  key: string,
-  name: string,
-  description: string,
-  enabled = true,
-) {
-  const featureFlag = await prisma.featureFlag.upsert({
+async function upsertFeatureFlag(key: string, name: string, description: string) {
+  return prisma.featureFlag.upsert({
     where: { key },
-    update: {
-      name,
-      description,
-    },
-    create: {
-      key,
-      name,
-      description,
-    },
+    update: { name, description },
+    create: { key, name, description },
   });
+}
 
-  await prisma.businessFeatureFlag.upsert({
+async function syncPlanFeatureAssignments(planId: string, featureFlagIds: string[]) {
+  await prisma.planFeatureFlag.deleteMany({
     where: {
-      businessId_featureFlagId: {
-        businessId,
-        featureFlagId: featureFlag.id,
+      planId,
+      featureFlagId: {
+        notIn: featureFlagIds,
       },
     },
-    update: {
-      enabled,
-    },
-    create: {
-      businessId,
-      featureFlagId: featureFlag.id,
-      enabled,
-    },
   });
 
-  return featureFlag;
+  if (featureFlagIds.length === 0) {
+    return;
+  }
+
+  await prisma.planFeatureFlag.createMany({
+    data: featureFlagIds.map((featureFlagId) => ({
+      planId,
+      featureFlagId,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+async function syncBusinessFeatureFlagsForSeed(businessId: string, planId: string) {
+  const [allFlags, planFlagLinks] = await Promise.all([
+    prisma.featureFlag.findMany({
+      select: {
+        id: true,
+      },
+    }),
+    prisma.planFeatureFlag.findMany({
+      where: {
+        planId,
+      },
+      select: {
+        featureFlagId: true,
+      },
+    }),
+  ]);
+
+  const planFeatureFlagIds = new Set(planFlagLinks.map((item) => item.featureFlagId));
+
+  for (const flag of allFlags) {
+    await prisma.businessFeatureFlag.upsert({
+      where: {
+        businessId_featureFlagId: {
+          businessId,
+          featureFlagId: flag.id,
+        },
+      },
+      update: {
+        enabled: planFeatureFlagIds.has(flag.id),
+      },
+      create: {
+        businessId,
+        featureFlagId: flag.id,
+        enabled: planFeatureFlagIds.has(flag.id),
+      },
+    });
+  }
 }
 
 type UpsertPromoInput = {
@@ -1420,100 +1449,6 @@ async function main() {
     skipDuplicates: true,
   });
 
-  await enableFeatureFlag(
-    retailBusiness.id,
-    'BUSINESS_MANAGEMENT',
-    'Business Management',
-    'Kelola business',
-  );
-  await enableFeatureFlag(
-    retailBusiness.id,
-    'OUTLET_MANAGEMENT',
-    'Outlet Management',
-    'Kelola outlet',
-  );
-  await enableFeatureFlag(
-    retailBusiness.id,
-    'BASIC_DASHBOARD',
-    'Basic Dashboard',
-    'Dashboard dasar',
-  );
-  await enableFeatureFlag(
-    retailBusiness.id,
-    'CATEGORY_MANAGEMENT',
-    'Category Management',
-    'Kelola kategori',
-  );
-  await enableFeatureFlag(
-    retailBusiness.id,
-    'PRODUCT_MANAGEMENT',
-    'Product Management',
-    'Kelola product/menu',
-  );
-  
-  await enableFeatureFlag(
-    retailBusiness.id,
-    'GUEST_QR',
-    'Guest QR',
-    'Aktifkan modul QR tamu untuk pemesanan tanpa login',
-    false,
-  );
-  await enableFeatureFlag(
-    retailBusiness.id,
-    'TABLE_MANAGEMENT',
-    'Table Management',
-    'Kelola meja outlet',
-    false,
-  );
-
-  await enableFeatureFlag(
-    restaurantBusiness.id,
-    'BUSINESS_MANAGEMENT',
-    'Business Management',
-    'Kelola business',
-  );
-  await enableFeatureFlag(
-    restaurantBusiness.id,
-    'OUTLET_MANAGEMENT',
-    'Outlet Management',
-    'Kelola outlet',
-  );
-  await enableFeatureFlag(
-    restaurantBusiness.id,
-    'BASIC_DASHBOARD',
-    'Basic Dashboard',
-    'Dashboard dasar',
-  );
-  await enableFeatureFlag(
-    restaurantBusiness.id,
-    'CATEGORY_MANAGEMENT',
-    'Category Management',
-    'Kelola kategori',
-  );
-  
-  await enableFeatureFlag(
-    restaurantBusiness.id,
-    'KITCHEN_DISPLAY',
-    'Kitchen Display',
-    'Aktifkan modul Kitchen untuk RESTAURANT',
-    true,
-  );
-  
-  await enableFeatureFlag(
-    restaurantBusiness.id,
-    'GUEST_QR',
-    'Guest QR',
-    'Aktifkan modul QR tamu untuk pemesanan tanpa login',
-    false,
-  );
-  await enableFeatureFlag(
-    restaurantBusiness.id,
-    'TABLE_MANAGEMENT',
-    'Table Management',
-    'Kelola meja outlet',
-    true,
-  );
-
   const retailCategoryBeverages = await prisma.category.upsert({
     where: {
       businessId_name: {
@@ -1984,6 +1919,111 @@ async function main() {
     ],
     skipDuplicates: true,
   });
+
+  // ── Feature flag registry ─────────────────────────────────────────────────
+  const ffBusinessMgmt      = await upsertFeatureFlag('BUSINESS_MANAGEMENT',      'Business Management',      'Kelola business');
+  const ffOutletMgmt        = await upsertFeatureFlag('OUTLET_MANAGEMENT',        'Outlet Management',        'Kelola outlet');
+  await upsertFeatureFlag('BASIC_DASHBOARD', 'Basic Dashboard', 'Dashboard dasar');
+  const ffCategoryMgmt      = await upsertFeatureFlag('CATEGORY_MANAGEMENT',      'Category Management',      'Kelola kategori');
+  const ffProductMgmt       = await upsertFeatureFlag('PRODUCT_MANAGEMENT',       'Product Management',       'Kelola product/menu');
+  const ffGuestQr           = await upsertFeatureFlag('GUEST_QR',                 'Guest QR',                 'Modul QR tamu untuk pemesanan tanpa login');
+  const ffTableMgmt         = await upsertFeatureFlag('TABLE_MANAGEMENT',         'Table Management',         'Kelola meja outlet');
+  const ffKitchenDisplay    = await upsertFeatureFlag('KITCHEN_DISPLAY',          'Kitchen Display',          'Modul kitchen display untuk restaurant');
+  const ffReportSalesSummary  = await upsertFeatureFlag('REPORT_SALES_SUMMARY',     'Laporan Ringkasan Penjualan', 'Ringkasan total penjualan per periode');
+  const ffReportSalesMulti    = await upsertFeatureFlag('REPORT_SALES_MULTI_OUTLET','Laporan Penjualan Multi-Outlet', 'Perbandingan penjualan antar outlet');
+  const ffReportOrders        = await upsertFeatureFlag('REPORT_ORDERS',            'Laporan Order',            'Riwayat dan detail order per periode');
+  const ffReportItems         = await upsertFeatureFlag('REPORT_ITEMS',             'Laporan Item Terjual',     'Analisis item/menu terlaris per periode');
+  const ffReportSupplierPayables = await upsertFeatureFlag('REPORT_SUPPLIER_PAYABLES', 'Laporan Hutang Supplier', 'Rekap outstanding hutang ke supplier');
+  const ffReportExport        = await upsertFeatureFlag('REPORT_EXPORT',            'Export Laporan',           'Export laporan ke CSV/Excel');
+
+  // ── Plan feature matrix ───────────────────────────────────────────────────
+  // Legend: features listed per plan are the ones INCLUDED in that plan.
+  //
+  // | Feature                    | STARTER | BASIC | RESTAURANT | RETAIL_PRO | BUSINESS | ENTERPRISE |
+  // |----------------------------|---------|-------|------------|------------|----------|------------|
+  // | BUSINESS_MANAGEMENT        |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | OUTLET_MANAGEMENT          |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | CATEGORY_MANAGEMENT        |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | PRODUCT_MANAGEMENT         |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | GUEST_QR                   |         |       |     ✓      |            |    ✓     |     ✓      |
+  // | TABLE_MANAGEMENT           |         |       |     ✓      |            |    ✓     |     ✓      |
+  // | KITCHEN_DISPLAY            |         |       |     ✓      |            |    ✓     |     ✓      |
+  // | REPORT_SALES_SUMMARY       |   ✓     |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | REPORT_SALES_MULTI_OUTLET  |         |       |            |            |    ✓     |     ✓      |
+  // | REPORT_ORDERS              |         |   ✓   |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | REPORT_ITEMS               |         |       |     ✓      |     ✓      |    ✓     |     ✓      |
+  // | REPORT_SUPPLIER_PAYABLES   |         |       |            |     ✓      |    ✓     |     ✓      |
+  // | REPORT_EXPORT              |         |       |            |     ✓      |    ✓     |     ✓      |
+
+  const coreFeatures = [
+    ffBusinessMgmt,
+    ffOutletMgmt,
+    ffCategoryMgmt,
+    ffProductMgmt,
+  ];
+
+  const planMatrix: Record<string, typeof coreFeatures> = {
+    [starterPlan.id]: [
+      ...coreFeatures,
+      ffReportSalesSummary,
+    ],
+    [basicPlan.id]: [
+      ...coreFeatures,
+      ffReportSalesSummary,
+      ffReportOrders,
+    ],
+    [restaurantPlan.id]: [
+      ...coreFeatures,
+      ffKitchenDisplay,
+      ffTableMgmt,
+      ffGuestQr,
+      ffReportSalesSummary,
+      ffReportOrders,
+      ffReportItems,
+    ],
+    [retailProPlan.id]: [
+      ...coreFeatures,
+      ffReportSalesSummary,
+      ffReportOrders,
+      ffReportItems,
+      ffReportSupplierPayables,
+      ffReportExport,
+    ],
+    [businessPlan.id]: [
+      ...coreFeatures,
+      ffKitchenDisplay,
+      ffTableMgmt,
+      ffGuestQr,
+      ffReportSalesSummary,
+      ffReportSalesMulti,
+      ffReportOrders,
+      ffReportItems,
+      ffReportSupplierPayables,
+      ffReportExport,
+    ],
+    [enterprisePlan.id]: [
+      ...coreFeatures,
+      ffKitchenDisplay,
+      ffTableMgmt,
+      ffGuestQr,
+      ffReportSalesSummary,
+      ffReportSalesMulti,
+      ffReportOrders,
+      ffReportItems,
+      ffReportSupplierPayables,
+      ffReportExport,
+    ],
+  };
+
+  for (const [planId, features] of Object.entries(planMatrix)) {
+    await syncPlanFeatureAssignments(
+      planId,
+      features.map((feature) => feature.id),
+    );
+  }
+
+  await syncBusinessFeatureFlagsForSeed(retailBusiness.id, retailSubscription.planId);
+  await syncBusinessFeatureFlagsForSeed(restaurantBusiness.id, restaurantSubscription.planId);
 
   await prisma.subscriptionUsageMonthly.upsert({
     where: {

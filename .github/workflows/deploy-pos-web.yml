@@ -1,0 +1,76 @@
+name: Deploy pos-web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pos_web/**'
+      - '.github/workflows/deploy-pos-web.yml'
+
+jobs:
+  deploy:
+    name: Build & Deploy to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: pos_web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: pos_web
+        run: npm ci
+
+      - name: Create .env.local
+        working-directory: pos_web
+        run: |
+          echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" >> .env.local
+          echo "NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}" >> .env.local
+          echo "NEXT_PUBLIC_UPLOADS_ORIGIN=${{ secrets.NEXT_PUBLIC_UPLOADS_ORIGIN }}" >> .env.local
+
+      - name: Build
+        working-directory: pos_web
+        run: npm run build
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd ~/pos_platform/pos_web
+            git pull origin main
+
+      - name: Upload build to VPS
+        run: |
+          echo "${{ secrets.VPS_SSH_KEY }}" > /tmp/vps_key
+          chmod 600 /tmp/vps_key
+          rsync -avz --delete \
+            -e "ssh -i /tmp/vps_key -o StrictHostKeyChecking=no" \
+            pos_web/.next/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/pos_platform/pos_web/.next/
+          rsync -avz \
+            -e "ssh -i /tmp/vps_key -o StrictHostKeyChecking=no" \
+            pos_web/public/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/pos_platform/pos_web/public/
+          rsync -avz --delete \
+            -e "ssh -i /tmp/vps_key -o StrictHostKeyChecking=no" \
+            pos_web/node_modules/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/pos_platform/pos_web/node_modules/
+          rm -f /tmp/vps_key
+
+      - name: Restart PM2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            export PATH="$PATH:/home/ubuntu/.npm-global/bin"
+            pm2 restart pos-web
+            pm2 save

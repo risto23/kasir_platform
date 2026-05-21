@@ -58,4 +58,5 @@ export type PaymentHistoryListParams = {
   page?: number;
   perPage?: number;
   orderId?: string;
+  status?: PaymentHistoryStatus;
 };

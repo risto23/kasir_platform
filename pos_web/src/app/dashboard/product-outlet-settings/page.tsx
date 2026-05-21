@@ -5,10 +5,14 @@ import Link from 'next/link';
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
+  faArrowRight,
   faMagnifyingGlass,
+  faPlus,
   faRotateRight,
   faSliders,
 } from '@fortawesome/free-solid-svg-icons';
+
+import { useRouter } from 'next/navigation';
 
 import { api } from '@/lib/api';
 import { getActiveBusinessId, getCachedCurrentUser } from '@/lib/auth';
@@ -85,6 +89,7 @@ function getAvailabilityBadgeClass(isAvailable: boolean) {
 }
 
 export default function ProductOutletSettingsPage() {
+  const router = useRouter();
   const businessType = useMemo(() => getBusinessType(), []);
   const productLabel = businessType === 'RESTAURANT' ? 'Menu' : 'Produk';
   const productLabelLower = productLabel.toLowerCase();
@@ -101,18 +106,20 @@ export default function ProductOutletSettingsPage() {
     useState<AvailabilityFilter>('ALL');
   const [productFilter, setProductFilter] = useState('');
   const [outletFilter, setOutletFilter] = useState('');
+  const [quickPickProduct, setQuickPickProduct] = useState('');
 
   async function fetchProducts() {
     try {
       const response = await api.get('/business/products', {
         params: {
           status: 'ACTIVE',
-          limit: 100,
+          perPage: 100,
         },
       });
 
-      const payload: ProductListResponse = response.data.data;
-      setProducts(payload?.items || []);
+      const raw = response.data.data;
+      const items: Product[] = Array.isArray(raw) ? raw : (raw?.items ?? []);
+      setProducts(items);
     } catch {
       setProducts([]);
     }
@@ -213,20 +220,52 @@ export default function ProductOutletSettingsPage() {
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-700">
-            <FontAwesomeIcon icon={faSliders} className="h-3 w-3" />
-            Product Outlet Settings
-          </div>
+      <section className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-700">
+              <FontAwesomeIcon icon={faSliders} className="h-3 w-3" />
+              Product Outlet Settings
+            </div>
 
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
-            Setting {productLabel} per Outlet
-          </h1>
-          <p className="mt-1 text-sm leading-6 text-slate-500">
-            Atur ketersediaan, status, dan override harga {productLabelLower} untuk
-            setiap outlet dalam business aktif.
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
+              Setting {productLabel} per Outlet
+            </h1>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Atur ketersediaan, status, dan override harga {productLabelLower} untuk
+              setiap outlet dalam business aktif.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 sm:flex-row sm:items-center">
+          <FontAwesomeIcon icon={faPlus} className="h-4 w-4 shrink-0 text-indigo-500" />
+          <p className="text-sm font-medium text-indigo-700 sm:mr-3">
+            Atur setting untuk {productLabelLower}:
           </p>
+          <div className="flex flex-1 gap-2">
+            <select
+              value={quickPickProduct}
+              onChange={(e) => setQuickPickProduct(e.target.value)}
+              className="h-10 flex-1 rounded-xl border border-indigo-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="">Pilih {productLabelLower}...</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.code || '-'})
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={!quickPickProduct}
+              onClick={() => router.push(`/dashboard/product-outlet-settings/${quickPickProduct}`)}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Atur
+              <FontAwesomeIcon icon={faArrowRight} className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </section>
 

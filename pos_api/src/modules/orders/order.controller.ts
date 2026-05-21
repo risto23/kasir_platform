@@ -4,6 +4,7 @@ import {
   createOrder,
   getOrderById,
   listOrders,
+  removeOrderItem,
   updateOrderItem,
   updateOrderStatus,
 } from './order.service';
@@ -226,7 +227,9 @@ export async function createOrderHandler(
       businessId,
       outletId: body.outletId,
       businessUserId,
+      orderType: body.orderType,
       tableId: body.tableId,
+      customerName: body.customerName,
       notes: body.notes,
       items: body.items,
     });
@@ -290,6 +293,35 @@ export async function updateOrderItemHandler(
     return res.status(200).json({
       success: true,
       message: 'Item order berhasil diupdate.',
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function removeOrderItemHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const businessId = getBusinessIdFromRequest(req);
+    const orderId = String(req.params.id);
+    const itemId = String(req.params.itemId);
+    const outletId =
+      (req.body as { outletId?: string })?.outletId ||
+      (typeof req.headers['x-outlet-id'] === 'string' ? req.headers['x-outlet-id'] : '');
+
+    if (!outletId) {
+      return res.status(400).json({ success: false, message: 'outletId wajib diisi' });
+    }
+
+    const result = await removeOrderItem({ businessId, outletId, orderId, itemId });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Item order berhasil dihapus.',
       data: result,
     });
   } catch (error) {

@@ -54,3 +54,16 @@ export type OutletTablesListResponse = {
     totalPages: number;
   };
 };
+
+export type TableOccupancyItem = OutletTableListItem & {
+  isOccupied: boolean;
+  activeOrder: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    paymentStatus: string;
+    totalAmount: string;
+    customerName: string | null;
+    submittedAt: string | null;
+  } | null;
+};
