@@ -75,15 +75,15 @@ export async function createPayment(params: {
     });
 
     if (!order) {
-      throw new Error('Order tidak ditemukan');
+      throw Object.assign(new Error('Order tidak ditemukan'), { statusCode: 404 });
     }
 
     if (order.status === OrderStatus.CANCELLED) {
-      throw new Error('Order yang dibatalkan tidak bisa dibayar');
+      throw Object.assign(new Error('Order yang dibatalkan tidak bisa dibayar'), { statusCode: 400 });
     }
 
     if (order.paymentStatus === PaymentStatus.PAID) {
-      throw new Error('Order ini sudah dibayar');
+      throw Object.assign(new Error('Order ini sudah dibayar'), { statusCode: 400 });
     }
 
     // Calculate surcharge based on outlet payment method config
@@ -101,7 +101,7 @@ export async function createPayment(params: {
     const amountPaidDecimal = new Prisma.Decimal(params.amountPaid);
 
     if (amountPaidDecimal.lessThan(totalWithSurcharge)) {
-      throw new Error('Jumlah pembayaran kurang dari total order');
+      throw Object.assign(new Error('Jumlah pembayaran kurang dari total order'), { statusCode: 400 });
     }
 
     const amountTenderedDecimal =
@@ -110,7 +110,7 @@ export async function createPayment(params: {
         : amountPaidDecimal;
 
     if (amountTenderedDecimal.lessThan(amountPaidDecimal)) {
-      throw new Error('Amount tendered tidak boleh lebih kecil dari amount paid');
+      throw Object.assign(new Error('Amount tendered tidak boleh lebih kecil dari amount paid'), { statusCode: 400 });
     }
 
     await enforceMonthlyTransactionLimit({
