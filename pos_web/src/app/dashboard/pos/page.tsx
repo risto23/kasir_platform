@@ -918,8 +918,9 @@ export default function PosCashierPage() {
         customerName: customerName.trim() || undefined,
       });
 
+      let lastOrder = order;
       for (const item of cart) {
-        await addOrderItem(order.id, {
+        lastOrder = await addOrderItem(order.id, {
           outletId: selectedOutletId,
           productId: item.productId,
           quantity: item.qty,
@@ -927,7 +928,22 @@ export default function PosCashierPage() {
         });
       }
 
-      const totalToPay = roundingCalc.roundedTotal;
+      // Use DB total from the last addOrderItem response to avoid float mismatch
+      const dbTotal = lastOrder.totalAmount;
+      const dbSurcharge = calculatePosSurcharge(
+        dbTotal,
+        selectedPaymentMethodConfig?.surchargeRules ?? [],
+      );
+      const dbBase = dbTotal + dbSurcharge;
+      let totalToPay = dbBase;
+      const r = roundingSetting;
+      if (r && r.enabled && r.unit > 1 && r.method !== 'NONE') {
+        const unit = Math.max(1, Math.floor(r.unit));
+        const q = dbBase / unit;
+        if (r.method === 'NEAREST') totalToPay = Math.round(q) * unit;
+        else if (r.method === 'CEIL') totalToPay = Math.ceil(q) * unit;
+        else if (r.method === 'FLOOR') totalToPay = Math.floor(q) * unit;
+      }
       await createPayment({
         orderId: order.id,
         outletId: selectedOutletId,
