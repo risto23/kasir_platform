@@ -1029,6 +1029,7 @@ model Promo {
   targetTextValue String?
   discountType    PromoDiscountType
   discountValue   Decimal           @db.Decimal(14, 2)
+  minChargeAmount Decimal?          @db.Decimal(14, 2)
   startDate       DateTime
   endDate         DateTime
   startTime       String

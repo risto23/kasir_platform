@@ -56,6 +56,7 @@ const promoBodySchema = z
       .optional(),
     discountType: z.nativeEnum(PromoDiscountType),
     discountValue: z.coerce.number(),
+    minChargeAmount: z.coerce.number().positive().nullable().optional(),
     startDate: dateSchema,
     endDate: dateSchema,
     startTime: timeSchema,

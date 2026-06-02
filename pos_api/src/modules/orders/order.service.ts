@@ -235,6 +235,200 @@ function isPromoActiveNow(promo: {
   return true;
 }
 
+function isPromoMatchingProductData(
+  promo: {
+    targetType: PromoTargetType;
+    categoryId: string | null;
+    productId: string | null;
+    targetTextValue: string | null;
+  },
+  product: {
+    id: string;
+    categoryId: string | null;
+    name: string;
+    brand: string | null;
+    unit: string | null;
+  },
+): boolean {
+  if (promo.targetType === PromoTargetType.CATEGORY) {
+    return promo.categoryId !== null && promo.categoryId === product.categoryId;
+  }
+  if (promo.targetType === PromoTargetType.PRODUCT) {
+    return promo.productId !== null && promo.productId === product.id;
+  }
+  if (promo.targetType === PromoTargetType.PRODUCT_NAME) {
+    return (
+      normalizeComparableText(promo.targetTextValue) ===
+      normalizeComparableText(product.name)
+    );
+  }
+  if (promo.targetType === PromoTargetType.BRAND) {
+    return (
+      normalizeComparableText(promo.targetTextValue) ===
+      normalizeComparableText(product.brand)
+    );
+  }
+  if (promo.targetType === PromoTargetType.UNIT) {
+    return (
+      normalizeComparableText(promo.targetTextValue) ===
+      normalizeComparableText(product.unit)
+    );
+  }
+  return false;
+}
+
+async function recalculateAllDiscountsAndTotals(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+) {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, businessId: true, outletId: true },
+  });
+
+  if (!order) throw new Error('Order tidak ditemukan');
+
+  const { businessId, outletId } = order;
+
+  const orderItems = await tx.orderItem.findMany({
+    where: { orderId },
+    select: {
+      id: true,
+      productId: true,
+      unitPrice: true,
+      quantity: true,
+      lineSubtotal: true,
+    },
+  });
+
+  if (orderItems.length === 0) {
+    await recalculateOrderTotals(tx, orderId);
+    return;
+  }
+
+  const productIds = [...new Set(orderItems.map((i) => i.productId))];
+  const products = await tx.product.findMany({
+    where: { id: { in: productIds } },
+    select: {
+      id: true,
+      categoryId: true,
+      name: true,
+      brand: true,
+      unit: true,
+    },
+  });
+  const productMap = new Map(products.map((p) => [p.id, p]));
+
+  const promos = await tx.promo.findMany({
+    where: { businessId, status: PromoStatus.ACTIVE },
+    include: { promoOutlets: { select: { outletId: true } } },
+    orderBy: [{ createdAt: 'desc' }],
+  });
+
+  const eligiblePromos = promos.filter((promo) => {
+    if (!isPromoActiveNow(promo)) return false;
+    const scope = promo.outletScope ?? PromoOutletScope.ALL_OUTLETS;
+    if (scope === PromoOutletScope.ALL_OUTLETS) return true;
+    return promo.promoOutlets.some((po) => po.outletId === outletId);
+  });
+
+  const regularPromos = eligiblePromos.filter((p) => p.minChargeAmount == null);
+  const minChargePromos = eligiblePromos.filter((p) => p.minChargeAmount != null);
+
+  type ItemCalc = {
+    id: string;
+    unitPrice: Prisma.Decimal;
+    quantity: Prisma.Decimal;
+    lineSubtotal: Prisma.Decimal;
+    bestUnitDiscount: Prisma.Decimal;
+    productId: string;
+  };
+
+  const itemCalcs: ItemCalc[] = orderItems.map((item) => {
+    const product = productMap.get(item.productId);
+    let bestUnitDiscount = new Prisma.Decimal(0);
+
+    if (product) {
+      for (const promo of regularPromos) {
+        if (!isPromoMatchingProductData(promo, product)) continue;
+
+        const discountValue = promo.discountValue ?? new Prisma.Decimal(0);
+        let candidate =
+          promo.discountType === PromoDiscountType.PERCENTAGE
+            ? item.unitPrice.mul(discountValue).div(new Prisma.Decimal(100))
+            : new Prisma.Decimal(discountValue);
+
+        if (candidate.greaterThan(item.unitPrice)) {
+          candidate = new Prisma.Decimal(item.unitPrice);
+        }
+        if (candidate.greaterThan(bestUnitDiscount)) {
+          bestUnitDiscount = candidate;
+        }
+      }
+    }
+
+    return {
+      id: item.id,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      lineSubtotal: item.lineSubtotal,
+      bestUnitDiscount,
+      productId: item.productId,
+    };
+  });
+
+  // Additional discounts from min-charge promos (stacks on top of regular promos)
+  const additionalUnitDiscounts = new Map<string, Prisma.Decimal>();
+
+  for (const promo of minChargePromos) {
+    const qualifyingItems: ItemCalc[] = [];
+    let qualifyingSubtotal = new Prisma.Decimal(0);
+
+    for (const calc of itemCalcs) {
+      const product = productMap.get(calc.productId);
+      if (!product) continue;
+      if (!isPromoMatchingProductData(promo, product)) continue;
+      qualifyingItems.push(calc);
+      qualifyingSubtotal = qualifyingSubtotal.plus(calc.lineSubtotal);
+    }
+
+    if (promo.minChargeAmount && qualifyingSubtotal.lessThan(promo.minChargeAmount)) {
+      continue;
+    }
+
+    for (const calc of qualifyingItems) {
+      const discountValue = promo.discountValue ?? new Prisma.Decimal(0);
+      let additionalPerUnit =
+        promo.discountType === PromoDiscountType.PERCENTAGE
+          ? calc.unitPrice.mul(discountValue).div(new Prisma.Decimal(100))
+          : new Prisma.Decimal(discountValue);
+
+      const current = additionalUnitDiscounts.get(calc.id) ?? new Prisma.Decimal(0);
+      additionalUnitDiscounts.set(calc.id, current.plus(additionalPerUnit));
+    }
+  }
+
+  for (const calc of itemCalcs) {
+    const additionalPerUnit =
+      additionalUnitDiscounts.get(calc.id) ?? new Prisma.Decimal(0);
+    let totalUnitDiscount = calc.bestUnitDiscount.plus(additionalPerUnit);
+
+    if (totalUnitDiscount.greaterThan(calc.unitPrice)) {
+      totalUnitDiscount = new Prisma.Decimal(calc.unitPrice);
+    }
+
+    const lineDiscountAmount = totalUnitDiscount.mul(calc.quantity);
+    const lineTotal = calc.lineSubtotal.minus(lineDiscountAmount);
+
+    await tx.orderItem.update({
+      where: { id: calc.id },
+      data: { lineDiscountAmount, lineTotal },
+    });
+  }
+
+  await recalculateOrderTotals(tx, orderId);
+}
+
 type ProductPricingWithPromo = {
   product: {
     id: string;
@@ -809,7 +1003,7 @@ export async function createOrder(input: CreateOrderInput) {
       });
     }
 
-    await recalculateOrderTotals(tx, order.id);
+    await recalculateAllDiscountsAndTotals(tx, order.id);
 
     return getOrderByIdInternal(tx, {
       businessId: input.businessId,
@@ -862,7 +1056,7 @@ export async function addOrderItem(input: AddOrderItemInput) {
       },
     });
 
-    await recalculateOrderTotals(tx, order.id);
+    await recalculateAllDiscountsAndTotals(tx, order.id);
 
     return getOrderByIdInternal(tx, {
       businessId: input.businessId,
@@ -941,7 +1135,7 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
       },
     });
 
-    await recalculateOrderTotals(tx, input.orderId);
+    await recalculateAllDiscountsAndTotals(tx, input.orderId);
 
     return getOrderByIdInternal(tx, {
       businessId: input.businessId,
@@ -1007,38 +1201,7 @@ export async function removeOrderItem(input: {
 
     await tx.orderItem.delete({ where: { id: input.itemId } });
 
-    const remaining = await tx.orderItem.findMany({
-      where: { orderId: input.orderId },
-      select: { lineTotal: true, lineDiscountAmount: true, unitPrice: true, quantity: true },
-    });
-
-    const subtotal = remaining.reduce(
-      (sum, i) => sum.add(i.unitPrice.mul(new Prisma.Decimal(Number(i.quantity)))),
-      new Prisma.Decimal(0),
-    );
-    const discountAmount = remaining.reduce(
-      (sum, i) => sum.add(i.lineDiscountAmount),
-      new Prisma.Decimal(0),
-    );
-    const lineTotal = remaining.reduce(
-      (sum, i) => sum.add(i.lineTotal),
-      new Prisma.Decimal(0),
-    );
-
-    const { charges, rounding } = await getOutletPosChargeSettings(input.outletId);
-    const applied = applyChargesAndRounding(lineTotal, charges, rounding);
-
-    await tx.order.update({
-      where: { id: input.orderId },
-      data: {
-        subtotal: toMoneyString(subtotal),
-        discountAmount: toMoneyString(discountAmount),
-        taxAmount: toMoneyString(applied.taxAmount),
-        serviceChargeAmount: toMoneyString(applied.serviceChargeAmount),
-        totalAmount: toMoneyString(applied.grandTotal),
-        itemCount: remaining.length,
-      },
-    });
+    await recalculateAllDiscountsAndTotals(tx, input.orderId);
 
     return getOrderByIdInternal(tx, {
       orderId: input.orderId,

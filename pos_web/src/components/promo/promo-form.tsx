@@ -36,6 +36,8 @@ type PromoFormState = {
   targetTextValue: string;
   discountType: PromoDiscountType;
   discountValue: string;
+  hasMinCharge: boolean;
+  minChargeAmount: string;
   startDate: string;
   endDate: string;
   startTime: string;
@@ -61,6 +63,8 @@ function getDefaultState(): PromoFormState {
     targetTextValue: '',
     discountType: 'PERCENTAGE',
     discountValue: '',
+    hasMinCharge: false,
+    minChargeAmount: '',
     startDate: today,
     endDate: today,
     startTime: '00:00',
@@ -81,6 +85,8 @@ function mapInitialDataToState(data: PromoItem): PromoFormState {
     targetTextValue: data.targetTextValue ?? '',
     discountType: data.discountType,
     discountValue: data.discountValue ?? '',
+    hasMinCharge: data.minChargeAmount != null,
+    minChargeAmount: data.minChargeAmount ?? '',
     startDate: data.startDate,
     endDate: data.endDate,
     startTime: data.startTime,
@@ -257,6 +263,13 @@ export function PromoForm({
       return 'Jam akhir tidak boleh lebih kecil dari jam mulai';
     }
 
+    if (form.hasMinCharge) {
+      const minCharge = Number(form.minChargeAmount);
+      if (!Number.isFinite(minCharge) || minCharge <= 0) {
+        return 'Minimum pembelian harus lebih dari 0';
+      }
+    }
+
     if (
       form.outletScope === 'SELECTED_OUTLETS' &&
       form.selectedOutletIds.length === 0
@@ -282,6 +295,7 @@ export function PromoForm({
           : null,
       discountType: form.discountType,
       discountValue: Number(form.discountValue),
+      minChargeAmount: form.hasMinCharge && form.minChargeAmount ? Number(form.minChargeAmount) : null,
       startDate: form.startDate,
       endDate: form.endDate,
       startTime: form.startTime,
@@ -509,6 +523,42 @@ export function PromoForm({
             className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500"
             placeholder={form.discountType === 'PERCENTAGE' ? '10' : '5000'}
           />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-3 flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={form.hasMinCharge}
+              onChange={(event) => {
+                setField('hasMinCharge', event.target.checked);
+                if (!event.target.checked) setField('minChargeAmount', '');
+              }}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            <span className="text-sm font-medium text-slate-700">
+              Syarat Minimum Pembelian
+            </span>
+          </label>
+          {form.hasMinCharge ? (
+            <div>
+              <p className="mb-2 text-xs text-slate-500">
+                Diskon hanya berlaku jika total pembelian produk yang ditarget mencapai nilai berikut.
+              </p>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-500">Rp</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={form.minChargeAmount}
+                  onChange={(event) => setField('minChargeAmount', event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-slate-500"
+                  placeholder="50000"
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="md:col-span-2">
