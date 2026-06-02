@@ -142,6 +142,7 @@ type PromoRecord = {
   targetTextValue: string | null;
   discountType: PromoDiscountType;
   discountValue: Prisma.Decimal | null;
+  minChargeAmount: Prisma.Decimal | null;
   startDate: Date;
   endDate: Date;
   startTime: string;
@@ -223,6 +224,7 @@ function mapPromoRecord(promo: PromoRecord): PromoMappedItem {
     discountType: promo.discountType,
     discountValue,
     discountPreview: mapDiscountPreview(promo.discountType, discountValue),
+    minChargeAmount: promo.minChargeAmount != null ? toDecimalString(promo.minChargeAmount) : null,
     startDate: formatDateOnly(promo.startDate),
     endDate: formatDateOnly(promo.endDate),
     startTime: promo.startTime,
@@ -404,6 +406,7 @@ export async function listPromos(params: ListPromoParams) {
     mapPromoRecord({
       ...promo,
       discountValue: promo.discountValue ?? null,
+      minChargeAmount: promo.minChargeAmount ?? null,
       outletScope: promo.outletScope ?? PromoOutletScope.ALL_OUTLETS,
     }),
   );
@@ -495,6 +498,9 @@ export async function createPromo(businessId: string, payload: PromoBody) {
           : null,
         discountType: payload.discountType,
         discountValue: new Prisma.Decimal(payload.discountValue),
+        minChargeAmount: payload.minChargeAmount != null
+          ? new Prisma.Decimal(payload.minChargeAmount)
+          : null,
         startDate: normalizeDateOnlyInput(payload.startDate),
         endDate: normalizeDateOnlyInput(payload.endDate),
         startTime: payload.startTime,
@@ -631,6 +637,9 @@ export async function updatePromo(
           : null,
         discountType: payload.discountType,
         discountValue: new Prisma.Decimal(payload.discountValue),
+        minChargeAmount: payload.minChargeAmount != null
+          ? new Prisma.Decimal(payload.minChargeAmount)
+          : null,
         startDate: normalizeDateOnlyInput(payload.startDate),
         endDate: normalizeDateOnlyInput(payload.endDate),
         startTime: payload.startTime,

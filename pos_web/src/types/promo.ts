@@ -70,6 +70,7 @@ export type PromoItem = {
   discountType: PromoDiscountType;
   discountValue: string;
   discountPreview: string;
+  minChargeAmount: string | null;
   startDate: string;
   endDate: string;
   startTime: string;
@@ -92,6 +93,7 @@ export type PromoPayload = {
   targetTextValue: string | null;
   discountType: PromoDiscountType;
   discountValue: number;
+  minChargeAmount: number | null;
   startDate: string;
   endDate: string;
   startTime: string;
