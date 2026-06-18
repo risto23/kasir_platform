@@ -340,13 +340,15 @@ async function recalculateAllDiscountsAndTotals(
     unitPrice: Prisma.Decimal;
     quantity: Prisma.Decimal;
     lineSubtotal: Prisma.Decimal;
-    bestUnitDiscount: Prisma.Decimal;
+    regularUnitDiscount: Prisma.Decimal;
     productId: string;
   };
 
   const itemCalcs: ItemCalc[] = orderItems.map((item) => {
     const product = productMap.get(item.productId);
-    let bestUnitDiscount = new Prisma.Decimal(0);
+    // Stack every matching regular promo (each capped at the unit price);
+    // min-charge promos are added on top in the next pass.
+    let regularUnitDiscount = new Prisma.Decimal(0);
 
     if (product) {
       for (const promo of regularPromos) {
@@ -361,9 +363,7 @@ async function recalculateAllDiscountsAndTotals(
         if (candidate.greaterThan(item.unitPrice)) {
           candidate = new Prisma.Decimal(item.unitPrice);
         }
-        if (candidate.greaterThan(bestUnitDiscount)) {
-          bestUnitDiscount = candidate;
-        }
+        regularUnitDiscount = regularUnitDiscount.plus(candidate);
       }
     }
 
@@ -372,7 +372,7 @@ async function recalculateAllDiscountsAndTotals(
       unitPrice: item.unitPrice,
       quantity: item.quantity,
       lineSubtotal: item.lineSubtotal,
-      bestUnitDiscount,
+      regularUnitDiscount,
       productId: item.productId,
     };
   });
@@ -411,7 +411,7 @@ async function recalculateAllDiscountsAndTotals(
   for (const calc of itemCalcs) {
     const additionalPerUnit =
       additionalUnitDiscounts.get(calc.id) ?? new Prisma.Decimal(0);
-    let totalUnitDiscount = calc.bestUnitDiscount.plus(additionalPerUnit);
+    let totalUnitDiscount = calc.regularUnitDiscount.plus(additionalPerUnit);
 
     if (totalUnitDiscount.greaterThan(calc.unitPrice)) {
       totalUnitDiscount = new Prisma.Decimal(calc.unitPrice);

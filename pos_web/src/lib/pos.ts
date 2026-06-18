@@ -312,12 +312,15 @@ export function formatDateTime(value: string | null | undefined): string {  if (
   if (Number.isNaN(date.getTime())) {    return '-';
   }  return new Intl.DateTimeFormat('id-ID', {    dateStyle: 'medium',    timeStyle: 'short',  }).format(date);
 }
-export function createCartLine(product: PosProductItem): PosCartItem {  const linePrice = product.effectivePrice;
-  return {    lineId: `${product.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,    productId: product.id,    productName: product.name,    productCode: product.code,    unit: product.unit,    note: '',    qty: 1,    price: linePrice,    subtotal: linePrice,    imageUrl: product.imageUrl,  };
+export function createCartLine(product: PosProductItem): PosCartItem {
+  return {    lineId: `${product.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,    productId: product.id,    productName: product.name,    productCode: product.code,    categoryId: product.categoryId,    brand: product.brand,    unit: product.unit,    note: '',    qty: 1,    basePrice: product.basePrice,    imageUrl: product.imageUrl,  };
 }
 export function recalculateCart(cart: PosCartItem[]): PosCartItem[] {  return cart.map((item) => {    const qty = item.qty < 1 ? 1 : item.qty;
-    const price = toNumber(item.price);
-    return {      ...item,      qty,      price,      subtotal: qty * price,    };
+    // Fall back to the legacy `price` field so carts persisted before basePrice
+    // existed still render a sensible (discount-free) line until re-added.
+    const legacyPrice = toNumber((item as { price?: number | string | null }).price);
+    const basePrice = toNumber(item.basePrice) || legacyPrice;
+    return {      ...item,      qty,      basePrice,      categoryId: item.categoryId ?? null,      brand: item.brand ?? null,    };
   });
 }
 export function buildCharges(  subtotal: number,  rules: PosSettingsChargeRule[],): PosChargeItem[] {  if (!Array.isArray(rules) || rules.length === 0) {    return [];

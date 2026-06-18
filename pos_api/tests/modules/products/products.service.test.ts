@@ -104,7 +104,7 @@ describe('products.service', () => {
     ).rejects.toThrow('Outlet tidak ditemukan pada business ini.');
   });
 
-  it('lists products and resolves the best active promo', async () => {
+  it('lists products and stacks all active regular promos', async () => {
     prismaMock.prisma.outlet.findFirst.mockResolvedValueOnce({ id: 'outlet-1' });
     prismaMock.prisma.product.findMany.mockResolvedValueOnce([
       {
@@ -135,8 +135,8 @@ describe('products.service', () => {
         targetTextValue: 'House Brand',
         discountType: PromoDiscountType.FIXED,
         discountValue: new Prisma.Decimal(20),
-        startDate: new Date('2026-04-01T00:00:00.000Z'),
-        endDate: new Date('2026-06-01T00:00:00.000Z'),
+        startDate: new Date('2000-01-01T00:00:00.000Z'),
+        endDate: new Date('2099-12-31T00:00:00.000Z'),
         startTime: '00:00',
         endTime: '23:59',
         status: PromoStatus.ACTIVE,
@@ -152,8 +152,8 @@ describe('products.service', () => {
         targetTextValue: null,
         discountType: PromoDiscountType.PERCENTAGE,
         discountValue: new Prisma.Decimal(10),
-        startDate: new Date('2026-04-01T00:00:00.000Z'),
-        endDate: new Date('2026-06-01T00:00:00.000Z'),
+        startDate: new Date('2000-01-01T00:00:00.000Z'),
+        endDate: new Date('2099-12-31T00:00:00.000Z'),
         startTime: '00:00',
         endTime: '23:59',
         status: PromoStatus.ACTIVE,
@@ -176,8 +176,10 @@ describe('products.service', () => {
         }),
       }),
     );
-    expect(result.items[0]?.promoDiscountAmount).toBe(20);
-    expect(result.items[0]?.effectivePrice).toBe(80);
+    // Brand fixed 20 + product 10% of 100 = 30 stacked; representative label is
+    // the largest single promo (Brand Discount, 20).
+    expect(result.items[0]?.promoDiscountAmount).toBe(30);
+    expect(result.items[0]?.effectivePrice).toBe(70);
     expect(result.items[0]?.appliedPromo?.name).toBe('Brand Discount');
   });
 

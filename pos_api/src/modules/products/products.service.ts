@@ -418,6 +418,7 @@ type PromoForProductResolution = {
   targetTextValue: string | null;
   discountType: PromoDiscountType;
   discountValue: Prisma.Decimal | null;
+  minChargeAmount: Prisma.Decimal | null;
   startDate: Date;
   endDate: Date;
   startTime: string;
@@ -531,7 +532,13 @@ function resolveBestPromoForProduct(
   product: ProductWithCategory,
   promos: PromoForProductResolution[],
 ): ProductAppliedPromo | null {
-  const matchedPromos = promos.filter((promo) => doesPromoMatchProduct(promo, product));
+  // Menu headline reflects unconditional (regular) promos only and stacks them
+  // all. Min-charge promos are order-level (depend on the cart total) so they
+  // are applied at checkout by the order service, not shown on the menu price.
+  const matchedPromos = promos.filter(
+    (promo) =>
+      promo.minChargeAmount == null && doesPromoMatchProduct(promo, product),
+  );
 
   if (matchedPromos.length === 0) {
     return null;
@@ -539,7 +546,8 @@ function resolveBestPromoForProduct(
 
   const basePrice = toNumber(product.basePrice);
 
-  let bestPromo: ProductAppliedPromo | null = null;
+  let totalDiscountAmount = 0;
+  let representativePromo: ProductAppliedPromo | null = null;
 
   for (const promo of matchedPromos) {
     const discountAmount = calculatePromoDiscountAmount(
@@ -547,6 +555,8 @@ function resolveBestPromoForProduct(
       promo.discountType,
       promo.discountValue,
     );
+
+    totalDiscountAmount += discountAmount;
 
     const mappedPromo: ProductAppliedPromo = {
       id: promo.id,
@@ -558,21 +568,23 @@ function resolveBestPromoForProduct(
       discountAmount,
     };
 
-    if (!bestPromo || mappedPromo.discountAmount > bestPromo.discountAmount) {
-      bestPromo = mappedPromo;
-      continue;
-    }
-
+    // Keep the single largest promo as the representative label (ties broken by
+    // name); the reported discountAmount below is the stacked total.
     if (
-      bestPromo &&
-      mappedPromo.discountAmount === bestPromo.discountAmount &&
-      mappedPromo.name.localeCompare(bestPromo.name) < 0
+      !representativePromo ||
+      mappedPromo.discountAmount > representativePromo.discountAmount ||
+      (mappedPromo.discountAmount === representativePromo.discountAmount &&
+        mappedPromo.name.localeCompare(representativePromo.name) < 0)
     ) {
-      bestPromo = mappedPromo;
+      representativePromo = mappedPromo;
     }
   }
 
-  return bestPromo;
+  // Cap the stacked discount at the base price so effectivePrice never goes
+  // below zero and effectivePrice + discount === basePrice still holds.
+  const cappedDiscount = totalDiscountAmount > basePrice ? basePrice : totalDiscountAmount;
+
+  return { ...(representativePromo as ProductAppliedPromo), discountAmount: cappedDiscount };
 }
 
 function mapProductListItem(
