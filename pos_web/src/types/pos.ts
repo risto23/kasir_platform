@@ -129,11 +129,12 @@ export type PosCartItem = {
   productId: string;
   productName: string;
   productCode: string | null;
+  categoryId: string | null;
+  brand: string | null;
   unit: string | null;
   note: string;
   qty: number;
-  price: number;
-  subtotal: number;
+  basePrice: number;
   imageUrl: string | null;
 };
 

@@ -46,7 +46,10 @@ import {
   getOutletOrderHistory,
   recalculateCart,
 } from '@/lib/pos';
+import { getPromos } from '@/lib/promo';
+import { calculateCartPromos } from '@/lib/promo-calc';
 
+import type { PromoItem } from '@/types/promo';
 import type {
   PosBusinessType,
   PosCartItem,
@@ -348,6 +351,7 @@ export default function PosCashierPage() {
   const [tables, setTables] = useState<PosTableItem[]>([]);
   const [selectedTableId, setSelectedTableId] = useState('');
   const [products, setProducts] = useState<PosProductItem[]>([]);
+  const [promos, setPromos] = useState<PromoItem[]>([]);
   const [cart, setCart] = useState<PosCartItem[]>([]);
   
   
@@ -428,10 +432,29 @@ export default function PosCashierPage() {
     });
   }, [products, searchKeyword, selectedCategory]);
 
-  const subtotal = useMemo(
-    () => cart.reduce((sum, item) => sum + item.subtotal, 0),
-    [cart],
+  // Promos eligible for the active outlet (server already filtered to
+  // active-now via effectiveStatus); scope is the only client-side filter.
+  const eligiblePromos = useMemo(
+    () =>
+      promos.filter(
+        (promo) =>
+          promo.outletScope === 'ALL_OUTLETS' ||
+          promo.selectedOutlets.some((outlet) => outlet.outletId === selectedOutletId),
+      ),
+    [promos, selectedOutletId],
   );
+
+  // Mirror of the backend's recalculateAllDiscountsAndTotals so the cart preview
+  // matches the order/receipt: best single regular promo per item, plus
+  // min-charge promos stacked when their qualifying subtotal meets the threshold.
+  const cartCalc = useMemo(
+    () => calculateCartPromos(cart, eligiblePromos),
+    [cart, eligiblePromos],
+  );
+
+  const grossSubtotal = cartCalc.grossSubtotal;
+  const promoDiscountTotal = cartCalc.discountTotal;
+  const subtotal = cartCalc.netSubtotal;
 
   const charges = useMemo(
     () => buildCharges(subtotal, chargeRules),
@@ -631,15 +654,25 @@ export default function PosCashierPage() {
       setProductLoading(true);
       setPageMessage('');
 
-      const response = await getPosProducts({
-        outletId,
-        status: 'ACTIVE',
-        perPage: 100,
-      });
+      const [response, promoItems] = await Promise.all([
+        getPosProducts({
+          outletId,
+          status: 'ACTIVE',
+          perPage: 100,
+        }),
+        // Active-now promos (schedule/timezone resolved server-side via
+        // effectiveStatus); a failure here must not block selling, the backend
+        // recomputes discounts authoritatively at checkout.
+        getPromos({ status: 'ACTIVE', effectiveStatus: 'ACTIVE' }).catch(
+          () => [] as PromoItem[],
+        ),
+      ]);
 
       setProducts(response.items);
+      setPromos(promoItems);
     } catch (error: unknown) {
       setProducts([]);
+      setPromos([]);
       setPageMessage(getMessage(error, `Gagal memuat ${productLabelLower}`));
     } finally {
       setProductLoading(false);
@@ -1534,7 +1567,13 @@ export default function PosCashierPage() {
                       Belum ada {productLabelLower} di cart.
                     </div>
                   ) : (
-                    cart.map((item) => (
+                    cart.map((item) => {
+                      const line = cartCalc.lines.get(item.lineId);
+                      const unitNet = line ? line.unitNet : item.basePrice;
+                      const lineNet = line ? line.lineNet : item.basePrice * item.qty;
+                      const hasDiscount = line ? line.lineDiscount > 0 : false;
+
+                      return (
                       <div
                         key={item.lineId}
                         className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4"
@@ -1545,7 +1584,19 @@ export default function PosCashierPage() {
                               {item.productName}
                             </p>
                             <p className="mt-1 text-xs text-slate-500">
-                              {formatCurrency(item.price)} / item
+                              {hasDiscount ? (
+                                <>
+                                  <span className="line-through">
+                                    {formatCurrency(item.basePrice)}
+                                  </span>{' '}
+                                  <span className="text-emerald-600">
+                                    {formatCurrency(unitNet)}
+                                  </span>{' '}
+                                  / item
+                                </>
+                              ) : (
+                                <>{formatCurrency(unitNet)} / item</>
+                              )}
                             </p>
                           </div>
 
@@ -1582,7 +1633,7 @@ export default function PosCashierPage() {
                           </div>
 
                           <span className="text-sm font-semibold text-slate-900">
-                            {formatCurrency(item.subtotal)}
+                            {formatCurrency(lineNet)}
                           </span>
                         </div>
 
@@ -1596,7 +1647,8 @@ export default function PosCashierPage() {
                           className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
                         />
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 
@@ -1605,9 +1657,18 @@ export default function PosCashierPage() {
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-500">Subtotal</span>
                       <span className="font-semibold text-slate-900">
-                        {formatCurrency(subtotal)}
+                        {formatCurrency(grossSubtotal)}
                       </span>
                     </div>
+
+                    {promoDiscountTotal > 0 ? (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-500">Diskon</span>
+                        <span className="font-semibold text-red-500">
+                          -{formatCurrency(promoDiscountTotal)}
+                        </span>
+                      </div>
+                    ) : null}
 
                     {charges.map((chargeRule,index) => (
                       <div
