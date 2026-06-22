@@ -853,6 +853,13 @@ export async function listOrders(params: ListOrdersInput) {
     where.paymentStatus = params.paymentStatus;
   }
 
+  if (params.dateFrom || params.dateTo) {
+    where.createdAt = {
+      ...(params.dateFrom ? { gte: new Date(`${params.dateFrom}T00:00:00.000Z`) } : {}),
+      ...(params.dateTo ? { lte: new Date(`${params.dateTo}T23:59:59.999Z`) } : {}),
+    };
+  }
+
   const skip = (params.page - 1) * params.perPage;
 
   const [total, rows] = await Promise.all([
@@ -1319,5 +1326,36 @@ export async function updateOrderStatus(input: UpdateOrderStatusInput) {
       outletId: input.outletId,
       orderId: input.orderId,
     });
+  });
+}
+
+
+export async function deleteDraftOrder(params: {
+  businessId: string;
+  outletId: string;
+  orderId: string;
+}) {
+  const order = await prisma.order.findFirst({
+    where: {
+      id: params.orderId,
+      businessId: params.businessId,
+      outletId: params.outletId,
+    },
+    select: { id: true, status: true },
+  });
+
+  if (!order) {
+    throw Object.assign(new Error('Order tidak ditemukan'), { statusCode: 404 });
+  }
+
+  if (order.status !== OrderStatus.DRAFT) {
+    throw Object.assign(
+      new Error('Hanya order dengan status DRAFT yang bisa dihapus'),
+      { statusCode: 400 },
+    );
+  }
+
+  await prisma.order.delete({
+    where: { id: order.id },
   });
 }

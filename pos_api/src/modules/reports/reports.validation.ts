@@ -2,6 +2,7 @@
 
 export const scopeSchema = z.enum(['business','outlet']).default('outlet');
 export const groupBySchema = z.enum(['day','week','month']).default('day');
+export const orderStatusFilterSchema = z.enum(['DRAFT', 'SUBMITTED', 'IN_PROGRESS', 'READY', 'COMPLETED', 'CANCELLED', 'ALL']).default('SUBMITTED');
 
 export const ymdSchema = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/); // yyyy-mm-dd
 
@@ -16,6 +17,7 @@ export const salesSummaryQuerySchema = z.object({
   groupBy: groupBySchema.optional(),
   start: ymdSchema,
   end: ymdSchema,
+  orderStatus: orderStatusFilterSchema,
 });
 
 export const ordersReportQuerySchema = z.object({
@@ -25,6 +27,7 @@ export const ordersReportQuerySchema = z.object({
   perPage: z.coerce.number().int().min(1).max(100).optional(),
   start: ymdSchema,
   end: ymdSchema,
+  orderStatus: orderStatusFilterSchema,
 });
 
 export const itemsReportQuerySchema = z.object({
@@ -34,6 +37,7 @@ export const itemsReportQuerySchema = z.object({
   perPage: z.coerce.number().int().min(1).max(200).optional(),
   start: ymdSchema,
   end: ymdSchema,
+  orderStatus: orderStatusFilterSchema,
 });
 
 export const supplierPayablesReportQuerySchema = z.object({

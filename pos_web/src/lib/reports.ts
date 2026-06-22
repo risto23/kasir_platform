@@ -16,6 +16,7 @@ type SummaryParams = {
   groupBy?: 'day' | 'week' | 'month';
   start: string;
   end: string;
+  orderStatus?: string;
 };
 
 type OrdersParams = {
@@ -25,6 +26,7 @@ type OrdersParams = {
   perPage?: number;
   start: string;
   end: string;
+  orderStatus?: string;
 };
 
 type ItemsParams = {
@@ -34,6 +36,7 @@ type ItemsParams = {
   perPage?: number;
   start: string;
   end: string;
+  orderStatus?: string;
 };
 
 type ExportOutletParams = {
@@ -41,6 +44,7 @@ type ExportOutletParams = {
   dateFrom: string;
   dateTo: string;
   timezone?: string;
+  orderStatus?: string;
 };
 
 type ExportBusinessParams = {
@@ -49,6 +53,7 @@ type ExportBusinessParams = {
   dateTo: string;
   groupBy: BusinessGroupBy;
   timezone?: string;
+  orderStatus?: string;
 };
 
 type OrdersReportItem = {
@@ -344,6 +349,7 @@ export async function fetchOutletSales(
     outletId: params.outletId,
     start: params.dateFrom,
     end: params.dateTo,
+    orderStatus: params.orderStatus,
   });
 
   const gross = orders.reduce(
@@ -365,6 +371,7 @@ export async function fetchBusinessSales(
       scope: 'business',
       start: params.dateFrom,
       end: params.dateTo,
+      orderStatus: params.orderStatus,
     }),
     params.outletIds,
   );

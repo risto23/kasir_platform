@@ -192,6 +192,8 @@ type OrderHistoryParams = {  outletId: string;
   paymentStatus?: PosOrderResponse['paymentStatus'];
   queue?: PosOrderQueue;
   source?: PosOrderSource;
+  dateFrom?: string;
+  dateTo?: string;
 };
 type PosChargeRuleApiRow = {
   key?: string | null;
@@ -388,7 +390,7 @@ export async function getOrderDetail(  orderId: string,  outletId: string,): Pro
   if (!orderRow) {    throw new Error('Detail order tidak ditemukan');
   }  return mapOrder(orderRow);
 }
-export async function getOutletOrderHistory(  params: OrderHistoryParams,): Promise<PosHistoryResponse> {  const response = await api.get<ApiEnvelope<ListApiData<OrderApiRow>>>('/orders', {    params: {      outletId: params.outletId,      page: params.page ?? 1,      perPage: params.perPage ?? 20,      search: params.search,      status: params.status,      paymentStatus: params.paymentStatus,      queue: params.queue,      source: params.source,    },    headers: buildScopedHeaders(params.outletId),  });
+export async function getOutletOrderHistory(  params: OrderHistoryParams,): Promise<PosHistoryResponse> {  const response = await api.get<ApiEnvelope<ListApiData<OrderApiRow>>>('/orders', {    params: {      outletId: params.outletId,      page: params.page ?? 1,      perPage: params.perPage ?? 20,      search: params.search,      status: params.status,      paymentStatus: params.paymentStatus,      queue: params.queue,      source: params.source,      ...(params.dateFrom ? { dateFrom: params.dateFrom } : {}),      ...(params.dateTo ? { dateTo: params.dateTo } : {}),    },    headers: buildScopedHeaders(params.outletId),  });
   const rows = extractListRows(response.data.data);
   const meta = extractListMeta(response.data.meta, response.data.data);
   return {    items: rows.map(mapHistoryItem),    meta,  };
@@ -524,6 +526,16 @@ export async function softDeletePayment(
   outletId: string,
 ): Promise<void> {
   await api.delete(`/payments/${paymentId}`, {
+    params: { outletId },
+    headers: buildScopedHeaders(outletId),
+  });
+}
+
+export async function deleteOrder(
+  orderId: string,
+  outletId: string,
+): Promise<void> {
+  await api.delete(`/orders/${orderId}`, {
     params: { outletId },
     headers: buildScopedHeaders(outletId),
   });

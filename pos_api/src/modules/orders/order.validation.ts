@@ -22,6 +22,8 @@ export const listOrdersSchema = z.object({
     paymentStatus: z.nativeEnum(PaymentStatus).optional(),
     queue: orderListQueueSchema.optional(),
     source: orderSourceFilterSchema.optional(),
+    dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
   body: z.object({}).optional(),
   params: z.object({}).optional(),
@@ -93,4 +95,14 @@ export const updateOrderStatusSchema = z.object({
     status: z.nativeEnum(OrderStatus),
   }),
   query: z.object({}).optional(),
+});
+
+export const deleteOrderSchema = z.object({
+  params: z.object({
+    id: cuidSchema,
+  }),
+  query: z.object({
+    outletId: cuidSchema,
+  }),
+  body: z.object({}).optional(),
 });

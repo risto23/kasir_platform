@@ -189,14 +189,25 @@ export async function listPayments(params: {
   orderId?: string;
   search?: string;
   status?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }) {
   const keyword = params.search?.trim() || params.orderId?.trim() || '';
+
+  const createdAtFilter: Prisma.DateTimeFilter | undefined =
+    params.dateFrom || params.dateTo
+      ? {
+          ...(params.dateFrom ? { gte: new Date(`${params.dateFrom}T00:00:00.000Z`) } : {}),
+          ...(params.dateTo ? { lte: new Date(`${params.dateTo}T23:59:59.999Z`) } : {}),
+        }
+      : undefined;
 
   const where: Prisma.PaymentWhereInput = {
     businessId: params.businessId,
     outletId: params.outletId,
     deletedAt: null,
     ...(params.status ? { status: params.status as PaymentStatus } : {}),
+    ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
     ...(keyword
       ? {
           OR: [

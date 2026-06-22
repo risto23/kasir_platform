@@ -141,6 +141,8 @@ export async function getPaymentHistory(
       perPage: params.perPage ?? 20,
       orderId: params.orderId,
       ...(params.status ? { status: params.status } : {}),
+      ...(params.dateFrom ? { dateFrom: params.dateFrom } : {}),
+      ...(params.dateTo ? { dateTo: params.dateTo } : {}),
     },
     headers: buildScopedHeaders(params.outletId),
   });

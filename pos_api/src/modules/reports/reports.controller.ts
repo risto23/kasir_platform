@@ -35,6 +35,7 @@ export async function getSalesSummaryController(req: Request, res: Response) {
       groupBy: parsed.groupBy ?? 'day',
       start: parsed.start,
       end: parsed.end,
+      orderStatus: parsed.orderStatus,
     });
 
     return res.json(successResponse('Sales summary generated', result));
@@ -57,6 +58,7 @@ export async function getOrdersReportController(req: Request, res: Response) {
       end: parsed.end,
       page: parsed.page ?? 1,
       perPage: parsed.perPage ?? 20,
+      orderStatus: parsed.orderStatus,
     });
 
     return res.json(successResponse('Orders report generated', result));
@@ -79,6 +81,7 @@ export async function getItemsReportController(req: Request, res: Response) {
       end: parsed.end,
       page: parsed.page ?? 1,
       perPage: parsed.perPage ?? 50,
+      orderStatus: parsed.orderStatus,
     });
 
     return res.json(successResponse('Items report generated', result));
@@ -130,6 +133,7 @@ export async function exportSalesSummaryController(req: Request, res: Response) 
       groupBy: parsed.groupBy ?? 'day',
       start: parsed.start,
       end: parsed.end,
+      orderStatus: parsed.orderStatus,
     });
     return sendCsv(res, 'sales-summary.csv', buildSalesSummaryCsv(result));
   } catch (error: unknown) {
@@ -150,6 +154,7 @@ export async function exportOrdersReportController(req: Request, res: Response) 
       end: parsed.end,
       page: 1,
       perPage: 10_000,
+      orderStatus: parsed.orderStatus,
     });
     return sendCsv(res, 'orders.csv', buildOrdersReportCsv(result));
   } catch (error: unknown) {
@@ -170,6 +175,7 @@ export async function exportItemsReportController(req: Request, res: Response) {
       end: parsed.end,
       page: 1,
       perPage: 10_000,
+      orderStatus: parsed.orderStatus,
     });
     return sendCsv(res, 'items.csv', buildItemsReportCsv(result));
   } catch (error: unknown) {

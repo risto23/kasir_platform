@@ -12,6 +12,7 @@ import { validate } from '../../middlewares/validate.middleware';
 import {
   addOrderItemHandler,
   createOrderHandler,
+  deleteOrderHandler,
   getOrderByIdHandler,
   listOrdersHandler,
   removeOrderItemHandler,
@@ -21,6 +22,7 @@ import {
 import {
   addOrderItemSchema,
   createOrderSchema,
+  deleteOrderSchema,
   getOrderByIdSchema,
   listOrdersSchema,
   updateOrderItemSchema,
@@ -133,6 +135,20 @@ function resolveOutletIdFromUpdateOrderStatus(req: Request): string | null {
   return null;
 }
 
+function resolveOutletIdFromDeleteOrder(req: Request): string | null {
+  const parsed = deleteOrderSchema.safeParse({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+  });
+
+  if (parsed.success) {
+    return parsed.data.query.outletId;
+  }
+
+  return getHeaderOutletId(req);
+}
+
 const router = Router();
 
 router.use(authMiddleware);
@@ -197,6 +213,12 @@ router.patch(
   updateOrderStatusHandler,
 );
 
-
+router.delete(
+  '/:id',
+  requireBusinessPermission(BusinessPermissionCode.ORDER_STATUS_UPDATE),
+  validate(deleteOrderSchema),
+  requireOutletAccess(resolveOutletIdFromDeleteOrder),
+  deleteOrderHandler,
+);
 
 export default router;
