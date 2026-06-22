@@ -65,6 +65,7 @@ export default function ReportsPage() {
   const [oDateFrom, setODateFrom] = useState(offsetDate(-6));
   const [oDateTo, setODateTo] = useState(today());
   const [oTimezone, setOTimezone] = useState('Asia/Jakarta');
+  const [oOrderStatus, setOOrderStatus] = useState('SUBMITTED');
   const [oLoading, setOLoading] = useState(false);
   const [oError, setOError] = useState<string | null>(null);
   const [oSummary, setOSummary] = useState<OutletSalesReport['summary'] | null>(null);
@@ -77,6 +78,7 @@ export default function ReportsPage() {
   const [bDateFrom, setBDateFrom] = useState(offsetDate(-6));
   const [bDateTo, setBDateTo] = useState(today());
   const [bTimezone, setBTimezone] = useState('Asia/Jakarta');
+  const [bOrderStatus, setBOrderStatus] = useState('SUBMITTED');
   const [bLoading, setBLoading] = useState(false);
   const [bError, setBError] = useState<string | null>(null);
   const [bSummary, setBSummary] = useState<BusinessSalesReport['summary'] | null>(null);
@@ -117,7 +119,7 @@ export default function ReportsPage() {
   async function exportOutlet() {
     if (!outletId) return;
     try {
-      const blob = await exportOutletSalesCsv({ outletId, dateFrom: oDateFrom, dateTo: oDateTo, timezone: oTimezone });
+      const blob = await exportOutletSalesCsv({ outletId, dateFrom: oDateFrom, dateTo: oDateTo, timezone: oTimezone, orderStatus: oOrderStatus });
       await downloadBlob(blob, `outlet-sales-${outletId}-${oDateFrom}-${oDateTo}.csv`);
     } catch (err) {
       setOError(getErrorMessage(err));
@@ -127,7 +129,7 @@ export default function ReportsPage() {
   async function exportOutletXlsx() {
     if (!outletId) return;
     try {
-      const blob = await exportOutletSalesXlsx({ outletId, dateFrom: oDateFrom, dateTo: oDateTo, timezone: oTimezone });
+      const blob = await exportOutletSalesXlsx({ outletId, dateFrom: oDateFrom, dateTo: oDateTo, timezone: oTimezone, orderStatus: oOrderStatus });
       await downloadBlob(blob, `outlet-sales-${outletId}-${oDateFrom}-${oDateTo}.xls`);
     } catch (err) {
       setOError(getErrorMessage(err));
@@ -136,7 +138,7 @@ export default function ReportsPage() {
 
   async function exportBusiness() {
     try {
-      const blob = await exportBusinessSalesCsv({ outletIds: bOutletIds, dateFrom: bDateFrom, dateTo: bDateTo, groupBy: bGroupBy, timezone: bTimezone });
+      const blob = await exportBusinessSalesCsv({ outletIds: bOutletIds, dateFrom: bDateFrom, dateTo: bDateTo, groupBy: bGroupBy, timezone: bTimezone, orderStatus: bOrderStatus });
       const name = bGroupBy === 'outlet' ? 'business-by-outlet' : 'business-timeseries';
       await downloadBlob(blob, `${name}-${bDateFrom}-${bDateTo}.csv`);
     } catch (err) {
@@ -146,7 +148,7 @@ export default function ReportsPage() {
 
   async function exportBusinessXlsx() {
     try {
-      const blob = await exportBusinessSalesXlsx({ outletIds: bOutletIds, dateFrom: bDateFrom, dateTo: bDateTo, groupBy: bGroupBy, timezone: bTimezone });
+      const blob = await exportBusinessSalesXlsx({ outletIds: bOutletIds, dateFrom: bDateFrom, dateTo: bDateTo, groupBy: bGroupBy, timezone: bTimezone, orderStatus: bOrderStatus });
       const name = bGroupBy === 'outlet' ? 'business-by-outlet' : 'business-timeseries';
       await downloadBlob(blob, `${name}-${bDateFrom}-${bDateTo}.xls`);
     } catch (err) {
@@ -154,7 +156,7 @@ export default function ReportsPage() {
     }
   }
 
-  
+
   async function loadOutlet() {
     if (!outletId) return;
     try {
@@ -162,7 +164,7 @@ export default function ReportsPage() {
       setOError(null);
       setOSummary(null);
       setOSeries([]);
-      const data = await fetchOutletSales({ outletId, dateFrom: oDateFrom, dateTo: oDateTo, timezone: oTimezone });
+      const data = await fetchOutletSales({ outletId, dateFrom: oDateFrom, dateTo: oDateTo, timezone: oTimezone, orderStatus: oOrderStatus });
       setOSummary(data.summary);
       setOSeries(data.timeseries);
     } catch (err) {
@@ -179,7 +181,7 @@ export default function ReportsPage() {
       setBSummary(null);
       setBSeries([]);
       setBOutletRows([]);
-      const data = await fetchBusinessSales({ outletIds: bOutletIds, dateFrom: bDateFrom, dateTo: bDateTo, groupBy: bGroupBy, timezone: bTimezone });
+      const data = await fetchBusinessSales({ outletIds: bOutletIds, dateFrom: bDateFrom, dateTo: bDateTo, groupBy: bGroupBy, timezone: bTimezone, orderStatus: bOrderStatus });
       if ('timeseries' in data) {
         const r = data as BusinessSalesTimeseries;
         setBSummary(r.summary);
@@ -259,10 +261,26 @@ export default function ReportsPage() {
               </div>
             </div>
 
+            <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-12">
+              <div className="sm:col-span-4">
+                <label className="mb-1 block text-xs font-medium text-slate-600">Status Order</label>
+                <select value={oOrderStatus} onChange={(e) => setOOrderStatus(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500">
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="IN_PROGRESS">Sedang Proses</option>
+                  <option value="READY">Siap</option>
+                  <option value="COMPLETED">Selesai</option>
+                  <option value="CANCELLED">Dibatalkan</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="ALL">Semua Status</option>
+                </select>
+              </div>
+            </div>
+
             <div className="mb-4 flex items-center justify-between">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700"><FontAwesomeIcon icon={faFilter} className="h-3 w-3" /> Outlet: {selectedOutletName || '-'}</span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700">Periode: {oDateFrom} - {oDateTo}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700">Status: {oOrderStatus}</span>
                 {oTimezone && oTimezone !== 'Asia/Jakarta' && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700">TZ: {oTimezone}</span>
                 )}
@@ -272,7 +290,7 @@ export default function ReportsPage() {
                 <Button onClick={() => void loadOutlet()} disabled={oLoading || !outletId}>Load</Button>
                 <Button variant="outline" onClick={() => void exportOutlet()}>Export CSV</Button>
                 <Button variant="outline" onClick={() => void exportOutletXlsx()}>Export Excel</Button>
-                <Button variant="outline" onClick={() => { setOQuick('7D'); setODateFrom(offsetDate(-6)); setODateTo(today()); setOTimezone('Asia/Jakarta'); }} title="Reset"><FontAwesomeIcon icon={faRotateRight} className="h-3 w-3" /></Button>
+                <Button variant="outline" onClick={() => { setOQuick('7D'); setODateFrom(offsetDate(-6)); setODateTo(today()); setOTimezone('Asia/Jakarta'); setOOrderStatus('SUBMITTED'); }} title="Reset"><FontAwesomeIcon icon={faRotateRight} className="h-3 w-3" /></Button>
               </div>
             </div>
 
@@ -368,10 +386,26 @@ export default function ReportsPage() {
               </div>
             </div>
 
+            <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-12">
+              <div className="sm:col-span-4">
+                <label className="mb-1 block text-xs font-medium text-slate-600">Status Order</label>
+                <select value={bOrderStatus} onChange={(e) => setBOrderStatus(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500">
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="IN_PROGRESS">Sedang Proses</option>
+                  <option value="READY">Siap</option>
+                  <option value="COMPLETED">Selesai</option>
+                  <option value="CANCELLED">Dibatalkan</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="ALL">Semua Status</option>
+                </select>
+              </div>
+            </div>
+
             <div className="mb-4 flex items-center justify-between">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700"><FontAwesomeIcon icon={faFilter} className="h-3 w-3" /> Outlet: {bOutletIds.length > 0 ? `${bOutletIds.length} selected` : 'Semua'}</span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700">Periode: {bDateFrom} - {bDateTo}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700">Status: {bOrderStatus}</span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700">Group: {bGroupBy}</span>
                 {bTimezone && bTimezone !== 'Asia/Jakarta' && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700">TZ: {bTimezone}</span>
@@ -386,7 +420,7 @@ export default function ReportsPage() {
                 <Button onClick={() => void loadBusiness()} disabled={bLoading}>Load</Button>
                 <Button variant="outline" onClick={() => void exportBusiness()}>Export CSV</Button>
                 <Button variant="outline" onClick={() => void exportBusinessXlsx()}>Export Excel</Button>
-                <Button variant="outline" onClick={() => { setBQuick('7D'); setBDateFrom(offsetDate(-6)); setBDateTo(today()); setBTimezone('Asia/Jakarta'); setBGroupBy('day'); }} title="Reset"><FontAwesomeIcon icon={faRotateRight} className="h-3 w-3" /></Button>
+                <Button variant="outline" onClick={() => { setBQuick('7D'); setBDateFrom(offsetDate(-6)); setBDateTo(today()); setBTimezone('Asia/Jakarta'); setBGroupBy('day'); setBOrderStatus('SUBMITTED'); }} title="Reset"><FontAwesomeIcon icon={faRotateRight} className="h-3 w-3" /></Button>
               </div>
             </div>
 

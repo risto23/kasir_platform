@@ -81,6 +81,8 @@ export default function PaymentHistoryPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | PaymentHistoryStatus>('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   useEffect(() => {
     async function loadOutlets() {
@@ -133,6 +135,8 @@ export default function PaymentHistoryPage() {
           page: 1,
           perPage: 100,
           status: filterStatus === 'ALL' ? undefined : filterStatus,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
         });
 
         setPayments(response.items);
@@ -146,7 +150,7 @@ export default function PaymentHistoryPage() {
     if (!outletLoading) {
       void loadPayments();
     }
-  }, [selectedOutletId, outletLoading, filterStatus]);
+  }, [selectedOutletId, outletLoading, filterStatus, dateFrom, dateTo]);
 
   async function handleRefresh() {
     if (!selectedOutletId) {
@@ -162,6 +166,8 @@ export default function PaymentHistoryPage() {
         page: 1,
         perPage: 100,
         status: filterStatus === 'ALL' ? undefined : filterStatus,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
       });
 
       setPayments(response.items);
@@ -178,6 +184,12 @@ export default function PaymentHistoryPage() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('activeOutletId', outletId);
     }
+  }
+
+  function handleResetFilter() {
+    setFilterStatus('ALL');
+    setDateFrom('');
+    setDateTo('');
   }
 
   const summary = useMemo(() => {
@@ -200,6 +212,8 @@ export default function PaymentHistoryPage() {
     );
   }, [payments]);
 
+  const hasActiveFilter = filterStatus !== 'ALL' || dateFrom || dateTo;
+
   return (
     <div className="space-y-5">
       <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
@@ -219,6 +233,15 @@ export default function PaymentHistoryPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {hasActiveFilter && (
+              <button
+                type="button"
+                onClick={handleResetFilter}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Reset Filter
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void handleRefresh()}
@@ -280,7 +303,7 @@ export default function PaymentHistoryPage() {
       </section>
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               Pilih Outlet
@@ -324,6 +347,32 @@ export default function PaymentHistoryPage() {
                 <FontAwesomeIcon icon={faFilter} className="h-4 w-4" />
               </span>
             </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Dari Tanggal
+            </label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+              max={dateTo || undefined}
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Sampai Tanggal
+            </label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+              min={dateFrom || undefined}
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+            />
           </div>
         </div>
       </section>

@@ -1,4 +1,4 @@
-import { PaymentStatus, Prisma, SupplierInvoiceStatus } from '@prisma/client';
+import { OrderStatus, Prisma, SupplierInvoiceStatus } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import type {
   ItemsReportResponse,
@@ -130,15 +130,18 @@ export async function getSalesSummaryService(params: {
   outletId?: string | null;
   groupBy: 'day'|'week'|'month';
   start: string; end: string;
+  orderStatus: string;
 }): Promise<SalesSummaryResponse> {
   const dateRange = buildDateRangeUtc(params.start, params.end, 'Asia/Jakarta');
+  const statusCondition = params.orderStatus !== 'ALL'
+    ? { status: params.orderStatus as OrderStatus }
+    : {};
 
   const orders = await prisma.order.findMany({
     where: {
       businessId: params.businessId,
       ...(params.scope === 'outlet' && params.outletId ? { outletId: params.outletId } : {}),
-      paymentStatus: PaymentStatus.PAID,
-      payments: { some: { deletedAt: null } },
+      ...statusCondition,
       createdAt: { gte: dateRange.startUtc, lte: dateRange.endUtc },
     },
     select: {
@@ -186,13 +189,17 @@ export async function getSalesSummaryService(params: {
 }
 
 export async function getOrdersReportService(params: {
-  businessId: string; scope: 'business'|'outlet'; outletId?: string | null; start: string; end: string; page: number; perPage: number;
+  businessId: string; scope: 'business'|'outlet'; outletId?: string | null; start: string; end: string; page: number; perPage: number; orderStatus: string;
 }): Promise<OrdersReportResponse> {
   const dateRange = buildDateRangeUtc(params.start, params.end, 'Asia/Jakarta');
+  const statusCondition = params.orderStatus !== 'ALL'
+    ? { status: params.orderStatus as OrderStatus }
+    : {};
 
   const where: Prisma.OrderWhereInput = {
     businessId: params.businessId,
     ...(params.scope === 'outlet' && params.outletId ? { outletId: params.outletId } : {}),
+    ...statusCondition,
     createdAt: { gte: dateRange.startUtc, lte: dateRange.endUtc },
   };
 
@@ -211,14 +218,18 @@ export async function getOrdersReportService(params: {
 }
 
 export async function getItemsReportService(params: {
-  businessId: string; scope: 'business'|'outlet'; outletId?: string | null; start: string; end: string; page: number; perPage: number;
+  businessId: string; scope: 'business'|'outlet'; outletId?: string | null; start: string; end: string; page: number; perPage: number; orderStatus: string;
 }): Promise<ItemsReportResponse> {
   const dateRange = buildDateRangeUtc(params.start, params.end, 'Asia/Jakarta');
+  const statusCondition = params.orderStatus !== 'ALL'
+    ? { status: params.orderStatus as OrderStatus }
+    : {};
 
   const orders = await prisma.order.findMany({
     where: {
       businessId: params.businessId,
       ...(params.scope === 'outlet' && params.outletId ? { outletId: params.outletId } : {}),
+      ...statusCondition,
       createdAt: { gte: dateRange.startUtc, lte: dateRange.endUtc },
     },
     select: { id: true },

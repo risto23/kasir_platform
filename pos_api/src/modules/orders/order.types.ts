@@ -23,6 +23,8 @@ export type ListOrdersQuery = {
   paymentStatus?: PaymentStatus;
   queue?: OrderListQueue;
   source?: OrderSourceFilter;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 export type ListOrdersInput = {
@@ -35,6 +37,8 @@ export type ListOrdersInput = {
   paymentStatus?: PaymentStatus;
   queue?: OrderListQueue;
   source?: OrderSourceFilter;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 export type GetOrderParams = {

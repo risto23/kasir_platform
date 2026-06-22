@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import {
   addOrderItem,
   createOrder,
+  deleteDraftOrder,
   getOrderById,
   listOrders,
   removeOrderItem,
@@ -21,6 +22,7 @@ import type {
 import {
   addOrderItemSchema,
   createOrderSchema,
+  deleteOrderSchema,
   getOrderByIdSchema,
   listOrdersSchema,
   updateOrderItemSchema,
@@ -171,6 +173,8 @@ export async function listOrdersHandler(
       paymentStatus: query.paymentStatus,
       queue: query.queue,
       source: query.source,
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
     });
 
     return res.status(200).json({
@@ -349,6 +353,33 @@ export async function updateOrderStatusHandler(
       success: true,
       message: 'Status order berhasil diupdate.',
       data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+export async function deleteOrderHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const businessId = getBusinessIdFromRequest(req);
+    const parsed = deleteOrderSchema.parse({
+      body: req.body,
+      query: req.query,
+      params: req.params,
+    });
+
+    await deleteDraftOrder({
+      businessId,
+      outletId: parsed.query.outletId,
+      orderId: parsed.params.id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Order draft berhasil dihapus.',
     });
   } catch (error) {
     return next(error);

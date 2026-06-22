@@ -22,6 +22,8 @@ export const listPaymentsSchema = z.object({
     perPage: z.coerce.number().int().min(1).max(100).optional(),
     orderId: cuidSchema.optional(),
     status: z.enum(['UNPAID', 'PAID', 'PARTIAL', 'CANCELLED', 'REFUNDED']).optional(),
+    dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
   body: z.object({}).optional(),
   params: z.object({}).optional(),

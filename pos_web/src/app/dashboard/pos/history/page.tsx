@@ -13,11 +13,15 @@ import {
   faPrint,
   faReceipt,
   faRotateRight,
+  faTrash,
   faWallet,
 } from '@fortawesome/free-solid-svg-icons';
 
-import { getReceiptByOrderId, getPosOutlets, getOutletOrderHistory } from '@/lib/pos';
+import { getReceiptByOrderId, getPosOutlets, getOutletOrderHistory, deleteOrder } from '@/lib/pos';
 import type { PosHistoryItem, PosOutletItem } from '@/types/pos';
+
+type OrderStatusFilter = 'ALL' | 'DRAFT' | 'SUBMITTED' | 'IN_PROGRESS' | 'READY' | 'COMPLETED' | 'CANCELLED';
+type PaymentStatusFilter = 'ALL' | 'PAID' | 'UNPAID' | 'PARTIAL' | 'CANCELLED' | 'REFUNDED';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -43,6 +47,10 @@ function getStatusBadgeClass(status: string) {
     case 'IN_PROGRESS':
     case 'PARTIAL':
       return 'border border-amber-200 bg-amber-50 text-amber-700';
+    case 'DRAFT':
+      return 'border border-slate-200 bg-slate-100 text-slate-600';
+    case 'SUBMITTED':
+      return 'border border-indigo-200 bg-indigo-50 text-indigo-700';
     default:
       return 'border border-slate-200 bg-slate-100 text-slate-700';
   }
@@ -81,6 +89,11 @@ export default function PosOrderHistoryPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [openLoadingId, setOpenLoadingId] = useState('');
   const [printLoadingId, setPrintLoadingId] = useState('');
+  const [deleteLoadingId, setDeleteLoadingId] = useState('');
+  const [orderStatus, setOrderStatus] = useState<OrderStatusFilter>('ALL');
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatusFilter>('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const totalAmount = useMemo(
     () => items.reduce((sum, item) => sum + item.totalAmount, 0),
@@ -112,7 +125,16 @@ export default function PosOrderHistoryPage() {
     setSelectedOutletId((prev) => prev || resolvedOutletId);
   }
 
-  async function loadOrders(outletId: string, search?: string) {
+  async function loadOrders(
+    outletId: string,
+    opts: {
+      search?: string;
+      orderStatus: OrderStatusFilter;
+      paymentStatus: PaymentStatusFilter;
+      dateFrom: string;
+      dateTo: string;
+    },
+  ) {
     if (!outletId) {
       setItems([]);
       setLoading(false);
@@ -126,7 +148,11 @@ export default function PosOrderHistoryPage() {
       const response = await getOutletOrderHistory({
         outletId,
         perPage: 50,
-        search: search?.trim() || undefined,
+        search: opts.search?.trim() || undefined,
+        status: opts.orderStatus !== 'ALL' ? (opts.orderStatus as PosHistoryItem['status']) : undefined,
+        paymentStatus: opts.paymentStatus !== 'ALL' ? (opts.paymentStatus as PosHistoryItem['paymentStatus']) : undefined,
+        dateFrom: opts.dateFrom || undefined,
+        dateTo: opts.dateTo || undefined,
       });
 
       setItems(response.items);
@@ -162,8 +188,8 @@ export default function PosOrderHistoryPage() {
       window.localStorage.setItem('activeOutletId', selectedOutletId);
     }
 
-    void loadOrders(selectedOutletId, searchKeyword);
-  }, [selectedOutletId, searchKeyword]);
+    void loadOrders(selectedOutletId, { search: searchKeyword, orderStatus, paymentStatus, dateFrom, dateTo });
+  }, [selectedOutletId, searchKeyword, orderStatus, paymentStatus, dateFrom, dateTo]);
 
   function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -173,6 +199,10 @@ export default function PosOrderHistoryPage() {
   function handleReset() {
     setSearchInput('');
     setSearchKeyword('');
+    setOrderStatus('ALL');
+    setPaymentStatus('ALL');
+    setDateFrom('');
+    setDateTo('');
   }
 
   async function handleOpenReceipt(order: PosHistoryItem) {
@@ -212,6 +242,32 @@ export default function PosOrderHistoryPage() {
       setPrintLoadingId('');
     }
   }
+
+  async function handleDeleteOrder(order: PosHistoryItem) {
+    if (!selectedOutletId) {
+      setMessage('Pilih outlet aktif terlebih dahulu');
+      return;
+    }
+
+    if (!confirm(`Hapus order ${order.orderNumber}? Tindakan ini tidak bisa dibatalkan.`)) {
+      return;
+    }
+
+    try {
+      setDeleteLoadingId(order.id);
+      setMessage('');
+
+      await deleteOrder(order.id, selectedOutletId);
+      setItems((prev) => prev.filter((item) => item.id !== order.id));
+    } catch (error: unknown) {
+      setMessage(getErrorMessage(error, 'Gagal menghapus order'));
+    } finally {
+      setDeleteLoadingId('');
+    }
+  }
+
+  const hasActiveFilter =
+    searchKeyword || orderStatus !== 'ALL' || paymentStatus !== 'ALL' || dateFrom || dateTo;
 
   return (
     <div className="space-y-5">
@@ -259,7 +315,7 @@ export default function PosOrderHistoryPage() {
 
       <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
-          <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_auto]">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Outlet
@@ -279,11 +335,74 @@ export default function PosOrderHistoryPage() {
               </select>
             </div>
 
-            <form onSubmit={handleSearchSubmit}>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Status Order
+              </label>
+              <select
+                value={orderStatus}
+                onChange={(event) => setOrderStatus(event.target.value as OrderStatusFilter)}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="ALL">Semua Status</option>
+                <option value="DRAFT">Draft</option>
+                <option value="SUBMITTED">Submitted</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="READY">Ready</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Status Pembayaran
+              </label>
+              <select
+                value={paymentStatus}
+                onChange={(event) => setPaymentStatus(event.target.value as PaymentStatusFilter)}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="ALL">Semua Status</option>
+                <option value="PAID">Paid</option>
+                <option value="UNPAID">Unpaid</option>
+                <option value="PARTIAL">Partial</option>
+                <option value="CANCELLED">Cancelled</option>
+                <option value="REFUNDED">Refunded</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Dari Tanggal
+              </label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(event) => setDateFrom(event.target.value)}
+                max={dateTo || undefined}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Sampai Tanggal
+              </label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(event) => setDateTo(event.target.value)}
+                min={dateFrom || undefined}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <form onSubmit={handleSearchSubmit} className="flex flex-col">
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Cari histori transaksi
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-1 gap-2">
                 <div className="relative flex-1">
                   <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
                     <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
@@ -304,18 +423,23 @@ export default function PosOrderHistoryPage() {
                 </button>
               </div>
             </form>
+          </div>
 
-            <div className="flex items-end">
+          {hasActiveFilter ? (
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-xs text-slate-500">
+                Filter aktif — menampilkan {items.length} hasil
+              </p>
               <button
                 type="button"
                 onClick={handleReset}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
               >
-                <FontAwesomeIcon icon={faRotateRight} className="h-4 w-4" />
-                Reset
+                <FontAwesomeIcon icon={faRotateRight} className="h-3 w-3" />
+                Reset semua filter
               </button>
             </div>
-          </div>
+          ) : null}
         </div>
 
         {loading ? (
@@ -393,25 +517,39 @@ export default function PosOrderHistoryPage() {
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleOpenReceipt(item)}
-                      disabled={openLoadingId === item.id}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <FontAwesomeIcon icon={faEye} className="h-4 w-4" />
-                      {openLoadingId === item.id ? 'Membuka...' : 'Buka Receipt'}
-                    </button>
+                    {item.status === 'DRAFT' ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteOrder(item)}
+                        disabled={deleteLoadingId === item.id}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <FontAwesomeIcon icon={faTrash} className="h-4 w-4" />
+                        {deleteLoadingId === item.id ? 'Menghapus...' : 'Hapus Draft'}
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenReceipt(item)}
+                          disabled={openLoadingId === item.id}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <FontAwesomeIcon icon={faEye} className="h-4 w-4" />
+                          {openLoadingId === item.id ? 'Membuka...' : 'Buka Receipt'}
+                        </button>
 
-                    <button
-                      type="button"
-                      onClick={() => void handlePrintReceipt(item)}
-                      disabled={printLoadingId === item.id}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
-                      {printLoadingId === item.id ? 'Memuat...' : 'Print Ulang'}
-                    </button>
+                        <button
+                          type="button"
+                          onClick={() => void handlePrintReceipt(item)}
+                          disabled={printLoadingId === item.id}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />
+                          {printLoadingId === item.id ? 'Memuat...' : 'Print Ulang'}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

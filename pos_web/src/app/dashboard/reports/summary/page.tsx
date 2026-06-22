@@ -1,43 +1,68 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SalesSummaryResponse } from '@/lib/reports';
 import { fetchSalesSummary } from '@/lib/reports';
-import { toBackendDate } from '@/lib/date-format';
+import { api } from '@/lib/api';
 
 type GroupBy = 'day' | 'week' | 'month';
 type ReportScope = 'business' | 'outlet';
 
+const ORDER_STATUS_OPTIONS = [
+  { value: 'SUBMITTED', label: 'Submitted' },
+  { value: 'IN_PROGRESS', label: 'Sedang Proses' },
+  { value: 'READY', label: 'Siap' },
+  { value: 'COMPLETED', label: 'Selesai' },
+  { value: 'CANCELLED', label: 'Dibatalkan' },
+  { value: 'DRAFT', label: 'Draft' },
+  { value: 'ALL', label: 'Semua Status' },
+];
+
+function todayYmd() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function SalesSummaryPage() {
-  const today = useMemo(() => {
-    const currentDate = new Date();
-    const day = String(currentDate.getDate()).padStart(2, '0');
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    const year = String(currentDate.getFullYear());
-
-    return `${day}-${month}-${year}`;
-  }, []);
-
+  const today = todayYmd();
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
   const [scope, setScope] = useState<ReportScope>('outlet');
+  const [orderStatus, setOrderStatus] = useState('SUBMITTED');
+  const [outlets, setOutlets] = useState<Array<{ id: string; name: string }>>([]);
+  const [outletId, setOutletId] = useState('');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<SalesSummaryResponse | null>(null);
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    api
+      .get('/business/outlets', { params: { status: 'ACTIVE', limit: 100 } })
+      .then((r) => {
+        const raw = r.data?.data;
+        const items: Array<{ id: string; name: string }> = Array.isArray(raw?.items)
+          ? raw.items
+          : Array.isArray(raw)
+            ? raw
+            : [];
+        setOutlets(items);
+        if (items.length > 0) setOutletId(items[0].id);
+      })
+      .catch(() => {});
+  }, []);
 
   async function load() {
     try {
       setLoading(true);
       setMessage('');
-
       const payload = await fetchSalesSummary({
         scope,
         groupBy,
-        start: toBackendDate(start),
-        end: toBackendDate(end),
+        start,
+        end,
+        outletId: scope === 'outlet' ? outletId : undefined,
+        orderStatus,
       });
-
       setData(payload);
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : 'Gagal memuat summary');
@@ -47,50 +72,37 @@ export default function SalesSummaryPage() {
     }
   }
 
-  useEffect(() => {
-    void load();
-  }, []);
-
   return (
     <div className="space-y-4">
       <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
         <h1 className="text-2xl font-semibold text-slate-900">Sales Summary</h1>
-        <p className="text-sm text-slate-500">
-          Tanggal input dd-mm-yyyy (frontend), backend yyyy-mm-dd.
-        </p>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">
-              Start (dd-mm-yyyy)
-            </label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Dari</label>
             <input
+              type="date"
               value={start}
-              onChange={(event) => setStart(event.target.value)}
+              onChange={(e) => setStart(e.target.value)}
               className="h-11 w-full rounded-2xl border border-slate-200 px-3 text-sm"
-              placeholder="dd-mm-yyyy"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">
-              End (dd-mm-yyyy)
-            </label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Sampai</label>
             <input
+              type="date"
               value={end}
-              onChange={(event) => setEnd(event.target.value)}
+              onChange={(e) => setEnd(e.target.value)}
               className="h-11 w-full rounded-2xl border border-slate-200 px-3 text-sm"
-              placeholder="dd-mm-yyyy"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">
-              Group By
-            </label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Group By</label>
             <select
               value={groupBy}
-              onChange={(event) => setGroupBy(event.target.value as GroupBy)}
+              onChange={(e) => setGroupBy(e.target.value as GroupBy)}
               className="h-11 w-full rounded-2xl border border-slate-200 px-3 text-sm"
             >
               <option value="day">Harian</option>
@@ -100,16 +112,47 @@ export default function SalesSummaryPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">
-              Scope
-            </label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Scope</label>
             <select
               value={scope}
-              onChange={(event) => setScope(event.target.value as ReportScope)}
+              onChange={(e) => setScope(e.target.value as ReportScope)}
               className="h-11 w-full rounded-2xl border border-slate-200 px-3 text-sm"
             >
               <option value="outlet">Per Outlet</option>
               <option value="business">Gabungan Business</option>
+            </select>
+          </div>
+
+          {scope === 'outlet' && (
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">Outlet</label>
+              <select
+                value={outletId}
+                onChange={(e) => setOutletId(e.target.value)}
+                className="h-11 w-full rounded-2xl border border-slate-200 px-3 text-sm"
+              >
+                <option value="">Pilih outlet</option>
+                {outlets.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Status Order</label>
+            <select
+              value={orderStatus}
+              onChange={(e) => setOrderStatus(e.target.value)}
+              className="h-11 w-full rounded-2xl border border-slate-200 px-3 text-sm"
+            >
+              {ORDER_STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>

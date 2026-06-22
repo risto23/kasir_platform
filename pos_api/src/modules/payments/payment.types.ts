@@ -16,6 +16,8 @@ export type ListPaymentsQuery = {
   perPage: number;
   orderId?: string;
   status?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 export type GetPaymentParams = {
