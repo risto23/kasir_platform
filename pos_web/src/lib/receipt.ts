@@ -336,3 +336,13 @@ export async function softDeleteReceipt(
     headers: buildScopedHeaders(resolvedOutletId),
   });
 }
+
+export function buildReceiptHref(receiptId: string, outletId?: string | null): string {
+  const path = `/dashboard/receipts/${encodeURIComponent(receiptId)}`;
+
+  if (!outletId) {
+    return path;
+  }
+
+  return `${path}?${new URLSearchParams({ outletId }).toString()}`;
+}

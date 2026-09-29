@@ -1,6 +1,12 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
+function createHttpError(message: string, statusCode: number) {
+  const error = new Error(message) as Error & { statusCode?: number };
+  error.statusCode = statusCode;
+  return error;
+}
+
 function toMoneyString(value: Prisma.Decimal | number | string | null | undefined): string {
   if (value === null || value === undefined) {
     return '0';
@@ -217,7 +223,7 @@ export async function getReceiptById(params: {
   });
 
   if (!receipt) {
-    throw new Error('Receipt tidak ditemukan');
+    throw createHttpError('Receipt tidak ditemukan', 404);
   }
 
   return {
@@ -276,7 +282,7 @@ export async function getReceiptByOrderId(params: {
   });
 
   if (!receipt) {
-    throw new Error('Receipt untuk order ini belum tersedia');
+    throw createHttpError('Receipt untuk order ini belum tersedia', 404);
   }
 
   return getReceiptById({
@@ -301,7 +307,7 @@ export async function softDeleteReceipt(params: {
     select: { id: true, paymentId: true },
   });
 
-  if (!receipt) throw new Error('Receipt tidak ditemukan atau sudah dihapus');
+  if (!receipt) throw createHttpError('Receipt tidak ditemukan atau sudah dihapus', 404);
 
   const now = new Date();
 

@@ -18,6 +18,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import { getReceiptByOrderId, getPosOutlets, getOutletOrderHistory, deleteOrder } from '@/lib/pos';
+import { buildReceiptHref } from '@/lib/receipt';
 import type { PosHistoryItem, PosOutletItem } from '@/types/pos';
 
 type OrderStatusFilter = 'ALL' | 'DRAFT' | 'SUBMITTED' | 'IN_PROGRESS' | 'READY' | 'COMPLETED' | 'CANCELLED';
@@ -216,7 +217,7 @@ export default function PosOrderHistoryPage() {
       setMessage('');
 
       const receipt = await getReceiptByOrderId(order.id, selectedOutletId);
-      router.push(`/dashboard/receipts/${receipt.id}`);
+      router.push(buildReceiptHref(receipt.id, receipt.outletId));
     } catch (error: unknown) {
       setMessage(getErrorMessage(error, 'Receipt untuk order ini belum tersedia'));
     } finally {
@@ -235,7 +236,7 @@ export default function PosOrderHistoryPage() {
       setMessage('');
 
       const receipt = await getReceiptByOrderId(order.id, selectedOutletId);
-      window.open(`/dashboard/receipts/${receipt.id}`, '_blank', 'noopener,noreferrer');
+      window.open(buildReceiptHref(receipt.id, receipt.outletId), '_blank', 'noopener,noreferrer');
     } catch (error: unknown) {
       setMessage(getErrorMessage(error, 'Receipt untuk order ini belum tersedia'));
     } finally {

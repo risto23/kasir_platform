@@ -14,6 +14,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import { getPosOutlets, formatCurrency as formatPosCurrency } from '@/lib/pos';
+import { buildReceiptHref } from '@/lib/receipt';
 import {
   formatPaymentCurrency,
   formatPaymentDateTime,
@@ -423,7 +424,6 @@ export default function PaymentHistoryPage() {
                   <tr key={item.id} className="text-sm text-slate-700">
                     <td className="border-b border-slate-100 px-5 py-4 align-top sm:px-6">
                       <div className="font-semibold text-slate-900">{item.paymentNumber}</div>
-                      <div className="mt-1 text-xs text-slate-500">{item.id}</div>
                     </td>
 
                     <td className="border-b border-slate-100 px-5 py-4 align-top">
@@ -470,7 +470,7 @@ export default function PaymentHistoryPage() {
                     <td className="border-b border-slate-100 px-5 py-4 align-top text-right sm:px-6">
                       {item.receiptId ? (
                         <Link
-                          href={`/dashboard/receipts/${item.receiptId}`}
+                          href={buildReceiptHref(item.receiptId, item.outletId)}
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                         >
                           <FontAwesomeIcon icon={faArrowRight} className="h-3.5 w-3.5" />
