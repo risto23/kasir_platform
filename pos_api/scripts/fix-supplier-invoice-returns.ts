@@ -11,11 +11,15 @@
  *   outstandingAmount = max(grandTotal - paidAmount, 0)
  *   status            = UNPAID | PARTIALLY_PAID | PAID | VOID (same rules as
  *                       postPurchaseReturn)
- * and links POSTED returns of that GR that have no supplierInvoiceId yet.
+ * links POSTED returns of that GR that have no supplierInvoiceId yet, and
+ * records supplier credit for money paid above the corrected grandTotal
+ * (paidAmount - grandTotal minus credit already issued from that invoice).
  *
  * The recalculation is idempotent: invoices already correct are skipped, so it
  * is safe to run more than once. paidAmount is never changed; a mismatch with
- * SUM(supplier_payments) is only reported.
+ * SUM(supplier_payments) + applied supplier credit is only reported.
+ *
+ * Requires migration 20260929120000_add_supplier_credits.
  *
  * Usage (from pos_api/):
  *   npx tsx scripts/fix-supplier-invoice-returns.ts                 # dry run
@@ -27,8 +31,10 @@ import {
   Prisma,
   PrismaClient,
   PurchaseReturnStatus,
+  SupplierCreditUsageType,
   SupplierInvoiceStatus,
 } from '@prisma/client';
+import { issueSupplierCreditForOverpaymentTx } from '../src/modules/supplier-credits/supplier-credits.service';
 
 const prisma = new PrismaClient();
 const ZERO = new Prisma.Decimal(0);
@@ -58,6 +64,11 @@ type InvoiceCorrection = {
     status: SupplierInvoiceStatus;
   };
   unlinkedReturnIds: string[];
+  outletId: string;
+  supplierId: string;
+  createdByBusinessUserId: string;
+  latestPostedReturnId: string | null;
+  missingCreditAmount: Prisma.Decimal;
 };
 
 function parseCliOptions(argv: string[]): CliOptions {
@@ -104,6 +115,9 @@ async function collectCorrections(options: CliOptions): Promise<InvoiceCorrectio
       id: true,
       invoiceNumber: true,
       businessId: true,
+      outletId: true,
+      supplierId: true,
+      createdByBusinessUserId: true,
       goodsReceiptId: true,
       status: true,
       grandTotal: true,
@@ -137,6 +151,12 @@ async function collectCorrections(options: CliOptions): Promise<InvoiceCorrectio
         totalAmount: true,
         supplierInvoiceId: true,
       },
+      orderBy: { postedAt: 'desc' },
+    });
+
+    const issuedCredit = await prisma.supplierCredit.aggregate({
+      where: { sourceSupplierInvoiceId: invoice.id },
+      _sum: { amount: true },
     });
 
     const postedReturnsTotal = postedReturns.reduce(
@@ -158,11 +178,19 @@ async function collectCorrections(options: CliOptions): Promise<InvoiceCorrectio
       .filter((item) => item.supplierInvoiceId === null)
       .map((item) => item.id);
 
+    const overpayment = invoice.paidAmount.minus(expectedGrandTotal);
+    const alreadyCredited = issuedCredit._sum.amount ?? ZERO;
+    const rawMissingCredit = (overpayment.greaterThan(ZERO) ? overpayment : ZERO).minus(
+      alreadyCredited,
+    );
+    const missingCreditAmount = rawMissingCredit.greaterThan(ZERO) ? rawMissingCredit : ZERO;
+
     const needsUpdate =
       !invoice.grandTotal.equals(expectedGrandTotal) ||
       !invoice.outstandingAmount.equals(expectedOutstanding) ||
       invoice.status !== expectedStatus ||
-      unlinkedReturnIds.length > 0;
+      unlinkedReturnIds.length > 0 ||
+      missingCreditAmount.greaterThan(ZERO);
 
     if (!needsUpdate) {
       continue;
@@ -188,6 +216,11 @@ async function collectCorrections(options: CliOptions): Promise<InvoiceCorrectio
         status: expectedStatus,
       },
       unlinkedReturnIds,
+      outletId: invoice.outletId,
+      supplierId: invoice.supplierId,
+      createdByBusinessUserId: invoice.createdByBusinessUserId,
+      latestPostedReturnId: postedReturns[0]?.id ?? null,
+      missingCreditAmount,
     });
   }
 
@@ -206,11 +239,15 @@ async function reportPaidAmountMismatches(options: CliOptions): Promise<void> {
       payments: {
         select: { amount: true },
       },
+      supplierCreditUsages: {
+        where: { type: SupplierCreditUsageType.APPLY_TO_INVOICE },
+        select: { amount: true },
+      },
     },
   });
 
   for (const invoice of invoices) {
-    const paymentsTotal = invoice.payments.reduce(
+    const paymentsTotal = [...invoice.payments, ...invoice.supplierCreditUsages].reduce(
       (sum, payment) => sum.plus(payment.amount),
       new Prisma.Decimal(0),
     );
@@ -218,7 +255,7 @@ async function reportPaidAmountMismatches(options: CliOptions): Promise<void> {
     if (!paymentsTotal.equals(invoice.paidAmount)) {
       console.warn(
         `  [WARN] ${invoice.invoiceNumber}: paidAmount ${formatMoney(invoice.paidAmount)} ` +
-          `!= SUM(payments) ${formatMoney(paymentsTotal)} (tidak diubah, cek manual)`,
+          `!= pembayaran + kredit dipakai ${formatMoney(paymentsTotal)} (tidak diubah, cek manual)`,
       );
     }
   }
@@ -242,11 +279,9 @@ function printCorrection(correction: InvoiceCorrection): void {
     console.log(`    link retur   ${correction.unlinkedReturnIds.length} retur belum ter-link`);
   }
 
-  const overpaid = correction.paidAmount.minus(correction.expected.grandTotal);
-
-  if (overpaid.greaterThan(ZERO)) {
+  if (correction.missingCreditAmount.greaterThan(ZERO)) {
     console.log(
-      `    [INFO] kelebihan bayar ke supplier ${formatMoney(overpaid)} (tidak tercatat, tindak lanjut manual)`,
+      `    kredit       buat kredit supplier ${formatMoney(correction.missingCreditAmount)} (kelebihan bayar)`,
     );
   }
 }
@@ -273,6 +308,19 @@ async function applyCorrection(correction: InvoiceCorrection): Promise<void> {
         data: {
           supplierInvoiceId: correction.invoiceId,
         },
+      });
+    }
+
+    if (correction.missingCreditAmount.greaterThan(ZERO)) {
+      await issueSupplierCreditForOverpaymentTx(tx, {
+        businessId: correction.businessId,
+        outletId: correction.outletId,
+        supplierId: correction.supplierId,
+        sourceSupplierInvoiceId: correction.invoiceId,
+        purchaseReturnId: correction.latestPostedReturnId,
+        createdByBusinessUserId: correction.createdByBusinessUserId,
+        amount: correction.missingCreditAmount.toFixed(2),
+        notes: `Koreksi: kelebihan bayar invoice ${correction.invoiceNumber} karena retur`,
       });
     }
   });

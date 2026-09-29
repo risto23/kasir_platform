@@ -1,3 +1,8 @@
+import type {
+  SupplierCreditSummary,
+  SupplierCreditUsage,
+} from '@/types/supplier-credit';
+
 export type SupplierInvoiceStatus =
   | 'UNPAID'
   | 'PARTIALLY_PAID'
@@ -55,4 +60,7 @@ export type SupplierInvoiceDetail = SupplierInvoiceSummary & {
   outletName: string;
   createdByBusinessUserId: string;
   payments: SupplierPayment[];
+  // Optional so an older API build without supplier credits still renders.
+  issuedCredits?: SupplierCreditSummary[];
+  appliedCredits?: SupplierCreditUsage[];
 };

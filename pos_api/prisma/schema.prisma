@@ -159,6 +159,8 @@ model Business {
   subscriptionUsageSnapshots  SubscriptionUsageMonthly[]
   supplierInvoices            SupplierInvoice[]
   supplierPayments            SupplierPayment[]
+  supplierCredits             SupplierCredit[]
+  supplierCreditUsages        SupplierCreditUsage[]
   supplierProducts            SupplierProduct[]
   suppliers                   Supplier[]
 
@@ -326,6 +328,8 @@ model Outlet {
   receipts               Receipt[]
   supplierInvoices       SupplierInvoice[]
   supplierPayments       SupplierPayment[]
+  supplierCredits        SupplierCredit[]
+  supplierCreditUsages   SupplierCreditUsage[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -532,6 +536,8 @@ model Supplier {
   purchaseReturns        PurchaseReturn[]
   supplierInvoices       SupplierInvoice[]
   supplierPayments       SupplierPayment[]
+  supplierCredits        SupplierCredit[]
+  supplierCreditUsages   SupplierCreditUsage[]
   supplierProducts       SupplierProduct[]
   business               Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
@@ -744,6 +750,8 @@ model SupplierInvoice {
   purchaseOrder           PurchaseOrder?        @relation(fields: [purchaseOrderId], references: [id])
   supplier                Supplier              @relation(fields: [supplierId], references: [id])
   payments                SupplierPayment[]
+  issuedSupplierCredits   SupplierCredit[]      @relation("SupplierCreditSourceInvoice")
+  supplierCreditUsages    SupplierCreditUsage[]
 
   @@unique([businessId, invoiceNumber])
   @@index([businessId, outletId, status])
@@ -804,6 +812,7 @@ model PurchaseReturn {
   outlet                  Outlet               @relation(fields: [outletId], references: [id], onDelete: Cascade)
   supplier                Supplier             @relation(fields: [supplierId], references: [id])
   supplierInvoice         SupplierInvoice?     @relation(fields: [supplierInvoiceId], references: [id])
+  supplierCredits         SupplierCredit[]
 
   @@index([businessId, outletId, status])
   @@index([businessId, supplierId])
@@ -811,6 +820,65 @@ model PurchaseReturn {
   @@index([supplierInvoiceId])
   @@index([outletId, returnDate])
   @@map("purchase_returns")
+}
+
+model SupplierCredit {
+  id                      String                @id @default(cuid())
+  businessId              String
+  outletId                String
+  supplierId              String
+  sourceSupplierInvoiceId String?
+  purchaseReturnId        String?
+  createdByBusinessUserId String
+  creditNumber            String                @unique
+  sourceType              SupplierCreditSource
+  status                  SupplierCreditStatus  @default(OPEN)
+  amount                  Decimal               @db.Decimal(14, 2)
+  usedAmount              Decimal               @default(0) @db.Decimal(14, 2)
+  remainingAmount         Decimal               @db.Decimal(14, 2)
+  notes                   String?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  business                Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet                  Outlet                @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier                Supplier              @relation(fields: [supplierId], references: [id])
+  sourceSupplierInvoice   SupplierInvoice?      @relation("SupplierCreditSourceInvoice", fields: [sourceSupplierInvoiceId], references: [id])
+  purchaseReturn          PurchaseReturn?       @relation(fields: [purchaseReturnId], references: [id])
+  usages                  SupplierCreditUsage[]
+
+  @@index([businessId, outletId, supplierId, status])
+  @@index([sourceSupplierInvoiceId])
+  @@index([purchaseReturnId])
+  @@map("supplier_credits")
+}
+
+model SupplierCreditUsage {
+  id                      String                  @id @default(cuid())
+  supplierCreditId        String
+  businessId              String
+  outletId                String
+  supplierId              String
+  supplierInvoiceId       String?
+  createdByBusinessUserId String
+  usageNumber             String                  @unique
+  type                    SupplierCreditUsageType
+  method                  PaymentMethod?
+  amount                  Decimal                 @db.Decimal(14, 2)
+  usageDate               DateTime
+  referenceNumber         String?
+  note                    String?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  supplierCredit          SupplierCredit          @relation(fields: [supplierCreditId], references: [id], onDelete: Cascade)
+  business                Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  outlet                  Outlet                  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier                Supplier                @relation(fields: [supplierId], references: [id])
+  supplierInvoice         SupplierInvoice?        @relation(fields: [supplierInvoiceId], references: [id])
+
+  @@index([supplierCreditId])
+  @@index([supplierInvoiceId])
+  @@index([businessId, outletId, usageDate])
+  @@map("supplier_credit_usages")
 }
 
 model PurchaseReturnItem {
@@ -1368,6 +1436,20 @@ enum PurchaseReturnStatus {
   DRAFT
   POSTED
   VOID
+}
+
+enum SupplierCreditStatus {
+  OPEN
+  CLOSED
+}
+
+enum SupplierCreditSource {
+  PURCHASE_RETURN_OVERPAYMENT
+}
+
+enum SupplierCreditUsageType {
+  APPLY_TO_INVOICE
+  REFUND
 }
 
 enum OrderType {

@@ -12,6 +12,7 @@ import {
   faCircleCheck,
   faFileInvoice,
   faFloppyDisk,
+  faHandHoldingDollar,
   faReceipt,
   faRotateLeft,
   faSave,
@@ -24,6 +25,7 @@ import type { GoodsReceiptSummary } from '@/types/goods-receipt';
 import type { Outlet } from '@/types/outlet';
 import type { PurchaseOrderSummary } from '@/types/purchase-order';
 import type { Supplier } from '@/types/supplier';
+import type { SupplierCreditSummary } from '@/types/supplier-credit';
 import type {
   SupplierInvoiceDetail,
   SupplierInvoiceStatus,
@@ -48,6 +50,11 @@ type SupplierPaymentForm = {
   amount: string;
   referenceNumber: string;
   note: string;
+};
+
+type ApplyCreditForm = {
+  supplierCreditId: string;
+  amount: string;
 };
 
 type OutletEnvelope = {
@@ -147,6 +154,12 @@ export default function SupplierInvoiceEditPage() {
   const [loadingReferences, setLoadingReferences] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
+  const [openCredits, setOpenCredits] = useState<SupplierCreditSummary[]>([]);
+  const [applyCreditForm, setApplyCreditForm] = useState<ApplyCreditForm>({
+    supplierCreditId: '',
+    amount: '',
+  });
+  const [applyCreditLoading, setApplyCreditLoading] = useState(false);
 
   const isEditable = status === 'UNPAID' && (detail?.payments.length ?? 0) === 0;
   const canPay = status === 'UNPAID' || status === 'PARTIALLY_PAID';
@@ -272,7 +285,10 @@ export default function SupplierInvoiceEditPage() {
         Array.isArray(supplierResponse.data?.data) ? supplierResponse.data.data : [],
       );
       applyDetailToForm(detailItem);
-      await fetchReferences(detailItem.outletId);
+      await Promise.all([
+        fetchReferences(detailItem.outletId),
+        fetchOpenCredits(detailItem),
+      ]);
     } catch (error: unknown) {
       setMessage(getMessage(error, 'Gagal memuat supplier invoice'));
       setMessageType('error');
@@ -402,7 +418,9 @@ export default function SupplierInvoiceEditPage() {
         note: paymentForm.note.trim() || undefined,
       });
 
-      applyDetailToForm(response.data.data.invoice as SupplierInvoiceDetail);
+      const nextDetail = response.data.data.invoice as SupplierInvoiceDetail;
+      applyDetailToForm(nextDetail);
+      await fetchOpenCredits(nextDetail);
       setPaymentForm({
         paymentDate: getTodayInputValue(),
         method: 'TRANSFER',
@@ -417,6 +435,109 @@ export default function SupplierInvoiceEditPage() {
       setMessageType('error');
     } finally {
       setPaymentLoading(false);
+    }
+  }
+
+  async function fetchOpenCredits(nextDetail: SupplierInvoiceDetail) {
+    const invoiceCanPay =
+      nextDetail.status === 'UNPAID' || nextDetail.status === 'PARTIALLY_PAID';
+
+    if (!invoiceCanPay) {
+      setOpenCredits([]);
+      return;
+    }
+
+    try {
+      const response = await api.get('/supplier-credits', {
+        params: {
+          outletId: nextDetail.outletId,
+          supplierId: nextDetail.supplierId,
+          status: 'OPEN',
+          perPage: 100,
+        },
+      });
+      const credits: SupplierCreditSummary[] = Array.isArray(response.data?.data)
+        ? response.data.data
+        : [];
+
+      setOpenCredits(credits);
+      setApplyCreditForm({
+        supplierCreditId: credits[0]?.id ?? '',
+        amount: credits[0]
+          ? String(Math.min(Number(credits[0].remainingAmount), Number(nextDetail.outstandingAmount)))
+          : '',
+      });
+    } catch {
+      setOpenCredits([]);
+    }
+  }
+
+  async function reloadDetail(outletId: string) {
+    const response = await api.get(`/supplier-invoices/${params.id}`, {
+      params: { outletId },
+    });
+    const nextDetail = response.data.data as SupplierInvoiceDetail;
+    applyDetailToForm(nextDetail);
+    await fetchOpenCredits(nextDetail);
+  }
+
+  async function handleApplyCredit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage('');
+    setMessageType('');
+
+    if (!detail || !canPay) {
+      setMessage('Invoice ini tidak bisa menerima pembayaran lagi.');
+      setMessageType('error');
+      return;
+    }
+
+    const selectedCredit = openCredits.find(
+      (credit) => credit.id === applyCreditForm.supplierCreditId,
+    );
+    const amount = Number(applyCreditForm.amount);
+
+    if (!selectedCredit) {
+      setMessage('Pilih kredit supplier terlebih dahulu.');
+      setMessageType('error');
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setMessage('Jumlah kredit harus lebih besar dari 0.');
+      setMessageType('error');
+      return;
+    }
+
+    if (amount > Number(selectedCredit.remainingAmount)) {
+      setMessage('Jumlah melebihi sisa kredit supplier.');
+      setMessageType('error');
+      return;
+    }
+
+    if (amount > Number(detail.outstandingAmount)) {
+      setMessage('Jumlah pembayaran melebihi outstanding invoice.');
+      setMessageType('error');
+      return;
+    }
+
+    try {
+      setApplyCreditLoading(true);
+
+      await api.post(`/supplier-credits/${selectedCredit.id}/apply`, {
+        outletId: detail.outletId,
+        supplierInvoiceId: detail.id,
+        amount,
+      });
+
+      await reloadDetail(detail.outletId);
+      setMessage('Kredit supplier berhasil dipakai untuk invoice ini');
+      setMessageType('success');
+    } catch (error: unknown) {
+      setMessage(getMessage(error, 'Gagal memakai kredit supplier'));
+      setMessageType('error');
+    } finally {
+      setApplyCreditLoading(false);
     }
   }
 
@@ -851,12 +972,104 @@ export default function SupplierInvoiceEditPage() {
               </div>
             </form>
 
+            {canPay && openCredits.length > 0 ? (
+              <form
+                onSubmit={handleApplyCredit}
+                className="mt-6 space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4"
+              >
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <FontAwesomeIcon icon={faHandHoldingDollar} className="h-4 w-4 text-emerald-600" />
+                  Pakai Kredit Supplier
+                </div>
+                <p className="text-xs text-slate-600">
+                  Supplier ini punya kredit dari kelebihan bayar sebelumnya. Kredit yang dipakai
+                  dihitung sebagai pembayaran invoice.
+                </p>
+
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-end">
+                  <label className="space-y-1 text-sm">
+                    <span className="block font-medium text-slate-700">Kredit</span>
+                    <select
+                      value={applyCreditForm.supplierCreditId}
+                      onChange={(event) => {
+                        const credit = openCredits.find((item) => item.id === event.target.value);
+                        setApplyCreditForm({
+                          supplierCreditId: event.target.value,
+                          amount: credit
+                            ? String(
+                                Math.min(
+                                  Number(credit.remainingAmount),
+                                  Number(detail?.outstandingAmount ?? 0),
+                                ),
+                              )
+                            : '',
+                        });
+                      }}
+                      disabled={applyCreditLoading}
+                      className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:opacity-70"
+                    >
+                      {openCredits.map((credit) => (
+                        <option key={credit.id} value={credit.id}>
+                          {credit.creditNumber} — sisa {formatCurrency(credit.remainingAmount)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1 text-sm">
+                    <span className="block font-medium text-slate-700">Jumlah</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={applyCreditForm.amount}
+                      onChange={(event) =>
+                        setApplyCreditForm((prev) => ({ ...prev, amount: event.target.value }))
+                      }
+                      disabled={applyCreditLoading}
+                      className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:opacity-70"
+                    />
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={applyCreditLoading}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {applyCreditLoading ? 'Memproses...' : 'Pakai Kredit'}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
             <div className="mt-6 space-y-3">
               <h3 className="text-sm font-semibold text-slate-900">
                 Riwayat Pembayaran
               </h3>
 
-              {detail?.payments.length ? (
+              {detail?.appliedCredits?.map((usage) => (
+                <div
+                  key={usage.id}
+                  className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{usage.usageNumber}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Kredit supplier {usage.creditNumber} • {formatDate(usage.usageDate)}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {formatCurrency(usage.amount)}
+                    </p>
+                  </div>
+                  {usage.note ? (
+                    <p className="mt-1 text-sm text-slate-600">{usage.note}</p>
+                  ) : null}
+                </div>
+              ))}
+
+              {detail?.payments.length || detail?.appliedCredits?.length ? (
                 detail.payments.map((payment) => (
                   <div
                     key={payment.id}
@@ -978,6 +1191,30 @@ export default function SupplierInvoiceEditPage() {
                   {formatCurrency(detail?.paidAmount || '0')}
                 </p>
               </div>
+
+              {detail?.issuedCredits?.length ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                    Kredit Supplier (Kelebihan Bayar)
+                  </p>
+                  {detail.issuedCredits.map((credit) => (
+                    <div key={credit.id} className="mt-2">
+                      <p className="font-semibold text-slate-900">
+                        {credit.creditNumber} — {formatCurrency(credit.amount)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-600">
+                        Sisa {formatCurrency(credit.remainingAmount)} • {credit.status}
+                      </p>
+                    </div>
+                  ))}
+                  <Link
+                    href="/dashboard/supplier-credits"
+                    className="mt-2 inline-block text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                  >
+                    Kelola kredit supplier
+                  </Link>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -991,6 +1228,7 @@ export default function SupplierInvoiceEditPage() {
                 'Invoice yang sudah punya pembayaran tidak bisa diedit lagi.',
                 'Pembayaran baru akan mengurangi outstanding otomatis.',
                 'Status PAID tercapai saat outstanding menjadi 0.',
+                'Retur setelah invoice dibayar mencatat kelebihan bayar sebagai kredit supplier.',
                 'Invoice VOID tidak menerima pembayaran baru.',
               ].map((note) => (
                 <div

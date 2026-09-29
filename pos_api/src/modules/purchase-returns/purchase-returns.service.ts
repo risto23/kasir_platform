@@ -6,6 +6,7 @@ import {
   SupplierInvoiceStatus,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { issueSupplierCreditForOverpaymentTx } from '../supplier-credits/supplier-credits.service';
 import type {
   CreatePurchaseReturnInput,
   ListPurchaseReturnsInput,
@@ -594,6 +595,8 @@ async function applyInventoryOutForPurchaseReturnItem(
  *   the return was drafted before the invoice existed.
  * - Applies whether or not the invoice already has payments: grandTotal drops
  *   by the return value and outstanding = grandTotal - paidAmount (never < 0).
+ * - Money already paid above the new grandTotal becomes supplier credit
+ *   (refundable or usable on a later invoice of the same supplier).
  * - Returns the linked invoice id (or null when there is no active invoice).
  */
 async function adjustLinkedSupplierInvoiceForPurchaseReturn(
@@ -602,6 +605,9 @@ async function adjustLinkedSupplierInvoiceForPurchaseReturn(
     businessId: string;
     goodsReceiptId: string;
     supplierInvoiceId: string | null;
+    purchaseReturnId: string;
+    purchaseReturnNumber: string;
+    businessUserId: string;
     returnTotal: Prisma.Decimal;
   },
 ): Promise<string | null> {
@@ -617,6 +623,9 @@ async function adjustLinkedSupplierInvoiceForPurchaseReturn(
         },
     select: {
       id: true,
+      outletId: true,
+      supplierId: true,
+      invoiceNumber: true,
       status: true,
       grandTotal: true,
       paidAmount: true,
@@ -663,6 +672,27 @@ async function adjustLinkedSupplierInvoiceForPurchaseReturn(
       status: nextStatus,
     },
   });
+
+  // Only the overpayment caused by this return is new credit; overpayment that
+  // existed before (from an earlier return) was already credited.
+  const previousOverpayment = invoice.paidAmount.minus(invoice.grandTotal);
+  const nextOverpayment = invoice.paidAmount.minus(nextGrandTotal);
+  const newCredit = nextOverpayment.minus(
+    previousOverpayment.greaterThan(zero) ? previousOverpayment : zero,
+  );
+
+  if (newCredit.greaterThan(zero)) {
+    await issueSupplierCreditForOverpaymentTx(tx, {
+      businessId: params.businessId,
+      outletId: invoice.outletId,
+      supplierId: invoice.supplierId,
+      sourceSupplierInvoiceId: invoice.id,
+      purchaseReturnId: params.purchaseReturnId,
+      createdByBusinessUserId: params.businessUserId,
+      amount: newCredit.toFixed(2),
+      notes: `Kelebihan bayar invoice ${invoice.invoiceNumber} karena retur ${params.purchaseReturnNumber}`,
+    });
+  }
 
   return invoice.id;
 }
@@ -1005,6 +1035,9 @@ export async function postPurchaseReturn(input: PostPurchaseReturnInput) {
       businessId: purchaseReturn.businessId,
       goodsReceiptId: purchaseReturn.goodsReceiptId,
       supplierInvoiceId: purchaseReturn.supplierInvoiceId,
+      purchaseReturnId: purchaseReturn.id,
+      purchaseReturnNumber: purchaseReturn.returnNumber,
+      businessUserId: input.postedByBusinessUserId,
       returnTotal: purchaseReturn.totalAmount,
     });
 
