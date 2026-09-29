@@ -28,6 +28,7 @@ export type PaymentHistoryItem = {
   id: string;
   paymentNumber: string;
   orderId: string;
+  orderNumber: string | null;
   businessId: string;
   outletId: string;
   method: PaymentHistoryMethod;

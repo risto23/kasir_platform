@@ -102,6 +102,7 @@ type OrderApiRow = {  id: string;
 type PaymentApiRow = {  id: string;
   paymentNumber: string;
   orderId: string;
+  orderNumber?: string | null;
   businessId: string;
   outletId: string;
   method: PosPaymentMethod;
@@ -270,7 +271,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {  return ty
 }function mapPayment(row: PaymentApiRow): PosPaymentResponse {  const amountPaid = toNumber(row.amountPaid);
   const amountTendered = toNumber(row.amountTendered);
   const changeAmount = toNumber(row.changeAmount);
-  return {    id: row.id,    paymentNumber: row.paymentNumber,    orderId: row.orderId,    businessId: row.businessId,    outletId: row.outletId,    method: row.method,    status: row.status,    amountPaid,    amountTendered,    changeAmount,    note: row.note ?? null,    paidAt: row.paidAt ?? null,    createdAt: row.createdAt,    updatedAt: row.updatedAt,    receipt: row.receipt ?? null,    receiptId: row.receiptId ?? row.receipt?.id ?? null,    receiptNumber: row.receiptNumber ?? row.receipt?.receiptNumber ?? null,    amount: amountPaid,  };
+  return {    id: row.id,    paymentNumber: row.paymentNumber,    orderId: row.orderId,    orderNumber: row.orderNumber ?? null,    businessId: row.businessId,    outletId: row.outletId,    method: row.method,    status: row.status,    amountPaid,    amountTendered,    changeAmount,    note: row.note ?? null,    paidAt: row.paidAt ?? null,    createdAt: row.createdAt,    updatedAt: row.updatedAt,    receipt: row.receipt ?? null,    receiptId: row.receiptId ?? row.receipt?.id ?? null,    receiptNumber: row.receiptNumber ?? row.receipt?.receiptNumber ?? null,    amount: amountPaid,  };
 }function mapReceiptItem(row: ReceiptItemApiRow): PosReceiptItemSnapshot {  const quantity = toNumber(row.quantity);
   const unitPrice = toNumber(row.unitPrice);
   const lineSubtotal = toNumber(row.lineSubtotal);

@@ -350,7 +350,7 @@ export default function PaymentHistoryPage() {
                       </div>
 
                       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-500">
-                        <span>Order ID: {item.orderId}</span>
+                        <span>Order: {item.orderNumber ?? '-'}</span>
                         {item.receiptNumber ? <span>• Receipt: {item.receiptNumber}</span> : null}
                         <span>• {formatDateTime(item.paidAt || item.createdAt)}</span>
                       </div>
