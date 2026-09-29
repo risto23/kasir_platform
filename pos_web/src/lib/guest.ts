@@ -4,7 +4,10 @@ import type {
   CreatedGuestOrderResponse,
   GetGuestMenuApiResponse,
   GuestCartStorage,
+  GuestChargeSummary,
+  GuestMenuChargeRule,
   GuestMenuResponse,
+  GuestMenuRoundingSetting,
 } from '@/types/guest';
 import { API_BASE_URL } from '@/lib/api-config';
 
@@ -131,4 +134,58 @@ export function clearGuestCart(): void {
   }
 
   window.sessionStorage.removeItem(GUEST_CART_STORAGE_KEY);
+}
+
+function roundCharge(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function roundByMethod(
+  value: number,
+  unit: number,
+  method: GuestMenuRoundingSetting['method'],
+): number {
+  if (method === 'NONE' || unit <= 1) return value;
+  const quotient = value / unit;
+  if (method === 'NEAREST') return Math.round(quotient) * unit;
+  if (method === 'CEIL') return Math.ceil(quotient) * unit;
+  return Math.floor(quotient) * unit;
+}
+
+/**
+ * Preview of the guest order total. Mirrors applyChargesAndRounding in
+ * pos_api/src/modules/pos-settings/pos-settings.service.ts, which
+ * createGuestOrder uses to bill the order. Keep both in sync.
+ */
+export function calculateGuestCharges(
+  subtotal: number,
+  charges: GuestMenuChargeRule[] | undefined,
+  rounding: GuestMenuRoundingSetting | undefined,
+): GuestChargeSummary {
+  let taxAmount = 0;
+  let serviceChargeAmount = 0;
+  let otherChargeAmount = 0;
+
+  for (const rule of charges ?? []) {
+    const amount = rule.type === 'PERCENTAGE' ? (subtotal * rule.value) / 100 : rule.value;
+    const key = rule.key.toUpperCase();
+
+    if (key === 'TAX') taxAmount += amount;
+    else if (key === 'SERVICE') serviceChargeAmount += amount;
+    else otherChargeAmount += amount;
+  }
+
+  const preRound = roundCharge(subtotal + taxAmount + serviceChargeAmount + otherChargeAmount);
+  const grandTotal =
+    rounding && rounding.enabled
+      ? roundByMethod(preRound, Math.max(1, rounding.unit), rounding.method)
+      : preRound;
+
+  return {
+    subtotal,
+    taxAmount: roundCharge(taxAmount),
+    serviceChargeAmount: roundCharge(serviceChargeAmount),
+    otherChargeAmount: roundCharge(otherChargeAmount),
+    grandTotal,
+  };
 }

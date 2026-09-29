@@ -3,6 +3,7 @@ import {
   PaymentMethod,
   Prisma,
   PurchaseOrderStatus,
+  PurchaseReturnStatus,
   SupplierInvoiceStatus,
   SupplierStatus,
 } from '@prisma/client';
@@ -358,6 +359,53 @@ function resolveDueDate(
   return null;
 }
 
+// Posted purchase returns reduce the debt of their goods receipt, including
+// returns posted before the invoice was created/linked.
+async function sumPostedPurchaseReturnsForGoodsReceipt(
+  tx: Prisma.TransactionClient,
+  params: {
+    businessId: string;
+    goodsReceiptId: string;
+  },
+): Promise<Prisma.Decimal> {
+  const result = await tx.purchaseReturn.aggregate({
+    where: {
+      businessId: params.businessId,
+      goodsReceiptId: params.goodsReceiptId,
+      status: PurchaseReturnStatus.POSTED,
+    },
+    _sum: {
+      totalAmount: true,
+    },
+  });
+
+  return result._sum.totalAmount ?? new Prisma.Decimal(0);
+}
+
+async function linkPostedPurchaseReturnsToInvoice(
+  tx: Prisma.TransactionClient,
+  params: {
+    businessId: string;
+    goodsReceiptId: string | null;
+    supplierInvoiceId: string;
+  },
+) {
+  if (!params.goodsReceiptId) {
+    return;
+  }
+
+  await tx.purchaseReturn.updateMany({
+    where: {
+      businessId: params.businessId,
+      goodsReceiptId: params.goodsReceiptId,
+      supplierInvoiceId: null,
+    },
+    data: {
+      supplierInvoiceId: params.supplierInvoiceId,
+    },
+  });
+}
+
 async function resolveInvoiceReferences(
   tx: Prisma.TransactionClient,
   params: {
@@ -401,10 +449,22 @@ async function resolveInvoiceReferences(
   }
 
   const grandTotal = goodsReceipt
-    ? goodsReceipt.totalAmount
+    ? goodsReceipt.totalAmount.minus(
+        await sumPostedPurchaseReturnsForGoodsReceipt(tx, {
+          businessId: params.businessId,
+          goodsReceiptId: goodsReceipt.id,
+        }),
+      )
     : params.grandTotal !== undefined
       ? new Prisma.Decimal(params.grandTotal)
       : null;
+
+  if (goodsReceipt && grandTotal && grandTotal.lessThanOrEqualTo(new Prisma.Decimal(0))) {
+    throw createHttpError(
+      'Seluruh barang pada goods receipt ini sudah diretur, tidak ada hutang untuk ditagihkan.',
+      400,
+    );
+  }
 
   if (!grandTotal || grandTotal.lessThanOrEqualTo(new Prisma.Decimal(0))) {
     throw createHttpError(
@@ -845,6 +905,12 @@ export async function createSupplierInvoice(input: CreateSupplierInvoiceInput) {
       },
     });
 
+    await linkPostedPurchaseReturnsToInvoice(tx, {
+      businessId: input.businessId,
+      goodsReceiptId: references.goodsReceipt?.id ?? null,
+      supplierInvoiceId: invoice.id,
+    });
+
     return getSupplierInvoiceByIdInternal(tx, {
       businessId: input.businessId,
       outletId: input.outletId,
@@ -912,6 +978,12 @@ export async function updateSupplierInvoice(input: UpdateSupplierInvoiceInput) {
         grandTotal: references.grandTotal,
         outstandingAmount: references.grandTotal,
       },
+    });
+
+    await linkPostedPurchaseReturnsToInvoice(tx, {
+      businessId: input.businessId,
+      goodsReceiptId: references.goodsReceipt?.id ?? null,
+      supplierInvoiceId: input.supplierInvoiceId,
     });
 
     return getSupplierInvoiceByIdInternal(tx, {

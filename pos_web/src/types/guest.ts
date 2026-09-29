@@ -46,6 +46,30 @@ export type GuestMenuResponse = {
     capacity: number | null;
   };
   categories: GuestMenuCategoryGroup[];
+  // Optional: older API builds do not send these; treat as no charges.
+  charges?: GuestMenuChargeRule[];
+  rounding?: GuestMenuRoundingSetting;
+};
+
+export type GuestMenuChargeRule = {
+  key: string;
+  label: string;
+  type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  value: number;
+};
+
+export type GuestMenuRoundingSetting = {
+  enabled: boolean;
+  method: 'NONE' | 'NEAREST' | 'CEIL' | 'FLOOR';
+  unit: number;
+};
+
+export type GuestChargeSummary = {
+  subtotal: number;
+  taxAmount: number;
+  serviceChargeAmount: number;
+  otherChargeAmount: number;
+  grandTotal: number;
 };
 
 export type GetGuestMenuApiResponse = {

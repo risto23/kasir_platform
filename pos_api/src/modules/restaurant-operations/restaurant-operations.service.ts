@@ -135,11 +135,23 @@ function buildTableQrToken(outletId: string, tableId: string): string {
   return `${rawPayload}:${signature}`;
 }
 
+function getFirstAppOrigin(): string | undefined {
+  // APP_ORIGIN (CORS whitelist) is always set in production and may hold
+  // several comma-separated origins; the first one is the web app.
+  const firstOrigin = (process.env.APP_ORIGIN ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .find((origin) => origin !== '');
+
+  return firstOrigin;
+}
+
 function getFrontendBaseUrl(): string {
   const rawValue =
     process.env.PUBLIC_APP_URL ??
     process.env.FRONTEND_APP_URL ??
     process.env.NEXT_PUBLIC_APP_URL ??
+    getFirstAppOrigin() ??
     'http://localhost:3000';
 
   return rawValue.endsWith('/') ? rawValue.slice(0, -1) : rawValue;

@@ -367,10 +367,15 @@ export default function DineInOrderPage() {
     }
   }
 
+  // Backend menolak ubah item jika paymentStatus bukan UNPAID dan menolak batal jika PAID/PARTIAL (409).
+  const isPaymentLocked =
+    order?.paymentStatus === 'PAID' || order?.paymentStatus === 'PARTIAL';
   const canAddItems =
     order &&
     order.orderType === 'DINE_IN' &&
+    order.paymentStatus === 'UNPAID' &&
     ['DRAFT', 'SUBMITTED', 'IN_PROGRESS'].includes(order.status);
+  const canCancel = !isPaymentLocked;
 
   const canSubmitKitchen = order?.status === 'DRAFT';
   const canPay = order && order.paymentStatus === 'UNPAID' && order.status !== 'CANCELLED';
@@ -640,16 +645,24 @@ export default function DineInOrderPage() {
                   </button>
                 )}
 
-                <button
-                  onClick={() => {
-                    if (confirm('Batalkan order ini?')) handleStatusChange('CANCELLED');
-                  }}
-                  disabled={statusChanging}
-                  className="w-full border border-red-300 text-red-500 rounded-xl py-2.5 font-medium text-sm hover:bg-red-50 disabled:opacity-50 transition-colors"
-                >
-                  <FontAwesomeIcon icon={faTrashCan} className="mr-2" />
-                  Batalkan Order
-                </button>
+                {isPaymentLocked && (
+                  <p className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                    Order sudah dibayar. Item tidak bisa diubah dan order tidak bisa dibatalkan.
+                  </p>
+                )}
+
+                {canCancel && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Batalkan order ini?')) handleStatusChange('CANCELLED');
+                    }}
+                    disabled={statusChanging}
+                    className="w-full border border-red-300 text-red-500 rounded-xl py-2.5 font-medium text-sm hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faTrashCan} className="mr-2" />
+                    Batalkan Order
+                  </button>
+                )}
               </div>
             )}
 
