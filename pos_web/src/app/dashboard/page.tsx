@@ -87,19 +87,17 @@ function getDashboardVariant(user: CurrentUser | null) {
   const activeMembership = getActiveMembership(user);
   const isSuperAdmin = isSuperAdminUser(user);
 
+  // Super admin always lands on the platform dashboard, even when the active
+  // business context is a restaurant. Kitchen Display stays reachable via nav.
+  if (isSuperAdmin) {
+    return 'SUPER_ADMIN_PLATFORM';
+  }
+
   if (
     activeMembership?.role === 'KITCHEN' &&
     activeMembership.businessType === 'RESTAURANT'
   ) {
     return 'KITCHEN';
-  }
-
-  if (isSuperAdmin && activeMembership?.businessType === 'RESTAURANT') {
-    return 'SUPER_ADMIN_RESTAURANT';
-  }
-
-  if (isSuperAdmin) {
-    return 'SUPER_ADMIN_PLATFORM';
   }
 
   return 'DEFAULT';
@@ -406,8 +404,7 @@ export default function DashboardPage() {
     [currentUser],
   );
 
-  const isKitchenLikeDashboard =
-    variant === 'KITCHEN' || variant === 'SUPER_ADMIN_RESTAURANT';
+  const isKitchenLikeDashboard = variant === 'KITCHEN';
 
   const summaryCards = isKitchenLikeDashboard
     ? getKitchenSummaryCards()

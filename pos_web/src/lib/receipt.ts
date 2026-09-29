@@ -61,6 +61,7 @@ type ReceiptApiRow = {
     amountPaid?: string | number | null;
     amountTendered?: string | number | null;
     changeAmount?: string | number | null;
+    surchargeAmount?: string | number | null;
     paidAt?: string | null;
   } | null;
   contentSnapshot?: {
@@ -79,11 +80,14 @@ type ReceiptApiRow = {
     showOutletAddress?: boolean;
     showOutletPhone?: boolean;
     tableName?: string | null;
+    customerName?: string | null;
+    cashierName?: string | null;
     notes?: string | null;
     subtotal?: string | number | null;
     discountAmount?: string | number | null;
     taxAmount?: string | number | null;
     serviceChargeAmount?: string | number | null;
+    surchargeAmount?: string | number | null;
     totalAmount?: string | number | null;
     items?: Array<{
       id: string;
@@ -169,11 +173,14 @@ function mapReceipt(row: ReceiptApiRow): ReceiptDetailResponse {
           showOutletAddress: row.contentSnapshot.showOutletAddress ?? true,
           showOutletPhone: row.contentSnapshot.showOutletPhone ?? true,
           tableName: row.contentSnapshot.tableName ?? null,
+          customerName: row.contentSnapshot.customerName ?? null,
+          cashierName: row.contentSnapshot.cashierName ?? null,
           notes: row.contentSnapshot.notes ?? null,
           subtotal: toNumber(row.contentSnapshot.subtotal),
         discountAmount: toNumber(row.contentSnapshot.discountAmount),
         taxAmount: toNumber(row.contentSnapshot.taxAmount),
         serviceChargeAmount: toNumber(row.contentSnapshot.serviceChargeAmount),
+        surchargeAmount: toNumber(row.contentSnapshot.surchargeAmount),
         totalAmount: toNumber(row.contentSnapshot.totalAmount),
         items: Array.isArray(row.contentSnapshot.items)
           ? row.contentSnapshot.items.map((item) => {
@@ -241,6 +248,7 @@ function mapReceipt(row: ReceiptApiRow): ReceiptDetailResponse {
           amountPaid: toNumber(row.payment.amountPaid),
           amountTendered: toNumber(row.payment.amountTendered),
           changeAmount: toNumber(row.payment.changeAmount),
+          surchargeAmount: toNumber(row.payment.surchargeAmount),
           paidAt: row.payment.paidAt ?? null,
         }
       : null,

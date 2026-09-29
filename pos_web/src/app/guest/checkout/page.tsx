@@ -232,6 +232,10 @@ function GuestCheckoutPageContent() {
     charges: GuestMenuChargeRule[];
     rounding: GuestMenuRoundingSetting | undefined;
   }>({ charges: [], rounding: undefined });
+  const [venueInfo, setVenueInfo] = useState<{
+    outletName: string;
+    tableName: string;
+  } | null>(null);
 
 useEffect(() => {
   let isCancelled = false;
@@ -272,6 +276,11 @@ useEffect(() => {
       setChargeConfig({
         charges: menuResponse.charges ?? [],
         rounding: menuResponse.rounding,
+      });
+
+      setVenueInfo({
+        outletName: menuResponse.outlet.name,
+        tableName: menuResponse.table.name,
       });
 
       const sanitizedCart = sanitizeCartAgainstMenu({
@@ -559,30 +568,69 @@ useEffect(() => {
               </p>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Outlet ID
+                  Nomor Pesanan
                 </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{outletId}</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">
+                  {successData?.orderNumber ?? '-'}
+                </p>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Table ID
+                  Outlet
                 </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{tableId}</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">
+                  {venueInfo?.outletName ?? '-'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Meja
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">
+                  {venueInfo?.tableName ?? '-'}
+                </p>
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Ringkasan Response
-              </p>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-slate-700">
-                {JSON.stringify(successData, null, 2)}
-              </pre>
-            </div>
+            {successData ? (
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Ringkasan Pesanan
+                </p>
+
+                <ul className="mt-3 space-y-2">
+                  {successData.items.map((item) => (
+                    <li key={item.id} className="flex items-start justify-between gap-3 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900">
+                          {item.quantity} x {item.productName}
+                        </p>
+                        {item.note ? (
+                          <p className="text-xs text-slate-500">Catatan: {item.note}</p>
+                        ) : null}
+                      </div>
+                      <p className="shrink-0 font-semibold text-slate-900">
+                        {formatCurrency(item.lineTotal)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-4 flex items-center justify-between border-t border-dashed border-slate-300 pt-3 text-sm font-semibold text-slate-900">
+                  <span>Total</span>
+                  <span>{formatCurrency(successData.totalAmount)}</span>
+                </div>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  Silakan lakukan pembayaran di kasir dengan menyebutkan nomor pesanan di atas.
+                </p>
+              </div>
+            ) : null}
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Link

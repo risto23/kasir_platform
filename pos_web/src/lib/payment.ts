@@ -19,6 +19,7 @@ type PaymentApiRow = {
   id: string;
   paymentNumber: string;
   orderId: string;
+  orderNumber?: string | null;
   businessId: string;
   outletId: string;
   method: PaymentHistoryItem['method'];
@@ -87,6 +88,7 @@ function mapPayment(row: PaymentApiRow): PaymentHistoryItem {
     id: row.id,
     paymentNumber: row.paymentNumber,
     orderId: row.orderId,
+    orderNumber: row.orderNumber ?? null,
     businessId: row.businessId,
     outletId: row.outletId,
     method: row.method,

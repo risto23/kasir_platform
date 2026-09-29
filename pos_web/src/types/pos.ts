@@ -227,6 +227,7 @@ export type PosPaymentResponse = {
   id: string;
   paymentNumber: string;
   orderId: string;
+  orderNumber?: string | null;
   businessId: string;
   outletId: string;
   method: PosPaymentMethod;

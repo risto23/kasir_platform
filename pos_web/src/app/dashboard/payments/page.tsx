@@ -427,7 +427,7 @@ export default function PaymentHistoryPage() {
                     </td>
 
                     <td className="border-b border-slate-100 px-5 py-4 align-top">
-                      <div className="font-medium text-slate-900">{item.orderId}</div>
+                      <div className="font-medium text-slate-900">{item.orderNumber ?? '-'}</div>
                       {item.receiptNumber ? (
                         <div className="mt-1 text-xs text-indigo-600">
                           Receipt: {item.receiptNumber}

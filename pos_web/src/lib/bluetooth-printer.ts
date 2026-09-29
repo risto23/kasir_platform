@@ -101,6 +101,7 @@ function buildReceiptBuffer(receipt: ReceiptDetailResponse): Uint8Array {
   const tableName = receipt.contentSnapshot?.tableName || null;
   const customerName = receipt.contentSnapshot?.customerName || null;
   const paymentMethod = receipt.payment?.method || '-';
+  const isCashPayment = receipt.payment?.method?.toUpperCase() === 'CASH';
   const issuedAt = formatReceiptDateTime(receipt.issuedAt || receipt.createdAt);
 
   const subtotal = normalizeNum(receipt.contentSnapshot?.subtotal ?? receipt.order?.subtotal);
@@ -189,10 +190,12 @@ function buildReceiptBuffer(receipt: ReceiptDetailResponse): Uint8Array {
 
   push(...divider('.'));
   push(...leftRight('Dibayar', formatReceiptCurrency(amountPaid)));
-  push(...leftRight('Tunai', formatReceiptCurrency(amountTendered)));
-  push(...BOLD_ON);
-  push(...leftRight('Kembalian', formatReceiptCurrency(change)));
-  push(...BOLD_OFF);
+  if (isCashPayment) {
+    push(...leftRight('Tunai', formatReceiptCurrency(amountTendered)));
+    push(...BOLD_ON);
+    push(...leftRight('Kembalian', formatReceiptCurrency(change)));
+    push(...BOLD_OFF);
+  }
 
   push(...divider());
 

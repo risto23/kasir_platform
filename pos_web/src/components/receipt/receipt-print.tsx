@@ -133,6 +133,7 @@ export default function ReceiptPrint({
     '-';
 
   const paymentMethod = getPaymentMethodLabel(receipt?.payment?.method);
+  const isCashPayment = receipt?.payment?.method?.toUpperCase() === 'CASH';
   const cashierLabel = receipt?.contentSnapshot?.cashierName || '-';
   const tableName = receipt?.contentSnapshot?.tableName || null;
   const customerName = receipt?.contentSnapshot?.customerName || null;
@@ -442,19 +443,23 @@ export default function ReceiptPrint({
                 </span>
               </div>
 
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-slate-500">Tunai / Tendered</span>
-                <span className="text-slate-900">
-                  {formatReceiptCurrency(amountTendered)}
-                </span>
-              </div>
+              {isCashPayment ? (
+                <>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className="text-slate-500">Tunai</span>
+                    <span className="text-slate-900">
+                      {formatReceiptCurrency(amountTendered)}
+                    </span>
+                  </div>
 
-              <div className="mt-1 flex items-center justify-between font-semibold">
-                <span className="text-slate-700">Kembalian</span>
-                <span className="text-slate-900">
-                  {formatReceiptCurrency(changeAmount)}
-                </span>
-              </div>
+                  <div className="mt-1 flex items-center justify-between font-semibold">
+                    <span className="text-slate-700">Kembalian</span>
+                    <span className="text-slate-900">
+                      {formatReceiptCurrency(changeAmount)}
+                    </span>
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
 
