@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft,
@@ -37,6 +37,8 @@ function getErrorMessage(error: unknown, fallback: string): string {
 export default function ReceiptDetailPage() {
   const params = useParams<{ id: string }>();
   const receiptId = typeof params?.id === 'string' ? params.id : '';
+  const searchParams = useSearchParams();
+  const queryOutletId = searchParams?.get('outletId')?.trim() || undefined;
 
   const [receipt, setReceipt] = useState<ReceiptDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,7 +64,7 @@ export default function ReceiptDetailPage() {
         setLoading(true);
         setErrorMessage('');
 
-        const detail = await getReceiptDetail(receiptId);
+        const detail = await getReceiptDetail(receiptId, queryOutletId);
         setReceipt(detail);
       } catch (error: unknown) {
         setErrorMessage(getErrorMessage(error, 'Gagal memuat detail receipt'));
@@ -72,7 +74,7 @@ export default function ReceiptDetailPage() {
     }
 
     void loadReceipt();
-  }, [receiptId]);
+  }, [receiptId, queryOutletId]);
 
   function handlePrint() {
     if (typeof window === 'undefined') {

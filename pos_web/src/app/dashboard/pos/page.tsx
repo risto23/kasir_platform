@@ -26,7 +26,7 @@ import {
 
 import { api } from '@/lib/api';
 import { getActiveBusinessId, getCachedCurrentUser } from '@/lib/auth';
-import { getReceiptByOrderId } from '@/lib/receipt';
+import { buildReceiptHref, getReceiptByOrderId } from '@/lib/receipt';
 import { resolveImageUrl } from '@/lib/resolve-image-url';
 import {
   buildCharges,
@@ -992,7 +992,7 @@ export default function PosCashierPage() {
       setPaymentNote('');
       await refreshQueue();
 
-      router.push(`/dashboard/receipts/${receipt.id}`);
+      router.push(buildReceiptHref(receipt.id, receipt.outletId));
     } catch (error: unknown) {
       setCartMessage(getMessage(error, 'Gagal menyelesaikan checkout'));
     } finally {
@@ -1046,7 +1046,7 @@ export default function PosCashierPage() {
       await loadQueueOrders(selectedOutletId, cashierQueue);
       await loadQueueOrderDetail(selectedQueueOrder.id, selectedOutletId);
 
-      router.push(`/dashboard/receipts/${receipt.id}`);
+      router.push(buildReceiptHref(receipt.id, receipt.outletId));
     } catch (error: unknown) {
       setQueueMessage(getMessage(error, 'Gagal memproses payment order aktif'));
     } finally {
@@ -1069,7 +1069,7 @@ export default function PosCashierPage() {
         selectedOutletId,
       );
 
-      router.push(`/dashboard/receipts/${receipt.id}`);
+      router.push(buildReceiptHref(receipt.id, receipt.outletId));
     } catch (error: unknown) {
       setQueueMessage(getMessage(error, 'Receipt untuk order ini belum tersedia'));
     } finally {
@@ -1738,7 +1738,7 @@ export default function PosCashierPage() {
 
                     {receiptResult ? (
                       <Link
-                        href={`/dashboard/receipts/${receiptResult.id}`}
+                        href={buildReceiptHref(receiptResult.id, receiptResult.outletId)}
                         className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
                         <FontAwesomeIcon icon={faPrint} className="h-4 w-4" />

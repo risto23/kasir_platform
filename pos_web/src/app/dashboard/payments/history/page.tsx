@@ -19,7 +19,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import { formatCurrency, formatDateTime, getPayments, getPosOutlets, softDeletePayment } from '@/lib/pos';
-import { getReceiptByOrderId } from '@/lib/receipt';
+import { buildReceiptHref, getReceiptByOrderId } from '@/lib/receipt';
 import type { PosOutletItem, PosPaymentResponse } from '@/types/pos';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -175,11 +175,12 @@ export default function PaymentHistoryPage() {
       setOpenLoadingId(item.id);
       setMessage('');
 
+      const outletId = item.outletId || selectedOutletId;
       const receipt = item.receiptId
-        ? { id: item.receiptId }
-        : await getReceiptByOrderId(item.orderId, selectedOutletId);
+        ? { id: item.receiptId, outletId }
+        : await getReceiptByOrderId(item.orderId, outletId);
 
-      router.push(`/dashboard/receipts/${receipt.id}`);
+      router.push(buildReceiptHref(receipt.id, receipt.outletId));
     } catch (error: unknown) {
       setMessage(getErrorMessage(error, 'Receipt untuk payment ini belum tersedia'));
     } finally {
