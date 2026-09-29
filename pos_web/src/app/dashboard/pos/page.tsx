@@ -29,7 +29,6 @@ import { getActiveBusinessId, getCachedCurrentUser } from '@/lib/auth';
 import { getReceiptByOrderId } from '@/lib/receipt';
 import { resolveImageUrl } from '@/lib/resolve-image-url';
 import {
-  addOrderItem,
   buildCharges,
   calculateGrandTotal,
   calculatePosSurcharge,
@@ -944,25 +943,23 @@ export default function PosCashierPage() {
       setPageMessage('');
       setReceiptResult(null);
 
+      // Send the items with the create call so the backend inserts the order and
+      // its items in one transaction; a rejected item (e.g. unavailable at the
+      // outlet) no longer leaves an empty draft order behind.
       const order = await createOrder({
         outletId: selectedOutletId,
         tableId:
           businessType === 'RESTAURANT' ? selectedTableId || undefined : undefined,
         customerName: customerName.trim() || undefined,
-      });
-
-      let lastOrder = order;
-      for (const item of cart) {
-        lastOrder = await addOrderItem(order.id, {
-          outletId: selectedOutletId,
+        items: cart.map((item) => ({
           productId: item.productId,
           quantity: item.qty,
           note: item.note.trim() || undefined,
-        });
-      }
+        })),
+      });
 
-      // Use DB total from the last addOrderItem response to avoid float mismatch
-      const dbTotal = lastOrder.totalAmount;
+      // Use DB total from the create response to avoid float mismatch
+      const dbTotal = order.totalAmount;
       const dbSurcharge = calculatePosSurcharge(
         dbTotal,
         selectedPaymentMethodConfig?.surchargeRules ?? [],

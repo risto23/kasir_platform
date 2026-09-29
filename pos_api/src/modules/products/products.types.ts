@@ -62,6 +62,8 @@ export type ProductListItem = {
   description: string | null;
   imageUrl: string | null;
   basePrice: number;
+  /** Price charged at the requested outlet (priceOverride ?? basePrice). */
+  outletPrice: number;
   effectivePrice: number;
   promoPrice: number;
   promoDiscountAmount: number;

@@ -1,6 +1,7 @@
 import {
   Prisma,
   ProductStatus,
+  ProductOutletStatus,
   BusinessType,
   PromoDiscountType,
   PromoOutletScope,
@@ -531,6 +532,7 @@ function resolvePromoTargetValue(promo: PromoForProductResolution): string {
 function resolveBestPromoForProduct(
   product: ProductWithCategory,
   promos: PromoForProductResolution[],
+  unitPrice: number,
 ): ProductAppliedPromo | null {
   // Menu headline reflects unconditional (regular) promos only and stacks them
   // all. Min-charge promos are order-level (depend on the cart total) so they
@@ -544,7 +546,9 @@ function resolveBestPromoForProduct(
     return null;
   }
 
-  const basePrice = toNumber(product.basePrice);
+  // Promo percentages are computed against the price actually charged at the
+  // outlet (priceOverride when set), matching order.service pricing.
+  const basePrice = unitPrice;
 
   let totalDiscountAmount = 0;
   let representativePromo: ProductAppliedPromo | null = null;
@@ -590,10 +594,11 @@ function resolveBestPromoForProduct(
 function mapProductListItem(
   product: ProductWithCategory,
   appliedPromo: ProductAppliedPromo | null,
+  outletPrice: number,
 ): ProductListItem {
   const basePrice = toNumber(product.basePrice);
   const promoDiscountAmount = appliedPromo?.discountAmount ?? 0;
-  const promoPrice = Math.max(basePrice - promoDiscountAmount, 0);
+  const promoPrice = Math.max(outletPrice - promoDiscountAmount, 0);
 
   return {
     id: product.id,
@@ -608,6 +613,7 @@ function mapProductListItem(
     description: product.description,
     imageUrl: product.imageUrl,
     basePrice,
+    outletPrice,
     effectivePrice: promoPrice,
     promoPrice,
     promoDiscountAmount,
@@ -690,6 +696,23 @@ export async function listProducts(
           ],
         }
       : {}),
+    // Outlet-scoped listing (POS) hides products disabled or marked
+    // unavailable at that outlet so the cashier cannot add them to the cart.
+    ...(outletId
+      ? {
+          NOT: {
+            productOutletSettings: {
+              some: {
+                outletId,
+                OR: [
+                  { status: { not: ProductOutletStatus.ACTIVE } },
+                  { isAvailable: false },
+                ],
+              },
+            },
+          },
+        }
+      : {}),
   };
 
   const skip = (query.page - 1) * query.perPage;
@@ -708,9 +731,38 @@ export async function listProducts(
     getActivePromosForProducts(businessId, outletId),
   ]);
 
-  const mappedItems = items.map((item) =>
-    mapProductListItem(item, resolveBestPromoForProduct(item, activePromos)),
-  );
+  const outletPriceOverrides = new Map<string, number>();
+
+  if (outletId && items.length > 0) {
+    const outletSettings = await prisma.productOutletSetting.findMany({
+      where: {
+        outletId,
+        productId: { in: items.map((item) => item.id) },
+        priceOverride: { not: null },
+      },
+      select: {
+        productId: true,
+        priceOverride: true,
+      },
+    });
+
+    for (const setting of outletSettings) {
+      if (setting.priceOverride !== null) {
+        outletPriceOverrides.set(setting.productId, toNumber(setting.priceOverride));
+      }
+    }
+  }
+
+  const mappedItems = items.map((item) => {
+    const outletPrice =
+      outletPriceOverrides.get(item.id) ?? toNumber(item.basePrice);
+
+    return mapProductListItem(
+      item,
+      resolveBestPromoForProduct(item, activePromos, outletPrice),
+      outletPrice,
+    );
+  });
 
   return {
     items: mappedItems,

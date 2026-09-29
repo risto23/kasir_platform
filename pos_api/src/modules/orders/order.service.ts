@@ -74,6 +74,23 @@ function isGuestOrderNumber(orderNumber: string): boolean {
   return orderNumber.startsWith('GUEST-');
 }
 
+function createHttpError(message: string, statusCode: number) {
+  const error = new Error(message) as Error & { statusCode?: number };
+  error.statusCode = statusCode;
+  return error;
+}
+
+// Items are frozen once any money has been collected: changing them would make
+// totalAmount diverge from what was actually paid.
+function ensureOrderItemsEditable(paymentStatus: PaymentStatus) {
+  if (paymentStatus !== PaymentStatus.UNPAID) {
+    throw createHttpError(
+      'Item tidak bisa diubah karena order sudah dibayar',
+      409,
+    );
+  }
+}
+
 async function ensureOutletBelongsToBusiness(
   tx: Prisma.TransactionClient,
   businessId: string,
@@ -475,7 +492,7 @@ async function getProductPricingForOrderItem(
   });
 
   if (!product) {
-    throw new Error('Product tidak ditemukan atau tidak aktif');
+    throw createHttpError('Product tidak ditemukan atau tidak aktif', 400);
   }
 
   const outletSetting = product.productOutletSettings[0];
@@ -485,7 +502,7 @@ async function getProductPricingForOrderItem(
     (outletSetting.status !== ProductOutletStatus.ACTIVE ||
       !outletSetting.isAvailable)
   ) {
-    throw new Error(`Product ${product.name} tidak tersedia di outlet ini`);
+    throw createHttpError(`Product ${product.name} tidak tersedia di outlet ini`, 400);
   }
 
   const unitPrice = outletSetting?.priceOverride ?? product.basePrice;
@@ -1032,12 +1049,15 @@ export async function addOrderItem(input: AddOrderItemInput) {
         id: true,
         orderType: true,
         status: true,
+        paymentStatus: true,
       },
     });
 
     if (!order) {
       throw new Error('Order tidak ditemukan');
     }
+
+    ensureOrderItemsEditable(order.paymentStatus);
 
     const isDineIn = order.orderType === OrderType.DINE_IN;
     const addableStatuses: OrderStatus[] = isDineIn
@@ -1085,12 +1105,15 @@ export async function updateOrderItem(input: UpdateOrderItemInput) {
         id: true,
         orderType: true,
         status: true,
+        paymentStatus: true,
       },
     });
 
     if (!order) {
       throw new Error('Order tidak ditemukan');
     }
+
+    ensureOrderItemsEditable(order.paymentStatus);
 
     const isDineIn = order.orderType === OrderType.DINE_IN;
     const editableStatuses: OrderStatus[] = isDineIn
@@ -1181,10 +1204,12 @@ export async function removeOrderItem(input: {
         businessId: input.businessId,
         outletId: input.outletId,
       },
-      select: { id: true, orderType: true, status: true },
+      select: { id: true, orderType: true, status: true, paymentStatus: true },
     });
 
     if (!order) throw new Error('Order tidak ditemukan');
+
+    ensureOrderItemsEditable(order.paymentStatus);
 
     const isDineIn = order.orderType === OrderType.DINE_IN;
     const editableStatuses: OrderStatus[] = isDineIn
@@ -1252,6 +1277,19 @@ export async function updateOrderStatus(input: UpdateOrderStatusInput) {
       order.paymentStatus !== PaymentStatus.PAID
     ) {
       throw new Error('Order hanya bisa diselesaikan jika status pembayaran sudah PAID');
+    }
+
+    // No refund flow exists yet, so an order with collected money cannot be
+    // cancelled (it would disappear from sales while the cash stays in).
+    if (
+      input.status === OrderStatus.CANCELLED &&
+      (order.paymentStatus === PaymentStatus.PAID ||
+        order.paymentStatus === PaymentStatus.PARTIAL)
+    ) {
+      throw createHttpError(
+        'Order yang sudah dibayar tidak bisa dibatalkan',
+        409,
+      );
     }
 
     const now = new Date();

@@ -16,6 +16,10 @@ import {
   BusinessUserStatus,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import {
+  applyChargesAndRounding,
+  getOutletPosChargeSettings,
+} from '../pos-settings/pos-settings.service';
 import type {
   CreateGuestOrderInput,
   CreatedGuestOrderResponse,
@@ -862,11 +866,17 @@ export async function createGuestOrder(
   const discountAmount = roundCurrency(
     preparedItems.reduce((sum, item) => sum + item.lineDiscountAmount, 0),
   );
-  const taxAmount = 0;
-  const serviceChargeAmount = 0;
-  const totalAmount = roundCurrency(
-    subtotal - discountAmount + taxAmount + serviceChargeAmount,
+  // Same outlet tax/service/rounding rules as staff orders (order.service
+  // recalculateOrderTotals), so a QR order is billed like a cashier order.
+  const { charges, rounding } = await getOutletPosChargeSettings(outletId);
+  const applied = applyChargesAndRounding(
+    new Prisma.Decimal(subtotal).minus(discountAmount),
+    charges,
+    rounding,
   );
+  const taxAmount = applied.taxAmount;
+  const serviceChargeAmount = applied.serviceChargeAmount;
+  const totalAmount = applied.grandTotal;
 
   const createdOrder = await prisma.$transaction(async (tx) => {
     const orderNumber = await generateGuestOrderNumber(tx);

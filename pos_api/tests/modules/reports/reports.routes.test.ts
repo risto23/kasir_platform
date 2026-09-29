@@ -54,6 +54,23 @@ jest.mock('../../../src/middlewares/require-business-permission.middleware', () 
     () => (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 
+jest.mock('../../../src/middlewares/require-outlet-access.middleware', () => ({
+  requireOutletAccess:
+    (resolveOutletId: (req: Request) => string | null) =>
+    (req: Request, res: Response, next: NextFunction) => {
+      const outletId = resolveOutletId(req);
+      if (!outletId) {
+        return res.status(400).json({ success: false, message: 'outletId wajib diisi' });
+      }
+      if (outletId === 'outlet-forbidden') {
+        return res
+          .status(403)
+          .json({ success: false, message: 'Tidak memiliki akses ke outlet ini' });
+      }
+      return next();
+    },
+}));
+
 jest.mock('../../../src/middlewares/validate.middleware', () => ({
   validate: () => (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
@@ -124,7 +141,9 @@ describe('reports.routes feature gating', () => {
   ])('returns 200 when %s is requested with %s', async (path, featureKey, route) => {
     allowFeatureFlags(featureKey);
 
-    const response = await request(app).get(`/reports${path}`);
+    const response = await request(app)
+      .get(`/reports${path}`)
+      .query({ outletId: 'outlet-1' });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ route });
@@ -172,7 +191,9 @@ describe('reports.routes feature gating', () => {
   ])('returns 200 when %s has both REPORT_EXPORT and source report flag', async (path, sourceFeatureKey, route) => {
     allowFeatureFlags('REPORT_EXPORT', sourceFeatureKey);
 
-    const response = await request(app).get(`/reports${path}`);
+    const response = await request(app)
+      .get(`/reports${path}`)
+      .query({ outletId: 'outlet-1' });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ route });
@@ -208,9 +229,43 @@ describe('reports.routes feature gating', () => {
 
     const response = await request(app)
       .get('/reports/sales-summary')
-      .query({ scope: 'outlet' });
+      .query({ scope: 'outlet', outletId: 'outlet-1' });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ route: 'sales-summary' });
+  });
+
+  it.each([
+    ['/sales-summary', 'REPORT_SALES_SUMMARY'],
+    ['/orders', 'REPORT_ORDERS'],
+    ['/items', 'REPORT_ITEMS'],
+    ['/supplier-payables', 'REPORT_SUPPLIER_PAYABLES'],
+  ])('rejects %s with outlet scope but empty outletId (no all-outlet bypass)', async (path, featureKey) => {
+    allowFeatureFlags(featureKey);
+
+    const response = await request(app)
+      .get(`/reports${path}`)
+      .query({ scope: 'outlet', outletId: '' });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ success: false, message: 'outletId wajib diisi' });
+  });
+
+  it('rejects the default (outlet) scope when outletId is omitted', async () => {
+    allowFeatureFlags('REPORT_SALES_SUMMARY');
+
+    const response = await request(app).get('/reports/sales-summary');
+
+    expect(response.status).toBe(400);
+  });
+
+  it('rejects outlet scope for an outlet the user cannot access', async () => {
+    allowFeatureFlags('REPORT_SALES_SUMMARY');
+
+    const response = await request(app)
+      .get('/reports/sales-summary')
+      .query({ scope: 'outlet', outletId: 'outlet-forbidden' });
+
+    expect(response.status).toBe(403);
   });
 });
