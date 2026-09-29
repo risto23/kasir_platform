@@ -9,13 +9,13 @@ type GroupBy = 'day' | 'week' | 'month';
 type ReportScope = 'business' | 'outlet';
 
 const ORDER_STATUS_OPTIONS = [
+  { value: 'ALL', label: 'Semua Status' },
   { value: 'SUBMITTED', label: 'Submitted' },
   { value: 'IN_PROGRESS', label: 'Sedang Proses' },
   { value: 'READY', label: 'Siap' },
   { value: 'COMPLETED', label: 'Selesai' },
   { value: 'CANCELLED', label: 'Dibatalkan' },
   { value: 'DRAFT', label: 'Draft' },
-  { value: 'ALL', label: 'Semua Status' },
 ];
 
 function todayYmd() {
@@ -28,7 +28,7 @@ export default function SalesSummaryPage() {
   const [end, setEnd] = useState(today);
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
   const [scope, setScope] = useState<ReportScope>('outlet');
-  const [orderStatus, setOrderStatus] = useState('SUBMITTED');
+  const [orderStatus, setOrderStatus] = useState('ALL');
   const [outlets, setOutlets] = useState<Array<{ id: string; name: string }>>([]);
   const [outletId, setOutletId] = useState('');
   const [loading, setLoading] = useState(false);

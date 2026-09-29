@@ -71,6 +71,23 @@ export type GuestMenuResponse = {
     capacity: number | null;
   };
   categories: GuestMenuCategoryGroup[];
+  // Outlet tax/service/rounding so the guest page previews the same total
+  // that createGuestOrder will bill.
+  charges: GuestMenuChargeRule[];
+  rounding: GuestMenuRoundingSetting;
+};
+
+export type GuestMenuChargeRule = {
+  key: string;
+  label: string;
+  type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  value: number;
+};
+
+export type GuestMenuRoundingSetting = {
+  enabled: boolean;
+  method: 'NONE' | 'NEAREST' | 'CEIL' | 'FLOOR';
+  unit: number;
 };
 
 export type CreatedGuestOrderItem = {

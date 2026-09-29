@@ -722,9 +722,10 @@ export async function getGuestMenu(
   const outlet = await getRestaurantOutletOrThrow(outletId);
   const table = await getActiveTableForOutletOrThrow(outletId, tableId);
 
-  const [products, activePromos] = await Promise.all([
+  const [products, activePromos, chargeSettings] = await Promise.all([
     getGuestMenuProducts(outletId),
     getActivePromosForOutlet(outlet.businessId, outletId),
+    getOutletPosChargeSettings(outletId),
   ]);
 
   const mappedItems = mapGuestMenuItems(products, activePromos);
@@ -770,6 +771,15 @@ export async function getGuestMenu(
       capacity: table.capacity,
     },
     categories: Array.from(categoryMap.values()),
+    charges: chargeSettings.charges
+      .filter((rule) => rule.enabled)
+      .map((rule) => ({
+        key: rule.key,
+        label: rule.label,
+        type: rule.type,
+        value: rule.value,
+      })),
+    rounding: chargeSettings.rounding,
   };
 }
 

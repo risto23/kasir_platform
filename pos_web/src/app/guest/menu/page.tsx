@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
+  calculateGuestCharges,
   clearGuestCart,
   getGuestCart,
   getGuestMenu,
@@ -571,6 +572,11 @@ function GuestMenuPageContent() {
     return cart.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [cart]);
 
+  const grandTotal = useMemo(
+    () => calculateGuestCharges(totalAmount, data?.charges, data?.rounding).grandTotal,
+    [totalAmount, data],
+  );
+
   const categoryOptions = useMemo(() => {
     if (!data) {
       return [];
@@ -728,7 +734,7 @@ function GuestMenuPageContent() {
                     Grand Total
                   </p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
-                    {formatCurrency(totalAmount)}
+                    {formatCurrency(grandTotal)}
                   </p>
                 </div>
               </div>
@@ -938,11 +944,17 @@ function GuestMenuPageContent() {
                   </p>
                 </div>
 
+                {grandTotal !== totalAmount && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Termasuk tax, service, dan pembulatan outlet.
+                  </p>
+                )}
+
                 <div className="mt-3 border-t border-slate-200 pt-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-slate-600">Grand Total</p>
                     <p className="text-base font-semibold text-slate-900">
-                      {formatCurrency(totalAmount)}
+                      {formatCurrency(grandTotal)}
                     </p>
                   </div>
                 </div>

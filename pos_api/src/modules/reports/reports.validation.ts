@@ -2,7 +2,7 @@
 
 export const scopeSchema = z.enum(['business','outlet']).default('outlet');
 export const groupBySchema = z.enum(['day','week','month']).default('day');
-export const orderStatusFilterSchema = z.enum(['DRAFT', 'SUBMITTED', 'IN_PROGRESS', 'READY', 'COMPLETED', 'CANCELLED', 'ALL']).default('SUBMITTED');
+export const orderStatusFilterSchema = z.enum(['DRAFT', 'SUBMITTED', 'IN_PROGRESS', 'READY', 'COMPLETED', 'CANCELLED', 'ALL']).default('ALL');
 
 export const ymdSchema = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/); // yyyy-mm-dd
 

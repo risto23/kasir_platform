@@ -587,68 +587,70 @@ async function applyInventoryOutForPurchaseReturnItem(
   });
 }
 
+/**
+ * Reduce supplier debt (hutang) for a posted purchase return.
+ *
+ * - The invoice is taken from the return, or looked up by goods receipt when
+ *   the return was drafted before the invoice existed.
+ * - Applies whether or not the invoice already has payments: grandTotal drops
+ *   by the return value and outstanding = grandTotal - paidAmount (never < 0).
+ * - Returns the linked invoice id (or null when there is no active invoice).
+ */
 async function adjustLinkedSupplierInvoiceForPurchaseReturn(
   tx: Prisma.TransactionClient,
   params: {
+    businessId: string;
+    goodsReceiptId: string;
     supplierInvoiceId: string | null;
     returnTotal: Prisma.Decimal;
   },
-) {
-  if (!params.supplierInvoiceId) {
-    return;
-  }
-
-  const invoice = await tx.supplierInvoice.findUnique({
-    where: {
-      id: params.supplierInvoiceId,
-    },
+): Promise<string | null> {
+  const invoice = await tx.supplierInvoice.findFirst({
+    where: params.supplierInvoiceId
+      ? {
+          id: params.supplierInvoiceId,
+          businessId: params.businessId,
+        }
+      : {
+          businessId: params.businessId,
+          goodsReceiptId: params.goodsReceiptId,
+        },
     select: {
       id: true,
       status: true,
       grandTotal: true,
       paidAmount: true,
-      outstandingAmount: true,
-      _count: {
-        select: {
-          payments: true,
-        },
-      },
     },
   });
 
-  if (!invoice) {
-    return;
+  if (!invoice || invoice.status === SupplierInvoiceStatus.VOID) {
+    return null;
   }
 
-  if (
-    invoice.status !== SupplierInvoiceStatus.UNPAID ||
-    invoice._count.payments > 0
-  ) {
-    return;
-  }
-
+  const zero = new Prisma.Decimal(0);
   const nextGrandTotal = invoice.grandTotal.minus(params.returnTotal);
 
-  if (nextGrandTotal.lessThan(new Prisma.Decimal(0))) {
+  if (nextGrandTotal.lessThan(zero)) {
     throw createHttpError(
       'Nilai retur melebihi grand total invoice supplier terkait.',
       400,
     );
   }
 
-  if (nextGrandTotal.lessThanOrEqualTo(new Prisma.Decimal(0))) {
-    await tx.supplierInvoice.update({
-      where: {
-        id: invoice.id,
-      },
-      data: {
-        grandTotal: new Prisma.Decimal(0),
-        outstandingAmount: new Prisma.Decimal(0),
-        status: SupplierInvoiceStatus.VOID,
-      },
-    });
+  const remaining = nextGrandTotal.minus(invoice.paidAmount);
+  const nextOutstanding = remaining.lessThan(zero) ? zero : remaining;
+  const hasPayment = invoice.paidAmount.greaterThan(zero);
 
-    return;
+  let nextStatus: SupplierInvoiceStatus;
+
+  if (nextGrandTotal.lessThanOrEqualTo(zero) && !hasPayment) {
+    nextStatus = SupplierInvoiceStatus.VOID;
+  } else if (nextOutstanding.lessThanOrEqualTo(zero)) {
+    nextStatus = SupplierInvoiceStatus.PAID;
+  } else if (hasPayment) {
+    nextStatus = SupplierInvoiceStatus.PARTIALLY_PAID;
+  } else {
+    nextStatus = SupplierInvoiceStatus.UNPAID;
   }
 
   await tx.supplierInvoice.update({
@@ -657,9 +659,12 @@ async function adjustLinkedSupplierInvoiceForPurchaseReturn(
     },
     data: {
       grandTotal: nextGrandTotal,
-      outstandingAmount: nextGrandTotal.minus(invoice.paidAmount),
+      outstandingAmount: nextOutstanding,
+      status: nextStatus,
     },
   });
+
+  return invoice.id;
 }
 
 export async function listPurchaseReturns(input: ListPurchaseReturnsInput) {
@@ -996,7 +1001,9 @@ export async function postPurchaseReturn(input: PostPurchaseReturnInput) {
       });
     }
 
-    await adjustLinkedSupplierInvoiceForPurchaseReturn(tx, {
+    const linkedSupplierInvoiceId = await adjustLinkedSupplierInvoiceForPurchaseReturn(tx, {
+      businessId: purchaseReturn.businessId,
+      goodsReceiptId: purchaseReturn.goodsReceiptId,
       supplierInvoiceId: purchaseReturn.supplierInvoiceId,
       returnTotal: purchaseReturn.totalAmount,
     });
@@ -1006,6 +1013,7 @@ export async function postPurchaseReturn(input: PostPurchaseReturnInput) {
         id: purchaseReturn.id,
       },
       data: {
+        supplierInvoiceId: linkedSupplierInvoiceId ?? purchaseReturn.supplierInvoiceId,
         status: PurchaseReturnStatus.POSTED,
         postedByBusinessUserId: input.postedByBusinessUserId,
         postedAt: new Date(),

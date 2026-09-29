@@ -19,6 +19,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { resolveImageUrl } from '@/lib/resolve-image-url';
 import {
+  calculateGuestCharges,
   clearGuestCart,
   createGuestOrder,
   getGuestCart,
@@ -31,7 +32,9 @@ import type {
   GuestCartItem,
   GuestCartStorage,
   GuestMenuCategoryGroup,
+  GuestMenuChargeRule,
   GuestMenuItem,
+  GuestMenuRoundingSetting,
 } from '@/types/guest';
 import Image from 'next/image';
 
@@ -225,6 +228,10 @@ function GuestCheckoutPageContent() {
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [successData, setSuccessData] = useState<CreatedGuestOrderResponse | null>(null);
+  const [chargeConfig, setChargeConfig] = useState<{
+    charges: GuestMenuChargeRule[];
+    rounding: GuestMenuRoundingSetting | undefined;
+  }>({ charges: [], rounding: undefined });
 
 useEffect(() => {
   let isCancelled = false;
@@ -261,6 +268,11 @@ useEffect(() => {
       }
 
       const menuItemMap = createMenuItemMap(menuResponse.categories);
+
+      setChargeConfig({
+        charges: menuResponse.charges ?? [],
+        rounding: menuResponse.rounding,
+      });
 
       const sanitizedCart = sanitizeCartAgainstMenu({
         existingCart,
@@ -459,6 +471,11 @@ useEffect(() => {
     return cart.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [cart]);
 
+  const chargeSummary = useMemo(
+    () => calculateGuestCharges(subtotal, chargeConfig.charges, chargeConfig.rounding),
+    [subtotal, chargeConfig],
+  );
+
   const menuUrl = hasValidParams
     ? buildGuestMenuUrl({
         outletId,
@@ -632,7 +649,7 @@ useEffect(() => {
                     Grand Total
                   </p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
-                    {formatCurrency(subtotal)}
+                    {formatCurrency(chargeSummary.grandTotal)}
                   </p>
                 </div>
               </div>
@@ -811,19 +828,32 @@ useEffect(() => {
 
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <p className="text-slate-500">Tax</p>
-                  <p className="font-semibold text-slate-900">{formatCurrency(0)}</p>
+                  <p className="font-semibold text-slate-900">
+                    {formatCurrency(chargeSummary.taxAmount)}
+                  </p>
                 </div>
 
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <p className="text-slate-500">Service</p>
-                  <p className="font-semibold text-slate-900">{formatCurrency(0)}</p>
+                  <p className="font-semibold text-slate-900">
+                    {formatCurrency(chargeSummary.serviceChargeAmount)}
+                  </p>
                 </div>
+
+                {chargeSummary.otherChargeAmount > 0 && (
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <p className="text-slate-500">Biaya Lain</p>
+                    <p className="font-semibold text-slate-900">
+                      {formatCurrency(chargeSummary.otherChargeAmount)}
+                    </p>
+                  </div>
+                )}
 
                 <div className="mt-3 border-t border-slate-200 pt-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-slate-600">Grand Total</p>
                     <p className="text-base font-semibold text-slate-900">
-                      {formatCurrency(subtotal)}
+                      {formatCurrency(chargeSummary.grandTotal)}
                     </p>
                   </div>
                 </div>
@@ -854,8 +884,8 @@ useEffect(() => {
               </div>
 
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-xs leading-6 text-amber-800">
-                Setelah dikirim, pesanan guest masuk ke alur kasir. Tax dan service di sini
-                tetap 0 agar tidak bikin perhitungan berbeda dari flow backend yang aktif.
+                Setelah dikirim, pesanan guest masuk ke alur kasir. Grand Total sudah termasuk
+                tax, service, dan pembulatan outlet. Total akhir mengikuti struk dari kasir.
               </div>
             </div>
           </aside>
