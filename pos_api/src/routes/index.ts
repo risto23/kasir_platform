@@ -17,6 +17,7 @@ import goodsReceiptRoutes from '../modules/goods-receipts/goods-receipts.routes'
 import purchaseReturnRoutes from '../modules/purchase-returns/purchase-returns.routes';
 import purchasePriceHistoryRoutes from '../modules/purchase-price-history/purchase-price-history.routes';
 import supplierInvoiceRoutes from '../modules/supplier-invoices/supplier-invoices.routes';
+import supplierCreditRoutes from '../modules/supplier-credits/supplier-credits.routes';
 import promoRoutes from '../modules/promos/promo.routes';
 import orderRoutes from '../modules/orders/order.routes';
 import paymentRoutes from '../modules/payments/payment.routes';
@@ -62,6 +63,7 @@ router.use('/goods-receipts', goodsReceiptRoutes);
 router.use('/purchase-returns', purchaseReturnRoutes);
 router.use('/purchase-price-history', purchasePriceHistoryRoutes);
 router.use('/supplier-invoices', supplierInvoiceRoutes);
+router.use('/supplier-credits', supplierCreditRoutes);
 router.use('/promos', promoRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);

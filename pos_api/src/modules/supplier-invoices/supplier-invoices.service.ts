@@ -8,6 +8,7 @@ import {
   SupplierStatus,
 } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { getSupplierCreditsForInvoice } from '../supplier-credits/supplier-credits.service';
 import type {
   CreateSupplierInvoiceInput,
   CreateSupplierPaymentInput,
@@ -681,12 +682,15 @@ async function getSupplierInvoiceByIdInternal(
   }
 
   const summary = mapSupplierInvoiceSummary(invoice);
+  const credits = await getSupplierCreditsForInvoice(db, invoice.id);
 
   return {
     ...summary,
     outletName: invoice.outlet.name,
     createdByBusinessUserId: invoice.createdByBusinessUserId,
     payments: invoice.payments.map(mapSupplierPayment),
+    issuedCredits: credits.issuedCredits,
+    appliedCredits: credits.appliedCredits,
   };
 }
 
@@ -1041,6 +1045,7 @@ export async function createSupplierPayment(input: CreateSupplierPaymentInput) {
         outletId: true,
         supplierId: true,
         status: true,
+        paidAmount: true,
         outstandingAmount: true,
       },
     });
@@ -1082,19 +1087,9 @@ export async function createSupplierPayment(input: CreateSupplierPaymentInput) {
     });
 
     const nextOutstanding = invoice.outstandingAmount.minus(amount);
-    const nextPaid = amount.plus(
-      await tx.supplierPayment.aggregate({
-        where: {
-          supplierInvoiceId: invoice.id,
-          id: {
-            not: payment.id,
-          },
-        },
-        _sum: {
-          amount: true,
-        },
-      }).then((result) => result._sum.amount ?? new Prisma.Decimal(0)),
-    );
+    // paidAmount = supplier payments + applied supplier credit, so add to the
+    // stored value instead of re-summing payments only.
+    const nextPaid = invoice.paidAmount.plus(amount);
 
     await tx.supplierInvoice.update({
       where: {

@@ -1,4 +1,8 @@
 import { PaymentMethod, SupplierInvoiceStatus } from '@prisma/client';
+import type {
+  SupplierCreditSummaryDto,
+  SupplierCreditUsageDto,
+} from '../supplier-credits/supplier-credits.types';
 
 export type ListSupplierInvoicesQuery = {
   outletId: string;
@@ -154,4 +158,8 @@ export type SupplierInvoiceDetailDto = SupplierInvoiceSummaryDto & {
   outletName: string;
   createdByBusinessUserId: string;
   payments: SupplierPaymentDto[];
+  // Credit issued because this invoice ended up overpaid (after a return).
+  issuedCredits: SupplierCreditSummaryDto[];
+  // Supplier credit used to pay this invoice (counted in paidAmount).
+  appliedCredits: SupplierCreditUsageDto[];
 };
