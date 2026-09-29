@@ -24,6 +24,8 @@ export type OrdersReportItem = {
   outletId: string;
   outletName: string | null;
   totalAmount: number;
+  /** Sum of non-deleted PAID payments for the order (money actually collected). */
+  paidAmount: number;
   paymentStatus: string;
   status: string;
   createdAt: string;

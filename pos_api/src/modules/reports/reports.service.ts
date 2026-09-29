@@ -1,4 +1,4 @@
-import { OrderStatus, Prisma, SupplierInvoiceStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma, SupplierInvoiceStatus } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import type {
   ItemsReportResponse,
@@ -124,6 +124,25 @@ function endOfDay(value: string): Date {
   return new Date(`${value}T23:59:59.999Z`);
 }
 
+// "ALL" means every real sale: drafts were never checked out and cancelled
+// orders were voided, so neither belongs in sales figures.
+function buildOrderStatusCondition(orderStatus: string): Prisma.OrderWhereInput {
+  if (orderStatus === 'ALL') {
+    return { status: { notIn: [OrderStatus.DRAFT, OrderStatus.CANCELLED] } };
+  }
+
+  return { status: orderStatus as OrderStatus };
+}
+
+const collectedPaymentsSelect = {
+  where: { status: PaymentStatus.PAID, deletedAt: null },
+  select: { amountPaid: true },
+} satisfies Prisma.Order$paymentsArgs;
+
+function sumCollected(payments: Array<{ amountPaid: Prisma.Decimal }>): number {
+  return payments.reduce((sum, payment) => sum + Number(payment.amountPaid), 0);
+}
+
 export async function getSalesSummaryService(params: {
   businessId: string;
   scope: 'business'|'outlet';
@@ -133,9 +152,7 @@ export async function getSalesSummaryService(params: {
   orderStatus: string;
 }): Promise<SalesSummaryResponse> {
   const dateRange = buildDateRangeUtc(params.start, params.end, 'Asia/Jakarta');
-  const statusCondition = params.orderStatus !== 'ALL'
-    ? { status: params.orderStatus as OrderStatus }
-    : {};
+  const statusCondition = buildOrderStatusCondition(params.orderStatus);
 
   const orders = await prisma.order.findMany({
     where: {
@@ -145,7 +162,8 @@ export async function getSalesSummaryService(params: {
       createdAt: { gte: dateRange.startUtc, lte: dateRange.endUtc },
     },
     select: {
-      id: true, totalAmount: true, createdAt: true,
+      id: true, createdAt: true,
+      payments: collectedPaymentsSelect,
     },
     orderBy: { createdAt: 'asc' },
   });
@@ -161,7 +179,7 @@ export async function getSalesSummaryService(params: {
 
     const b = buckets.get(key) || { orders: 0, revenue: 0 };
     b.orders += 1;
-    b.revenue += Number(o.totalAmount);
+    b.revenue += sumCollected(o.payments);
     buckets.set(key, b);
   }
 
@@ -192,9 +210,7 @@ export async function getOrdersReportService(params: {
   businessId: string; scope: 'business'|'outlet'; outletId?: string | null; start: string; end: string; page: number; perPage: number; orderStatus: string;
 }): Promise<OrdersReportResponse> {
   const dateRange = buildDateRangeUtc(params.start, params.end, 'Asia/Jakarta');
-  const statusCondition = params.orderStatus !== 'ALL'
-    ? { status: params.orderStatus as OrderStatus }
-    : {};
+  const statusCondition = buildOrderStatusCondition(params.orderStatus);
 
   const where: Prisma.OrderWhereInput = {
     businessId: params.businessId,
@@ -207,12 +223,12 @@ export async function getOrdersReportService(params: {
     prisma.order.count({ where }),
     prisma.order.findMany({
       where, orderBy: { createdAt: 'desc' }, skip: (params.page-1)*params.perPage, take: params.perPage,
-      select: { id: true, orderNumber: true, outletId: true, totalAmount: true, paymentStatus: true, status: true, createdAt: true, outlet: { select: { name: true } } },
+      select: { id: true, orderNumber: true, outletId: true, totalAmount: true, paymentStatus: true, status: true, createdAt: true, outlet: { select: { name: true } }, payments: collectedPaymentsSelect },
     })
   ]);
 
   return {
-    items: rows.map((r) => ({ id: r.id, orderNumber: r.orderNumber, outletId: r.outletId, outletName: r.outlet?.name ?? null, totalAmount: Number(r.totalAmount), paymentStatus: r.paymentStatus, status: r.status, createdAt: r.createdAt.toISOString() })),
+    items: rows.map((r) => ({ id: r.id, orderNumber: r.orderNumber, outletId: r.outletId, outletName: r.outlet?.name ?? null, totalAmount: Number(r.totalAmount), paidAmount: sumCollected(r.payments), paymentStatus: r.paymentStatus, status: r.status, createdAt: r.createdAt.toISOString() })),
     meta: { page: params.page, perPage: params.perPage, total, totalPages: Math.max(1, Math.ceil(total/params.perPage)) },
   };
 }
@@ -221,9 +237,7 @@ export async function getItemsReportService(params: {
   businessId: string; scope: 'business'|'outlet'; outletId?: string | null; start: string; end: string; page: number; perPage: number; orderStatus: string;
 }): Promise<ItemsReportResponse> {
   const dateRange = buildDateRangeUtc(params.start, params.end, 'Asia/Jakarta');
-  const statusCondition = params.orderStatus !== 'ALL'
-    ? { status: params.orderStatus as OrderStatus }
-    : {};
+  const statusCondition = buildOrderStatusCondition(params.orderStatus);
 
   const orders = await prisma.order.findMany({
     where: {
@@ -469,8 +483,8 @@ export function buildSalesSummaryCsv(data: SalesSummaryResponse): string {
 }
 
 export function buildOrdersReportCsv(data: OrdersReportResponse): string {
-  const headers = ['orderNumber', 'outletName', 'totalAmount', 'paymentStatus', 'status', 'createdAt'];
-  const rows = data.items.map((r) => [r.orderNumber, r.outletName ?? '', r.totalAmount, r.paymentStatus, r.status, r.createdAt]);
+  const headers = ['orderNumber', 'outletName', 'totalAmount', 'paidAmount', 'paymentStatus', 'status', 'createdAt'];
+  const rows = data.items.map((r) => [r.orderNumber, r.outletName ?? '', r.totalAmount, r.paidAmount, r.paymentStatus, r.status, r.createdAt]);
   return toCsv(headers, rows);
 }
 

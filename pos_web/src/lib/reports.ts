@@ -62,6 +62,7 @@ type OrdersReportItem = {
   outletId: string;
   outletName: string | null;
   totalAmount: number;
+  paidAmount: number;
   paymentStatus: string;
   status: string;
   createdAt: string;
@@ -253,7 +254,7 @@ function buildTimeseriesFromOrders(orders: OrdersReportItem[]) {
     const current = buckets.get(key) ?? { orders: 0, gross: 0 };
 
     current.orders += 1;
-    current.gross += Number(order.totalAmount) || 0;
+    current.gross += Number(order.paidAmount) || 0;
     buckets.set(key, current);
   }
 
@@ -280,7 +281,7 @@ function buildOutletRowsFromOrders(orders: OrdersReportItem[]) {
     };
 
     current.orders += 1;
-    const nextGross = Number(current.gross) + (Number(order.totalAmount) || 0);
+    const nextGross = Number(current.gross) + (Number(order.paidAmount) || 0);
     current.gross = toMoneyString(nextGross);
     current.net = toMoneyString(nextGross);
     current.aov = toMoneyString(current.orders > 0 ? nextGross / current.orders : 0);
@@ -353,7 +354,7 @@ export async function fetchOutletSales(
   });
 
   const gross = orders.reduce(
-    (sum, order) => sum + (Number(order.totalAmount) || 0),
+    (sum, order) => sum + (Number(order.paidAmount) || 0),
     0,
   );
 
@@ -377,7 +378,7 @@ export async function fetchBusinessSales(
   );
 
   const gross = orders.reduce(
-    (sum, order) => sum + (Number(order.totalAmount) || 0),
+    (sum, order) => sum + (Number(order.paidAmount) || 0),
     0,
   );
   const summary = buildSummary(orders.length, gross);

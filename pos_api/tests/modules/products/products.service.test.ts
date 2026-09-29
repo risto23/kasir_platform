@@ -31,6 +31,9 @@ jest.mock('../../../src/config/prisma', () => ({
     promo: {
       findMany: jest.fn(),
     },
+    productOutletSetting: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
@@ -58,6 +61,9 @@ type ProductsPrismaMock = {
     promo: {
       findMany: jest.Mock;
     };
+    productOutletSetting: {
+      findMany: jest.Mock;
+    };
   };
 };
 
@@ -80,6 +86,7 @@ describe('products.service', () => {
       },
     });
     prismaMock.prisma.product.count.mockResolvedValue(0);
+    prismaMock.prisma.productOutletSetting.findMany.mockResolvedValue([]);
   });
 
   it('rejects when category or outlet does not belong to business', async () => {
@@ -181,6 +188,87 @@ describe('products.service', () => {
     expect(result.items[0]?.promoDiscountAmount).toBe(30);
     expect(result.items[0]?.effectivePrice).toBe(70);
     expect(result.items[0]?.appliedPromo?.name).toBe('Brand Discount');
+  });
+
+  it('prices outlet listing with priceOverride and hides unavailable products', async () => {
+    prismaMock.prisma.outlet.findFirst.mockResolvedValueOnce({ id: 'outlet-2' });
+    prismaMock.prisma.product.findMany.mockResolvedValueOnce([
+      {
+        id: 'product-1',
+        businessId: 'biz-1',
+        categoryId: null,
+        name: 'QA Ayam Bakar',
+        code: 'MENU-1',
+        sku: null,
+        barcode: null,
+        brand: null,
+        unit: null,
+        description: null,
+        imageUrl: null,
+        basePrice: new Prisma.Decimal(35000),
+        status: ProductStatus.ACTIVE,
+        category: null,
+      },
+    ]);
+    prismaMock.prisma.product.count.mockResolvedValueOnce(1);
+    prismaMock.prisma.promo.findMany.mockResolvedValueOnce([
+      {
+        id: 'promo-1',
+        name: 'Ayam 10%',
+        targetType: PromoTargetType.PRODUCT,
+        categoryId: null,
+        productId: 'product-1',
+        targetTextValue: null,
+        discountType: PromoDiscountType.PERCENTAGE,
+        discountValue: new Prisma.Decimal(10),
+        startDate: new Date('2000-01-01T00:00:00.000Z'),
+        endDate: new Date('2099-12-31T00:00:00.000Z'),
+        startTime: '00:00',
+        endTime: '23:59',
+        status: PromoStatus.ACTIVE,
+        outletScope: PromoOutletScope.ALL_OUTLETS,
+        promoOutlets: [],
+      },
+    ]);
+    prismaMock.prisma.productOutletSetting.findMany.mockResolvedValueOnce([
+      { productId: 'product-1', priceOverride: new Prisma.Decimal(40000) },
+    ]);
+
+    const result = await listProducts('biz-1', {
+      outletId: 'outlet-2',
+      page: 1,
+      perPage: 10,
+    });
+
+    expect(prismaMock.prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          NOT: {
+            productOutletSettings: {
+              some: expect.objectContaining({ outletId: 'outlet-2' }),
+            },
+          },
+        }),
+      }),
+    );
+    // Master price stays visible; outlet price and promo use the override.
+    expect(result.items[0]?.basePrice).toBe(35000);
+    expect(result.items[0]?.outletPrice).toBe(40000);
+    expect(result.items[0]?.promoDiscountAmount).toBe(4000);
+    expect(result.items[0]?.effectivePrice).toBe(36000);
+  });
+
+  it('does not filter by outlet availability when no outletId is given', async () => {
+    prismaMock.prisma.product.findMany.mockResolvedValueOnce([]);
+    prismaMock.prisma.promo.findMany.mockResolvedValueOnce([]);
+
+    await listProducts('biz-1', { page: 1, perPage: 10 });
+
+    const call = prismaMock.prisma.product.findMany.mock.calls[0]?.[0] as {
+      where: Record<string, unknown>;
+    };
+    expect(call.where.NOT).toBeUndefined();
+    expect(prismaMock.prisma.productOutletSetting.findMany).not.toHaveBeenCalled();
   });
 
   it('returns product detail or throws when product is missing', async () => {

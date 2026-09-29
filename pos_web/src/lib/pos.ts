@@ -30,6 +30,7 @@ type ProductApiRow = {  id: string;
   description?: string | null;
   imageUrl?: string | null;
   basePrice?: string | number | null;
+  outletPrice?: string | number | null;
   effectivePrice?: string | number | null;
   promoPrice?: string | number | null;
   promoDiscountAmount?: string | number | null;
@@ -241,7 +242,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {  return ty
   }  return normalizeMeta(envelopeMeta);
 }function mapAppliedPromo(row?: ProductApiAppliedPromoRow | null): PosAppliedPromo | null {  if (!row) {    return null;
   }  return {    id: row.id,    name: row.name,    targetType: row.targetType,    targetValue: row.targetValue,    discountType: row.discountType,    discountValue: row.discountValue,    discountAmount: toNumber(row.discountAmount),  };
-}function mapProduct(row: ProductApiRow): PosProductItem {  const basePrice = toNumber(row.basePrice);
+}function mapProduct(row: ProductApiRow): PosProductItem {  // POS charges the outlet price (priceOverride when set), so the cart and
+  // promo mirror must start from it rather than the master basePrice.
+  const basePrice =
+    row.outletPrice !== undefined && row.outletPrice !== null
+      ? toNumber(row.outletPrice)
+      : toNumber(row.basePrice);
   const effectivePrice =    row.effectivePrice !== undefined && row.effectivePrice !== null      ? toNumber(row.effectivePrice)      : basePrice;
   const promoPrice =    row.promoPrice !== undefined && row.promoPrice !== null      ? toNumber(row.promoPrice)      : effectivePrice;
   const promoDiscountAmount = toNumber(row.promoDiscountAmount);
