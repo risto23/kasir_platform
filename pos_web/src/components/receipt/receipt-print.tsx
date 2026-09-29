@@ -6,6 +6,7 @@ import { faPrint, faCircleNotch, faTriangleExclamation } from '@fortawesome/free
 
 import type { ReceiptDetailResponse, ReceiptItemSnapshot } from '@/types/receipt';
 import { formatReceiptCurrency, formatReceiptDateTime } from '@/lib/receipt';
+import { getOrderRoundingAmount } from '@/lib/rounding';
 import { useBluetoothPrinter } from '@/hooks/use-bluetooth-printer';
 
 type ReceiptPrintProps = {
@@ -172,6 +173,14 @@ export default function ReceiptPrint({
       receipt?.total ??
       0,
   );
+
+  const roundingAmount = getOrderRoundingAmount({
+    subtotal,
+    discountAmount,
+    taxAmount,
+    serviceChargeAmount,
+    totalAmount: total,
+  });
 
   const amountPaid = normalizeNumber(receipt?.payment?.amountPaid);
   const amountTendered = normalizeNumber(receipt?.payment?.amountTendered);
@@ -397,6 +406,16 @@ export default function ReceiptPrint({
                 <span className="text-slate-500">Service Charge</span>
                 <span className="text-slate-900">
                   {formatReceiptCurrency(serviceChargeAmount)}
+                </span>
+              </div>
+            ) : null}
+
+            {roundingAmount !== 0 ? (
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-slate-500">Pembulatan</span>
+                <span className="text-slate-900">
+                  {roundingAmount > 0 ? '+' : '-'}
+                  {formatReceiptCurrency(Math.abs(roundingAmount))}
                 </span>
               </div>
             ) : null}

@@ -69,6 +69,7 @@ export type GuestChargeSummary = {
   taxAmount: number;
   serviceChargeAmount: number;
   otherChargeAmount: number;
+  roundingAmount: number;
   grandTotal: number;
 };
 

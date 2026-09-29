@@ -1,5 +1,6 @@
 import type { ReceiptDetailResponse, ReceiptItemSnapshot } from '@/types/receipt';
 import { formatReceiptCurrency, formatReceiptDateTime } from './receipt';
+import { getOrderRoundingAmount } from './rounding';
 
 // BLE thermal printer profiles – tried in order until one connects
 const BLE_PROFILES = [
@@ -107,6 +108,13 @@ function buildReceiptBuffer(receipt: ReceiptDetailResponse): Uint8Array {
   const tax = normalizeNum(receipt.contentSnapshot?.taxAmount ?? receipt.order?.taxAmount);
   const service = normalizeNum(receipt.contentSnapshot?.serviceChargeAmount ?? receipt.order?.serviceChargeAmount);
   const total = normalizeNum(receipt.contentSnapshot?.totalAmount ?? receipt.order?.totalAmount ?? receipt.total);
+  const rounding = getOrderRoundingAmount({
+    subtotal,
+    discountAmount: discount,
+    taxAmount: tax,
+    serviceChargeAmount: service,
+    totalAmount: total,
+  });
   const amountPaid = normalizeNum(receipt.payment?.amountPaid);
   const amountTendered = normalizeNum(receipt.payment?.amountTendered);
   const change = normalizeNum(receipt.payment?.changeAmount);
@@ -171,6 +179,9 @@ function buildReceiptBuffer(receipt: ReceiptDetailResponse): Uint8Array {
   if (discount > 0) push(...leftRight('Diskon', `-${formatReceiptCurrency(discount)}`));
   if (tax > 0) push(...leftRight('Tax', formatReceiptCurrency(tax)));
   if (service > 0) push(...leftRight('Service', formatReceiptCurrency(service)));
+  if (rounding !== 0) {
+    push(...leftRight('Pembulatan', `${rounding > 0 ? '+' : '-'}${formatReceiptCurrency(Math.abs(rounding))}`));
+  }
 
   push(...BOLD_ON);
   push(...leftRight('TOTAL', formatReceiptCurrency(total)));

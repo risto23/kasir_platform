@@ -32,6 +32,7 @@ import {
   updateOrderStatus,
 } from '@/lib/pos';
 import { getReceiptByOrderId } from '@/lib/receipt';
+import { getOrderRoundingAmount } from '@/lib/rounding';
 import type {
   PosOrderResponse,
   PosOrderStatus,
@@ -382,6 +383,15 @@ export default function DineInOrderPage() {
   const canComplete =
     order?.paymentStatus === 'PAID' && order.status === 'READY';
   const isFinished = order && ['COMPLETED', 'CANCELLED'].includes(order.status);
+  const roundingAmount = order
+    ? getOrderRoundingAmount({
+        subtotal: order.subtotal,
+        discountAmount: order.discountAmount,
+        taxAmount: order.taxAmount,
+        serviceChargeAmount: order.serviceChargeAmount,
+        totalAmount: order.totalAmount,
+      })
+    : 0;
 
   if (loadState === 'loading') {
     return (
@@ -601,6 +611,15 @@ export default function DineInOrderPage() {
                 <div className="flex justify-between text-slate-500">
                   <span>Service Charge</span>
                   <span>{formatCurrency(order.serviceChargeAmount)}</span>
+                </div>
+              )}
+              {roundingAmount !== 0 && (
+                <div className="flex justify-between text-slate-500">
+                  <span>Pembulatan</span>
+                  <span>
+                    {roundingAmount > 0 ? '+' : '-'}
+                    {formatCurrency(Math.abs(roundingAmount))}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between font-semibold text-slate-800 text-base pt-1 border-t border-slate-200">
