@@ -849,6 +849,16 @@ useEffect(() => {
                   </div>
                 )}
 
+                {chargeSummary.roundingAmount !== 0 && (
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <p className="text-slate-500">Pembulatan</p>
+                    <p className="font-semibold text-slate-900">
+                      {chargeSummary.roundingAmount > 0 ? '+' : '-'}
+                      {formatCurrency(Math.abs(chargeSummary.roundingAmount))}
+                    </p>
+                  </div>
+                )}
+
                 <div className="mt-3 border-t border-slate-200 pt-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-slate-600">Grand Total</p>

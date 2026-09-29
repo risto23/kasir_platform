@@ -186,6 +186,7 @@ export function calculateGuestCharges(
     taxAmount: roundCharge(taxAmount),
     serviceChargeAmount: roundCharge(serviceChargeAmount),
     otherChargeAmount: roundCharge(otherChargeAmount),
+    roundingAmount: roundCharge(grandTotal - preRound),
     grandTotal,
   };
 }
